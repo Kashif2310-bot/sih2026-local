@@ -61,6 +61,7 @@ export function AssistantProvider({
             timestamp: Date.now(),
             isFallback: result.reply.isFallback,
             providerUsed: result.reply.usedProvider,
+            sourceStatus: result.sourceStatus,
           },
         ])
         pendingTextRef.current = null

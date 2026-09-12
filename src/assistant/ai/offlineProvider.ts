@@ -68,9 +68,12 @@ export function composeOfflineReply(context: AIRequestContext): string {
     paragraphs.push(context.missingFields[0].question)
   }
 
-  paragraphs.push(
-    '(Generated locally without an AI model — offline reasoning over the maintained scheme knowledge base. Always verify details against each scheme\'s official source before acting.)',
-  )
+  // Data-source freshness/verification status is now conveyed by a
+  // dedicated UI indicator driven by AssistantTurnResult.sourceStatus (see
+  // orchestrator.ts and SourceStatusBadge.tsx), not restated in the reply
+  // text itself — this used to say "Generated locally without an AI
+  // model..." here, which conflated "no AI model" with "static data" in one
+  // confusing, alarmist line. Removed on purpose; do not re-add it.
 
   return paragraphs.join('\n\n')
 }

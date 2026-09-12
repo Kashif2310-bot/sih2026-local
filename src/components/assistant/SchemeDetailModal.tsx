@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, ExternalLink, FileText, Info, ListChecks, X } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileText, Globe, Info, ListChecks, X } from 'lucide-react'
 import { StatusBadge } from './StatusBadge'
 import type { RankedScheme, UserProfile } from '../../assistant/types'
 import { saveHandoff } from '../../apply/store'
@@ -111,6 +111,31 @@ export function SchemeDetailModal({
                 {t('assistant.missingForThis')}: {eligibility.missingInfo.join(', ')}
               </p>
             )}
+          </Section>
+        )}
+
+        {ranked.liveEvidence && ranked.liveEvidence.length > 0 && (
+          <Section title={t('assistant.detail.liveEvidence')} icon={Globe}>
+            <ul className="space-y-3">
+              {ranked.liveEvidence.map((live) => (
+                <li key={`${live.sourceUrl}-${live.retrievedAt}`} className="rounded-xl bg-[#e8f6ee] p-3 text-sm">
+                  <p className="text-ink/80">{live.summary}</p>
+                  <p className="mt-1.5 text-[11px] text-ink/50">
+                    {live.sourceName} · {t('assistant.detail.retrievedAt')}:{' '}
+                    {new Date(live.retrievedAt).toLocaleString()}
+                    {live.publishedAt ? ` · ${t('assistant.detail.publishedAt')}: ${live.publishedAt}` : ''}
+                  </p>
+                  <a
+                    href={live.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-forest hover:underline"
+                  >
+                    {live.sourceUrl} <ExternalLink className="h-3 w-3" />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </Section>
         )}
 

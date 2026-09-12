@@ -26,6 +26,7 @@ Hard rules — follow all of them exactly:
 6. If SUGGESTED FOLLOW-UP QUESTIONS is non-empty, weave in ONE of them naturally at the end of your reply so the conversation keeps moving — do not invent a different question.
 7. Keep the reply concise (roughly 3-6 short sentences plus, if useful, a short numbered list of the top schemes), warm, and in plain language for a first-time applicant. No markdown headers.
 8. Do not fabricate statistics, dates, office names, phone numbers, or procedures beyond what is given.
+9. A scheme's evidence may include a "Live official data" line — a statistic fetched just now from an official government open-data source (e.g. how many units were sanctioned in the applicant's state). Treat it only as supplementary real-world context, never as an eligibility rule, loan amount, or document requirement — those always come from the scheme's main entry, not from live data.
 
 Your only job is to explain the given evidence clearly and personally — not to invent new facts.`
 
@@ -80,6 +81,13 @@ function describeSchemeEvidence(context: AIRequestContext): string {
       if (s.interest?.ratePercent !== undefined) lines.push(`   Interest: ${s.interest.ratePercent}%${s.interest.notes ? ` — ${s.interest.notes}` : ''}`)
       lines.push(`   Official info: ${s.officialInfoUrl}`)
       lines.push(`   Source: ${s.source} (last verified ${s.lastVerifiedDate}) — a maintained reference entry, confirm before acting.`)
+      if (r.liveEvidence && r.liveEvidence.length > 0) {
+        for (const live of r.liveEvidence) {
+          lines.push(
+            `   Live official data (${live.sourceName}, retrieved ${live.retrievedAt}${live.publishedAt ? `, published ${live.publishedAt}` : ''}): ${live.summary} — ${live.sourceUrl}`,
+          )
+        }
+      }
       return lines.join('\n')
     })
     .join('\n\n')

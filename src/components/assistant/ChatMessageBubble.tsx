@@ -1,10 +1,9 @@
-import { useTranslation } from 'react-i18next'
-import { Bot, User, WifiOff } from 'lucide-react'
+import { Bot, User } from 'lucide-react'
 import clsx from 'clsx'
 import type { UIMessage } from '../../assistant/state/assistant-state'
+import { SourceStatusBadge } from './SourceStatusBadge'
 
 export function ChatMessageBubble({ message }: { message: UIMessage }) {
-  const { t } = useTranslation()
   const isUser = message.role === 'user'
 
   return (
@@ -27,12 +26,7 @@ export function ChatMessageBubble({ message }: { message: UIMessage }) {
         >
           {message.text}
         </div>
-        {!isUser && message.isFallback && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/15 px-2.5 py-1 text-[11px] font-semibold text-[#8a6a00]">
-            <WifiOff className="h-3 w-3" />
-            {t('assistant.offlineBadge')}
-          </span>
-        )}
+        {!isUser && message.sourceStatus && <SourceStatusBadge status={message.sourceStatus} />}
       </div>
     </div>
   )

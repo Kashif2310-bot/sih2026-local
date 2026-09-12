@@ -12,12 +12,14 @@
 import { defaultProviderChain } from './ai'
 import { validateProviderReply } from './ai/responseGuard'
 import type { AIProvider, AIRequestContext, AIReply, ChatTurn } from './ai/types'
+import { mergeLiveEvidence } from './evidenceMerge'
+import { defaultLiveRetriever, type LiveRetriever } from './liveRetrieval'
 import type { MissingFieldInfo } from './missingFields'
 import { identifyMissingFields } from './missingFields'
 import { extractAndMerge } from './profileExtraction'
 import { rankSchemes } from './ranking'
 import { defaultRetriever, type SchemeRetriever } from './retrieval'
-import type { RankedScheme, UserProfile } from './types'
+import type { RankedScheme, RetrievalSourceStatus, UserProfile } from './types'
 
 export interface ActionPlanStep {
   order: number
@@ -33,6 +35,8 @@ export interface AssistantTurnResult {
   ranked: RankedScheme[]
   reply: AIReply
   actionPlan: ActionPlanStep[]
+  /** What actually happened when this turn tried (or didn't try) live government-source retrieval — drives the UI's source-status line. */
+  sourceStatus: RetrievalSourceStatus
 }
 
 export interface RunAssistantTurnInput {
@@ -44,10 +48,11 @@ export interface RunAssistantTurnInput {
 export interface RunAssistantTurnDeps {
   providers: AIProvider[]
   retriever: SchemeRetriever
+  liveRetriever: LiveRetriever
 }
 
 export function defaultAssistantDeps(): RunAssistantTurnDeps {
-  return { providers: defaultProviderChain(), retriever: defaultRetriever }
+  return { providers: defaultProviderChain(), retriever: defaultRetriever, liveRetriever: defaultLiveRetriever }
 }
 
 export function createInitialProfile(): UserProfile {
@@ -119,13 +124,53 @@ async function generateWithFallback(context: AIRequestContext, providers: AIProv
   throw new Error('All configured AI providers, including any offline fallback, failed to respond.')
 }
 
+/**
+ * Attempts live government-source retrieval for this turn's top-ranked
+ * schemes and reports exactly what happened — never fabricating a
+ * "checked" result. Three honest outcomes:
+ *   - not configured at all -> 'verified_local' (we never claimed to check)
+ *   - configured but the call failed/timed out -> 'live_unavailable'
+ *   - configured and it returned (possibly zero) validated evidence -> 'live_official'
+ * A failure here never affects the local ranking — it only means no live
+ * evidence gets merged in and the UI says so.
+ */
+async function attemptLiveRetrieval(
+  ranked: RankedScheme[],
+  profile: UserProfile,
+  liveRetriever: LiveRetriever,
+): Promise<{ ranked: RankedScheme[]; sourceStatus: RetrievalSourceStatus }> {
+  const checkedAt = new Date().toISOString()
+
+  let available: boolean
+  try {
+    available = await liveRetriever.isAvailable()
+  } catch {
+    available = false
+  }
+  if (!available) {
+    return { ranked, sourceStatus: { status: 'verified_local', checkedAt } }
+  }
+
+  try {
+    const topSchemeIds = ranked.slice(0, 5).map((r) => r.scheme.id)
+    const evidence = await liveRetriever.retrieve({ schemeIds: topSchemeIds, state: profile.state })
+    return {
+      ranked: mergeLiveEvidence(ranked, evidence),
+      sourceStatus: { status: 'live_official', checkedAt },
+    }
+  } catch {
+    return { ranked, sourceStatus: { status: 'live_unavailable', checkedAt } }
+  }
+}
+
 export async function runAssistantTurn(
   input: RunAssistantTurnInput,
   deps: RunAssistantTurnDeps = defaultAssistantDeps(),
 ): Promise<AssistantTurnResult> {
   const { profile: mergedProfile, updatedFields } = extractAndMerge(input.message, input.profile)
   const missingFields = identifyMissingFields(mergedProfile)
-  const ranked = rankSchemes(mergedProfile, input.message, deps.retriever)
+  const rankedLocal = rankSchemes(mergedProfile, input.message, deps.retriever)
+  const { ranked, sourceStatus } = await attemptLiveRetrieval(rankedLocal, mergedProfile, deps.liveRetriever)
 
   const context: AIRequestContext = {
     profile: mergedProfile,
@@ -139,5 +184,5 @@ export async function runAssistantTurn(
   const reply = await generateWithFallback(context, deps.providers)
   const actionPlan = buildActionPlan(ranked)
 
-  return { profile: mergedProfile, updatedFields, missingFields, ranked, reply, actionPlan }
+  return { profile: mergedProfile, updatedFields, missingFields, ranked, reply, actionPlan, sourceStatus }
 }

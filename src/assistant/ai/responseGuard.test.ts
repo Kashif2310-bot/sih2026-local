@@ -61,6 +61,25 @@ describe('findUnapprovedUrls', () => {
     const realUrl = context.ranked[0].scheme.officialInfoUrl
     expect(findUnapprovedUrls(`(see ${realUrl}).`, context)).toHaveLength(0)
   })
+
+  it('allows a live-evidence source URL merged in for this turn', () => {
+    const context = contextWithRealEvidence()
+    context.ranked[0] = {
+      ...context.ranked[0],
+      liveEvidence: [
+        {
+          schemeId: context.ranked[0].scheme.id,
+          sourceName: 'data.gov.in',
+          sourceUrl: 'https://api.data.gov.in/resource/live123',
+          sourceType: 'official_open_data',
+          verificationStatus: 'live_official',
+          retrievedAt: new Date().toISOString(),
+          summary: 'test',
+        },
+      ],
+    }
+    expect(findUnapprovedUrls('See https://api.data.gov.in/resource/live123 for the latest figures.', context)).toHaveLength(0)
+  })
 })
 
 describe('validateProviderReply — simulated prompt-injection attempts', () => {

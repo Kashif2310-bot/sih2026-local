@@ -77,7 +77,7 @@ describe('composeOfflineReply', () => {
     expect(composeOfflineReply(ctx)).toMatch(/What kind of business is this\?/)
   })
 
-  it('always discloses that it is offline/local reasoning, not a live AI model', () => {
+  it('REGRESSION: never includes the retired offline-warning strings — that is now the UI\'s SourceStatusBadge job, not the reply text', () => {
     const ctx: AIRequestContext = {
       profile: EMPTY_PROFILE,
       message: 'hello',
@@ -86,7 +86,12 @@ describe('composeOfflineReply', () => {
       ranked: [],
       newlyUpdatedFields: [],
     }
-    expect(composeOfflineReply(ctx)).toMatch(/without an AI model/i)
+    const text = composeOfflineReply(ctx)
+    expect(text).not.toContain('Offline reasoning — no AI model used')
+    expect(text).not.toContain(
+      "Generated locally without an AI model — offline reasoning over the maintained scheme knowledge base. Always verify details against each scheme's official source before acting.",
+    )
+    expect(text).not.toMatch(/without an AI model/i)
   })
 })
 

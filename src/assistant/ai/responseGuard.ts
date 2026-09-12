@@ -40,6 +40,9 @@ function collectEvidenceUrls(context: AIRequestContext): Set<string> {
     urls.add(r.scheme.officialInfoUrl)
     urls.add(r.scheme.officialApplicationUrl)
     urls.add(r.scheme.sourceUrl)
+    for (const live of r.liveEvidence ?? []) {
+      urls.add(live.sourceUrl)
+    }
   }
   return urls
 }

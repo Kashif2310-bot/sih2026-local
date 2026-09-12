@@ -2,7 +2,7 @@ import { createContext } from 'react'
 import type { ProviderId } from '../ai/types'
 import type { MissingFieldInfo } from '../missingFields'
 import type { ActionPlanStep } from '../orchestrator'
-import type { RankedScheme, UserProfile } from '../types'
+import type { RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
 
 export interface UIMessage {
   id: string
@@ -11,6 +11,8 @@ export interface UIMessage {
   timestamp: number
   isFallback?: boolean
   providerUsed?: ProviderId
+  /** What actually happened with live government-source retrieval on the turn that produced this message — drives the visible source-status line. Absent for user messages. */
+  sourceStatus?: RetrievalSourceStatus
 }
 
 export interface AssistantState {

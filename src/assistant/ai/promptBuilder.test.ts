@@ -88,4 +88,34 @@ describe('buildUserTurn — evidence block only contains supplied schemes', () =
       expect(turn).toContain(r.eligibility.status)
     }
   })
+
+  it('includes live evidence as a distinct, clearly-sourced line when present', () => {
+    const ranked = rankSchemes(profile, 'poultry loan')
+    ranked[0] = {
+      ...ranked[0],
+      liveEvidence: [
+        {
+          schemeId: ranked[0].scheme.id,
+          sourceName: 'data.gov.in (Open Government Data Platform)',
+          sourceUrl: 'https://api.data.gov.in/resource/live123',
+          sourceType: 'official_open_data',
+          verificationStatus: 'live_official',
+          retrievedAt: '2026-09-12T10:00:00.000Z',
+          summary: '1,204 units sanctioned in Karnataka in FY2023-24.',
+        },
+      ],
+    }
+    const context: AIRequestContext = {
+      profile,
+      message: 'poultry loan',
+      history: [],
+      missingFields: [],
+      ranked,
+      newlyUpdatedFields: [],
+    }
+    const turn = buildUserTurn(context)
+    expect(turn).toContain('Live official data')
+    expect(turn).toContain('1,204 units sanctioned in Karnataka in FY2023-24.')
+    expect(turn).toContain('https://api.data.gov.in/resource/live123')
+  })
 })
