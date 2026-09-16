@@ -12,6 +12,14 @@ interface ImportMetaEnv {
    */
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_ANON_KEY?: string
+  /**
+   * URL of a developer-run relay/proxy for Gemini Live — NEVER a Gemini API
+   * key. Safe to expose in the browser: it is just an endpoint address, the
+   * same way VITE_SUPABASE_URL is safe. Optional: with it unset, the app
+   * runs exactly as before with no Gemini Live provider available — see
+   * src/assistant/voice/geminiLiveConfig.ts.
+   */
+  readonly VITE_GEMINI_LIVE_PROXY_URL?: string
 }
 
 interface ImportMeta {

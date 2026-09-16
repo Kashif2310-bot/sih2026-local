@@ -67,7 +67,7 @@ export function createInitialProfile(): UserProfile {
  * anti-hallucination contract in ai/promptBuilder.ts for the analogous
  * guarantee on the conversational reply text.
  */
-function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
+export function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
   const eligible = ranked.filter(
     (r) => r.eligibility.status === 'likely_eligible' || r.eligibility.status === 'possibly_eligible',
   )
@@ -98,7 +98,7 @@ function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
  * check is treated exactly like a network failure — discarded, falling
  * through to the next provider — never shown to the user.
  */
-async function generateWithFallback(context: AIRequestContext, providers: AIProvider[]): Promise<AIReply> {
+export async function generateWithFallback(context: AIRequestContext, providers: AIProvider[]): Promise<AIReply> {
   for (const provider of providers) {
     try {
       const available = await provider.isAvailable()
@@ -134,7 +134,7 @@ async function generateWithFallback(context: AIRequestContext, providers: AIProv
  * A failure here never affects the local ranking — it only means no live
  * evidence gets merged in and the UI says so.
  */
-async function attemptLiveRetrieval(
+export async function attemptLiveRetrieval(
   ranked: RankedScheme[],
   profile: UserProfile,
   liveRetriever: LiveRetriever,
