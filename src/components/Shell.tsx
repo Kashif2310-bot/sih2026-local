@@ -22,6 +22,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   const links = [
     { to: '/', label: t('nav.home') },
+    { to: '/apply', label: t('nav.apply') },
     { to: '/scan', label: t('nav.scan') },
     { to: '/history', label: t('nav.history') },
     { to: withCase('pulse'), label: t('nav.pulse') },
@@ -97,6 +98,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               {t('lang')}
             </button>
+            <Link
+              to="/admin/login"
+              className="hidden rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40 sm:inline-block"
+            >
+              {t('nav.admin')}
+            </Link>
           </div>
         </div>
         <div className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
