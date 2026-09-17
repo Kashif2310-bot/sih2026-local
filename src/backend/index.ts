@@ -133,9 +133,14 @@ export type { NotificationProvider, NotificationProviderMap } from './services/n
 export {
   CANONICAL_APPLICATION_STATUSES,
   canonicalStatusForWorkflowStep,
-  canonicalStatusForTrackedApplication,
+  isCanonicalApplicationStatus,
+  assertCanonicalApplicationStatus,
 } from '../contracts/applicationStatus'
 export type { CanonicalApplicationStatus } from '../contracts/applicationStatus'
+
+export { createMemoryApplicationStatusStore } from './services/applicationStatus/memoryApplicationStatusStore'
+export { createSupabaseApplicationStatusStore } from './services/applicationStatus/supabaseApplicationStatusStore'
+export { withCanonicalStatusPersistence } from './services/applicationStatus/withCanonicalStatusPersistence'
 
 export type * from './services/officialSource/types'
 export { createDataGovInAdapter } from './services/officialSource/dataGovInAdapter'

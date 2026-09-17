@@ -16,6 +16,7 @@
 import type {
   ApplicationPersistenceService,
   ApplicationStatusService,
+  ApplicationStatusStore,
   DocumentService,
   NotificationService,
   ProfileService,
@@ -69,6 +70,9 @@ import { createMemoryDocumentService } from './documents/memoryDocumentService'
 import { createSupabaseDocumentService } from './documents/supabaseDocumentService'
 import { createMemoryNotificationService } from './notifications/memoryNotificationService'
 import { createSupabaseNotificationService } from './notifications/supabaseNotificationService'
+import { createMemoryApplicationStatusStore } from './applicationStatus/memoryApplicationStatusStore'
+import { createSupabaseApplicationStatusStore } from './applicationStatus/supabaseApplicationStatusStore'
+import { withCanonicalStatusPersistence } from './applicationStatus/withCanonicalStatusPersistence'
 
 export type BackendMode = 'auto' | 'memory' | 'supabase'
 
@@ -90,6 +94,12 @@ export interface BackendServices {
   documents: DocumentService
   /** Option A — provider-agnostic notifications, LP-APP-* keyed */
   notifications: NotificationService
+  /**
+   * Option A — canonical ApplicationStatus, persisted (not derived on read).
+   * aditaApplications.save() already writes through to this on every call —
+   * this is the read/inspect accessor for it. See services/applicationStatus/.
+   */
+  canonicalApplicationStatus: ApplicationStatusStore
 
   /** @deprecated Phase 1/2 UUID profile service — compat only */
   profiles: ProfileService
@@ -143,6 +153,7 @@ function attachOptionA(
     | 'admin'
     | 'documents'
     | 'notifications'
+    | 'canonicalApplicationStatus'
   >,
   client: LokPulseSupabaseClient | null,
   writeClient: LokPulseSupabaseClient | null,
@@ -150,9 +161,16 @@ function attachOptionA(
   const sharedProfiles = writeClient
     ? createSupabaseSharedProfilePersistence(writeClient)
     : createMemorySharedProfilePersistence()
-  const aditaApplications = writeClient
+  const rawAditaApplications = writeClient
     ? createSupabaseAditaApplicationPersistence(writeClient)
     : createMemoryAditaApplicationPersistence()
+  const canonicalApplicationStatus = writeClient
+    ? createSupabaseApplicationStatusStore(writeClient)
+    : createMemoryApplicationStatusStore()
+  // Only write-time hook available without touching Adita's own
+  // aditaApplicationPersistence.ts / TrackedApplication contracts — persists
+  // the canonical status on every save(), everything else passes through.
+  const aditaApplications = withCanonicalStatusPersistence(rawAditaApplications, canonicalApplicationStatus)
   const jordanApprovals = writeClient
     ? createSupabaseJordanApprovalPersistence(writeClient)
     : createMemoryJordanApprovalPersistence()
@@ -167,6 +185,7 @@ function attachOptionA(
     admin: createAdminApplicationQueries(aditaApplications),
     documents: writeClient ? createSupabaseDocumentService(writeClient) : createMemoryDocumentService(),
     notifications: writeClient ? createSupabaseNotificationService(writeClient) : createMemoryNotificationService(),
+    canonicalApplicationStatus,
   }
 }
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { WORKFLOW_STEPS, type WorkflowStep } from '../apply/types'
+import { BackendError } from '../backend/errors'
 import {
   CANONICAL_APPLICATION_STATUSES,
-  canonicalStatusForTrackedApplication,
+  assertCanonicalApplicationStatus,
   canonicalStatusForWorkflowStep,
+  isCanonicalApplicationStatus,
 } from './applicationStatus'
 
 describe('canonicalStatusForWorkflowStep', () => {
@@ -45,18 +47,16 @@ describe('canonicalStatusForWorkflowStep', () => {
   })
 })
 
-describe('canonicalStatusForTrackedApplication', () => {
-  it('defaults to draft when statusHistory is empty', () => {
-    expect(canonicalStatusForTrackedApplication({ statusHistory: [] })).toBe('draft')
+describe('isCanonicalApplicationStatus / assertCanonicalApplicationStatus', () => {
+  it('accepts exactly the 4 canonical values', () => {
+    for (const status of CANONICAL_APPLICATION_STATUSES) {
+      expect(isCanonicalApplicationStatus(status)).toBe(true)
+      expect(assertCanonicalApplicationStatus(status)).toBe(status)
+    }
   })
 
-  it('derives from the most recent statusHistory entry', () => {
-    const app = {
-      statusHistory: [
-        { at: '2026-01-01T00:00:00.000Z', step: 'profile_and_scheme' as WorkflowStep, note: 'started' },
-        { at: '2026-01-02T00:00:00.000Z', step: 'explicit_consent' as WorkflowStep, note: 'consented' },
-      ],
-    }
-    expect(canonicalStatusForTrackedApplication(app)).toBe('awaiting_consent')
+  it('rejects an invalid canonical status', () => {
+    expect(isCanonicalApplicationStatus('approved')).toBe(false)
+    expect(() => assertCanonicalApplicationStatus('approved')).toThrow(BackendError)
   })
 })

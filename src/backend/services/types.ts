@@ -11,6 +11,7 @@ import type {
   SubmitApplicationInput,
   UpdateApplicationFieldsInput,
 } from '../../contracts/application'
+import type { CanonicalApplicationStatus } from '../../contracts/applicationStatus'
 import type { ApplicationDocumentRecord, UpsertApplicationDocumentInput } from '../../contracts/documents'
 import type {
   NotificationPreference,
@@ -113,4 +114,18 @@ export interface NotificationService {
   getPreferences(applicationId: string): Promise<NotificationPreference[]>
   setPreference(input: SetNotificationPreferenceInput): Promise<NotificationPreference>
   listForApplication(applicationId: string, limit?: number): Promise<NotificationRecord[]>
+}
+
+/**
+ * Option A canonical application lifecycle status — LP-APP-* keyed, backed
+ * by a real persisted column (see migration
+ * 202609170005_canonical_application_status.sql). setStatus() is called
+ * exactly once per application save, by
+ * services/applicationStatus/withCanonicalStatusPersistence.ts — never
+ * recomputed from statusHistory on read. getStatus() only ever returns what
+ * was actually persisted.
+ */
+export interface ApplicationStatusStore {
+  getStatus(applicationId: string): Promise<CanonicalApplicationStatus | null>
+  setStatus(applicationId: string, status: CanonicalApplicationStatus): Promise<void>
 }

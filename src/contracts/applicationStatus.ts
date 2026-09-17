@@ -9,16 +9,30 @@
  *    left untouched (Adita's file).
  *
  * This is the single cross-service lifecycle status for LP-APP-* applications.
- * It is derived deterministically from Adita's WorkflowStep — the workflow
- * engine's own persisted progress — so it can never drift out of sync with
- * TrackedApplication.statusHistory. It intentionally does not encode
- * WorkflowStep's fine-grained preparation detail (that stays available via
- * statusHistory for anything that needs it); this is the small, stable set
- * documents/notifications/other cross-service consumers key off instead of
- * raw, UI-oriented step names.
+ * canonicalStatusForWorkflowStep() is the one deterministic mapping function,
+ * and it is applied exactly once, at write time, by
+ * src/backend/services/applicationStatus/withCanonicalStatusPersistence.ts
+ * whenever an application is saved. The result is persisted (see migration
+ * 202609170005_canonical_application_status.sql) and simply read back
+ * thereafter — it is never recomputed from statusHistory on read. Reads
+ * must go through ApplicationStatusStore.getStatus(), not this mapping
+ * function.
+ *
+ * WorkflowStep keeps encoding fine-grained UI-facing preparation detail via
+ * TrackedApplication.statusHistory — untouched, unchanged, still the
+ * detailed workflow history. This is the small, stable set cross-service
+ * consumers (documents/notifications/admin) key off instead.
+ *
+ * `submitted` means the submission attempt/application id was issued by
+ * Adita's workflow — it does NOT mean government approval, acceptance, or
+ * successful government filing. That only happens if/when an authoritative
+ * government integration confirms it (see TrackedApplication.outcome /
+ * filedWithGovernment, which remain the honest source for that fact and are
+ * intentionally independent of this status).
  */
 
-import type { TrackedApplication, WorkflowStep } from '../apply/types'
+import type { WorkflowStep } from '../apply/types'
+import { BackendError } from '../backend/errors'
 
 export const CANONICAL_APPLICATION_STATUSES = ['draft', 'awaiting_consent', 'submitted', 'tracked'] as const
 
@@ -31,7 +45,7 @@ export type CanonicalApplicationStatus = (typeof CANONICAL_APPLICATION_STATUSES)
  *    (profile_and_scheme .. corrections) — still editable, nothing final.
  *  - awaiting_consent: packet generated, waiting on the explicit consent step.
  *  - submitted: the submission attempt itself, and the application id being
- *    issued — the packet has been dispatched.
+ *    issued — the packet has been dispatched. Not a government confirmation.
  *  - tracked: the terminal workflow step — the application is now under
  *    post-submission status tracking (approval/disbursement progress lives
  *    in Jordan's approval_cases / Adita's application_events, not here).
@@ -56,10 +70,16 @@ export function canonicalStatusForWorkflowStep(step: WorkflowStep): CanonicalApp
   return WORKFLOW_STEP_STATUS[step]
 }
 
-/** Derives the canonical status from a TrackedApplication's own persisted statusHistory. */
-export function canonicalStatusForTrackedApplication(
-  app: Pick<TrackedApplication, 'statusHistory'>,
-): CanonicalApplicationStatus {
-  const lastStep = app.statusHistory.at(-1)?.step
-  return lastStep ? canonicalStatusForWorkflowStep(lastStep) : 'draft'
+export function isCanonicalApplicationStatus(value: string): value is CanonicalApplicationStatus {
+  return (CANONICAL_APPLICATION_STATUSES as readonly string[]).includes(value)
+}
+
+export function assertCanonicalApplicationStatus(value: string): CanonicalApplicationStatus {
+  if (!isCanonicalApplicationStatus(value)) {
+    throw new BackendError(
+      'VALIDATION',
+      `Invalid canonical application status: ${value}. Must be one of ${CANONICAL_APPLICATION_STATUSES.join(', ')}`,
+    )
+  }
+  return value
 }
