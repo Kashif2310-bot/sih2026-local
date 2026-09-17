@@ -111,6 +111,8 @@ export interface DisbursementAuthorization {
   authorizedAt: number
   auditHeadHash: string
   authorizationDigest: string
+  /** Adita SHA-256 bound into authorization evidence when present. */
+  sourceSnapshotHash: string | null
   /** Infrastructure is simulated; crypto is real. */
   simulated: true
 }

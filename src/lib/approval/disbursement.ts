@@ -14,7 +14,7 @@ import { evaluateApproval } from './quorum'
 
 export function computeAuthorizationDigest(a: Omit<DisbursementAuthorization, 'authorizationDigest'>): string {
   return solidityPackedKeccak256(
-    ['string', 'bytes32', 'uint256', 'uint256', 'uint8', 'string', 'uint256', 'bytes32'],
+    ['string', 'bytes32', 'uint256', 'uint256', 'uint8', 'string', 'uint256', 'bytes32', 'string'],
     [
       a.applicationId,
       a.applicationHash,
@@ -24,6 +24,7 @@ export function computeAuthorizationDigest(a: Omit<DisbursementAuthorization, 'a
       a.acceptedSignerRefs.join(','),
       a.authorizedAt,
       a.auditHeadHash,
+      a.sourceSnapshotHash ?? '',
     ],
   )
 }
@@ -38,6 +39,7 @@ export function authorizeDisbursement(input: {
   signatures: ApprovalSignature[]
   auditLog: readonly AuditEvent[]
   authorizedAt?: number
+  sourceSnapshotHash?: string | null
 }): { ok: true; authorization: DisbursementAuthorization } | { ok: false; reasons: string[] } {
   const evaluation = evaluateApproval(input)
   if (!evaluation.ok) {
@@ -54,6 +56,7 @@ export function authorizeDisbursement(input: {
     acceptedSignerRefs: [...evaluation.validSignerIds].sort(),
     authorizedAt,
     auditHeadHash: auditHeadHash(input.auditLog),
+    sourceSnapshotHash: input.sourceSnapshotHash ?? null,
     simulated: true,
   }
   return {

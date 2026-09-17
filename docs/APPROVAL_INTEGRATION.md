@@ -63,11 +63,29 @@ Ownership rules this boundary encodes:
 raw personal records in the snapshot.** The approval layer hashes what it
 receives and keeps it in the audit chain; only the fields above belong there.
 
-Until Adita's Application module ships, use
-`fixtureApplicationSnapshot()` from `src/lib/approval/fixtures.ts` for tests,
-and pass a real `applicationId` as soon as one exists. `AppContext` currently
-mints a `provisional:` id for the single-session demo — that is a temporary
-adapter, not an Application implementation.
+Adita's real artifact is `SubmissionPackage` + `FrozenSnapshot` in
+`src/apply/application.ts` (`applicationId` = `LP-APP-` + 16 hex, SHA-256 of
+canonical `snapshot.payload` stored as `sha256:<hex>`).
+
+```ts
+const view = await service.openApprovalCaseFromAditaPackage(pkg, {
+  lokScore,       // Prerna — consumed unchanged
+  villageId,      // not in Adita's frozen payload
+  projectCost,    // NSFDC finance plan — not in Adita's frozen payload
+})
+```
+
+The adapter re-hashes `snapshot.payload`, rejects hash / applicationId /
+`readyForApproval !== true` failures, then maps into Jordan's existing
+`ApplicationSnapshot`. It does **not** copy Adita's Application types.
+
+There is no HTTP `GET /api/apply/applications/{id}/package` in this SPA.
+Consume the in-process `SubmissionPackage` Adita already builds. Do not treat
+`status: submission_ready` or `filedWithGovernment` as approval or as a
+government filing unless a real API filing id exists.
+
+`/scan` still mints a `provisional:` id because that cockpit path is not the
+Adita apply wizard.
 
 ---
 
@@ -107,6 +125,11 @@ All failures throw `ApprovalError` with a machine-readable `code`:
 | Code | Cause |
 |---|---|
 | `INVALID_SNAPSHOT` | Missing required snapshot fields (`details` lists them). |
+| `SOURCE_HASH_MISMATCH` | Adita SHA-256 does not match `snapshot.payload`. |
+| `APPLICATION_ID_MISMATCH` | Package id disagrees with frozen payload id. |
+| `NOT_READY_FOR_APPROVAL` | `readyForApproval` is not true. |
+| `INVALID_APPLICATION_ID` | Id is not `LP-APP-[16 hex]`. |
+| `SOURCE_TAMPERED` | Payload changed after the case was opened. |
 | `DUPLICATE_APPLICATION` | A case is already open for that `applicationId`. |
 | `UNKNOWN_APPLICATION` | No case for that `applicationId`. |
 | `QUORUM_POLICY_MISMATCH` | Snapshot quorum fields disagree with the locked 80/60 table. Fails closed; no case is created. |

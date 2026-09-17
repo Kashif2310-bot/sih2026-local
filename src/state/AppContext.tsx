@@ -138,9 +138,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const svc = approval.service.createApprovalService()
       serviceRef.current = svc
 
-      // Adita owns Application/applicationId. Until that layer ships, the
-      // session mints a provisional id; the snapshot shape below is exactly
-      // what the approval boundary expects to receive from them.
+      // /scan demo is not Adita's apply wizard. Provisional ids remain only
+      // on this cockpit path. When a real SubmissionPackage exists, call
+      // openApprovalCaseFromAditaPackage() instead (LP-APP-… ids).
       const frozenAt = Date.now()
       const applicationId = approval.contracts.provisionalApplicationId({
         applicantRef: p.name,

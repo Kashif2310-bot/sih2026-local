@@ -20,8 +20,10 @@ import {
   type SignatureRecord,
   type Verifier,
 } from '../multisig'
+import { verifySnapshot } from '../../apply/application'
 import { allocateReviewers, demoAuthorizedPool } from './allocate'
 import { appendAuditEvent, verifyAuditChain } from './audit'
+import { adaptAditaPackage, type AditaApprovalPackage, type ApprovalFinanceOverlay } from './aditaAdapter'
 import {
   hashApplicationSnapshot,
   type ApplicationSnapshot,
@@ -33,6 +35,7 @@ import {
   type QuorumPolicy,
   type ReviewerAllocation,
 } from './contracts'
+import { ApprovalError, type ApprovalErrorCode } from './errors'
 import { authorizeDisbursement as buildAuthorization } from './disbursement'
 import { evaluateApproval, freezeQuorumPolicy, QuorumPolicyMismatchError } from './quorum'
 import type {
@@ -43,34 +46,7 @@ import type {
   ReviewerView,
 } from './views'
 
-export type ApprovalErrorCode =
-  | 'INVALID_SNAPSHOT'
-  | 'DUPLICATE_APPLICATION'
-  | 'UNKNOWN_APPLICATION'
-  | 'QUORUM_POLICY_MISMATCH'
-  | 'ALLOCATION_FAILED'
-  | 'REVIEWER_UNKNOWN'
-  | 'REVIEWER_NOT_ALLOCATED'
-  | 'REVIEWER_NOT_AUTHORIZED'
-  | 'REVIEWER_NO_SIGNING_KEY'
-  | 'DUPLICATE_SIGNATURE'
-  | 'SIGNATURE_INVALID'
-  | 'QUORUM_NOT_MET'
-  | 'ALREADY_AUTHORIZED'
-
-export class ApprovalError extends Error {
-  readonly code: ApprovalErrorCode
-  readonly applicationId?: string
-  readonly details?: string[]
-
-  constructor(code: ApprovalErrorCode, message: string, applicationId?: string, details?: string[]) {
-    super(message)
-    this.name = 'ApprovalError'
-    this.code = code
-    this.applicationId = applicationId
-    this.details = details
-  }
-}
+export { ApprovalError, type ApprovalErrorCode } from './errors'
 
 interface CaseRecord {
   snapshot: ApplicationSnapshot
@@ -83,10 +59,18 @@ interface CaseRecord {
   audit: AuditEvent[]
   disbursement: DisbursementAuthorization | null
   status: ApprovalStatus
+  sourceSnapshotHash: string | null
+  sourcePayload: Record<string, unknown> | null
+  filedWithGovernment: boolean
 }
 
 export interface ApprovalService {
   openApprovalCase(snapshot: ApplicationSnapshot): ApprovalCaseView
+  /** Adita package path: re-hash payload, then open with LP-APP-… applicationId. */
+  openApprovalCaseFromAditaPackage(
+    pkg: AditaApprovalPackage,
+    overlay: ApprovalFinanceOverlay,
+  ): Promise<ApprovalCaseView>
   getApprovalCase(applicationId: string): ApprovalCaseView
   getReviewerAllocation(applicationId: string): ReviewerAllocationView
   submitSignature(applicationId: string, reviewerId: string): Promise<ApprovalCaseView>
@@ -94,6 +78,8 @@ export interface ApprovalService {
   authorizeDisbursement(applicationId: string): DisbursementAuthorization
   hasApprovalCase(applicationId: string): boolean
   listApplicationIds(): string[]
+  /** Rejects if the caller's copy of Adita payload no longer matches the frozen hash. */
+  assertSourceUnmutated(applicationId: string, payload: Record<string, unknown>): Promise<void>
 }
 
 export interface ApprovalServiceOptions {
@@ -234,6 +220,8 @@ export function createApprovalService(options: ApprovalServiceOptions = {}): App
       disbursementAuthorized: !!c.disbursement,
       blockers: evaluation.ok ? [] : [...evaluation.reasons],
       simulatedInfrastructure: true,
+      sourceSnapshotHash: c.sourceSnapshotHash,
+      filedWithGovernment: c.filedWithGovernment,
     }
   }
 
@@ -253,68 +241,96 @@ export function createApprovalService(options: ApprovalServiceOptions = {}): App
     c.audit = appendAuditEvent(c.audit, { ...input, timestamp: input.timestamp ?? now() })
   }
 
-  return {
-    openApprovalCase(snapshot) {
-      requireSnapshot(snapshot)
-      if (cases.has(snapshot.applicationId)) {
-        throw new ApprovalError(
-          'DUPLICATE_APPLICATION',
-          `An approval case is already open for ${snapshot.applicationId}`,
-          snapshot.applicationId,
-        )
-      }
+  function insertOpenedCase(
+    snapshot: ApplicationSnapshot,
+    source?: {
+      sourceSnapshotHash: string
+      sourcePayload: Record<string, unknown>
+      filedWithGovernment: boolean
+    },
+  ): CaseRecord {
+    requireSnapshot(snapshot)
+    if (cases.has(snapshot.applicationId)) {
+      throw new ApprovalError(
+        'DUPLICATE_APPLICATION',
+        `An approval case is already open for ${snapshot.applicationId}`,
+        snapshot.applicationId,
+      )
+    }
 
-      let policy: QuorumPolicy
-      try {
-        policy = freezeQuorumPolicy(snapshot.lokScore)
-      } catch (e) {
-        if (e instanceof QuorumPolicyMismatchError) {
-          throw new ApprovalError('QUORUM_POLICY_MISMATCH', e.message, snapshot.applicationId)
-        }
-        throw e
+    let policy: QuorumPolicy
+    try {
+      policy = freezeQuorumPolicy(snapshot.lokScore)
+    } catch (e) {
+      if (e instanceof QuorumPolicyMismatchError) {
+        throw new ApprovalError('QUORUM_POLICY_MISMATCH', e.message, snapshot.applicationId)
       }
+      throw e
+    }
 
-      const snapshotDigest = hashApplicationSnapshot(snapshot)
-      let allocation: ReviewerAllocation
-      try {
-        allocation = allocateReviewers({
-          snapshot,
-          snapshotDigest,
-          policy,
-          pool,
-          allocatedAt: snapshot.frozenAt,
-        })
-      } catch (e) {
-        throw new ApprovalError(
-          'ALLOCATION_FAILED',
-          e instanceof Error ? e.message : 'reviewer allocation failed',
-          snapshot.applicationId,
-        )
-      }
-
-      const c: CaseRecord = {
+    const snapshotDigest = hashApplicationSnapshot(snapshot)
+    let allocation: ReviewerAllocation
+    try {
+      allocation = allocateReviewers({
         snapshot,
         snapshotDigest,
         policy,
-        allocation,
         pool,
-        attestation: buildAttestationFromSnapshot(snapshot),
-        signatures: [],
-        audit: [],
-        disbursement: null,
-        status: 'open',
-      }
-      appendEvent(c, {
-        applicationId: snapshot.applicationId,
-        eventType: 'application_opened',
-        dataRef: snapshotDigest,
+        allocatedAt: snapshot.frozenAt,
       })
-      appendEvent(c, {
-        applicationId: snapshot.applicationId,
-        eventType: 'reviewer_allocation_created',
-        dataRef: allocation.allocationDigest,
+    } catch (e) {
+      throw new ApprovalError(
+        'ALLOCATION_FAILED',
+        e instanceof Error ? e.message : 'reviewer allocation failed',
+        snapshot.applicationId,
+      )
+    }
+
+    const evidenceRef = source
+      ? `${snapshotDigest}|adita:${source.sourceSnapshotHash}|quorum:${policy.quorumRequired}/${policy.quorumPool}|mentor:${policy.mentorRequired ? 1 : 0}`
+      : snapshotDigest
+
+    const c: CaseRecord = {
+      snapshot,
+      snapshotDigest,
+      policy,
+      allocation,
+      pool,
+      attestation: buildAttestationFromSnapshot(snapshot),
+      signatures: [],
+      audit: [],
+      disbursement: null,
+      status: 'open',
+      sourceSnapshotHash: source?.sourceSnapshotHash ?? null,
+      sourcePayload: source?.sourcePayload ?? null,
+      filedWithGovernment: source?.filedWithGovernment ?? false,
+    }
+    appendEvent(c, {
+      applicationId: snapshot.applicationId,
+      eventType: 'application_opened',
+      dataRef: evidenceRef,
+    })
+    appendEvent(c, {
+      applicationId: snapshot.applicationId,
+      eventType: 'reviewer_allocation_created',
+      dataRef: allocation.allocationDigest,
+    })
+    cases.set(snapshot.applicationId, c)
+    return c
+  }
+
+  return {
+    openApprovalCase(snapshot) {
+      return caseView(insertOpenedCase(snapshot))
+    },
+
+    async openApprovalCaseFromAditaPackage(pkg, overlay) {
+      const adapted = await adaptAditaPackage(pkg, overlay)
+      const c = insertOpenedCase(adapted.snapshot, {
+        sourceSnapshotHash: adapted.sourceSnapshotHash,
+        sourcePayload: adapted.payload,
+        filedWithGovernment: adapted.filedWithGovernment,
       })
-      cases.set(snapshot.applicationId, c)
       return caseView(c)
     },
 
@@ -443,6 +459,7 @@ export function createApprovalService(options: ApprovalServiceOptions = {}): App
         signatures: c.signatures,
         auditLog: c.audit,
         authorizedAt: now(),
+        sourceSnapshotHash: c.sourceSnapshotHash,
       })
       if (!result.ok) {
         appendEvent(c, {
@@ -465,6 +482,30 @@ export function createApprovalService(options: ApprovalServiceOptions = {}): App
         dataRef: result.authorization.authorizationDigest,
       })
       return result.authorization
+    },
+
+    async assertSourceUnmutated(applicationId, payload) {
+      const c = record(applicationId)
+      if (!c.sourceSnapshotHash || !c.sourcePayload) {
+        throw new ApprovalError(
+          'INVALID_SNAPSHOT',
+          `No Adita source snapshot bound for ${applicationId}`,
+          applicationId,
+        )
+      }
+      const ok = await verifySnapshot({
+        frozen: true,
+        frozenAt: new Date(c.snapshot.frozenAt).toISOString(),
+        snapshotHash: c.sourceSnapshotHash,
+        payload,
+      })
+      if (!ok) {
+        throw new ApprovalError(
+          'SOURCE_TAMPERED',
+          'Application payload no longer matches the frozen Adita snapshot hash',
+          applicationId,
+        )
+      }
     },
   }
 }

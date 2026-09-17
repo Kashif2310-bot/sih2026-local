@@ -71,6 +71,10 @@ export interface ApprovalStatusView {
   blockers: string[]
   /** Cryptography is real; settlement rails are not. Always true here. */
   simulatedInfrastructure: true
+  /** Adita SHA-256 of snapshot.payload when opened from a real package. */
+  sourceSnapshotHash: string | null
+  /** True only when a real government API returned a filing id — never inferred. */
+  filedWithGovernment: boolean
 }
 
 export interface ApprovalCaseView extends ApprovalStatusView {
