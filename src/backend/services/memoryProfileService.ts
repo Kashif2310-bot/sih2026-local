@@ -11,6 +11,8 @@ import {
   createEmptyApplicantProfileV2,
   getMissingFields,
 } from '../adapters/profileHelpers'
+import { BackendError } from '../errors'
+import { assertLocale, assertUuid } from '../validation'
 
 function newId(): Uuid {
   return crypto.randomUUID() as Uuid
@@ -20,8 +22,11 @@ export function createMemoryProfileService(): ProfileService {
   const store = new Map<Uuid, ApplicantProfileV2>()
 
   return {
-    async create(locale = 'en', opts) {
-      const profile = createEmptyApplicantProfileV2(locale)
+    async create(locale, opts) {
+      const loc = assertLocale(locale)
+      if (opts?.userId) assertUuid(opts.userId, 'userId')
+      if (opts?.conversationId) assertUuid(opts.conversationId, 'conversationId')
+      const profile = createEmptyApplicantProfileV2(loc)
       profile.id = newId()
       if (opts?.userId) profile.userId = opts.userId
       if (opts?.conversationId) profile.conversationId = opts.conversationId
@@ -30,13 +35,15 @@ export function createMemoryProfileService(): ProfileService {
     },
 
     async get(id) {
+      assertUuid(id, 'id')
       return store.get(id) ?? null
     },
 
     async applyPatch(id, patch: ApplicantProfilePatch) {
+      assertUuid(id, 'id')
       const current = store.get(id)
       if (!current) {
-        throw new Error(`Profile not found: ${id}`)
+        throw new BackendError('NOT_FOUND', `Profile not found: ${id}`)
       }
       const next = applyProfilePatch(current, patch)
       next.id = id
@@ -45,9 +52,10 @@ export function createMemoryProfileService(): ProfileService {
     },
 
     async getMissingFields(id) {
+      assertUuid(id, 'id')
       const current = store.get(id)
       if (!current) {
-        throw new Error(`Profile not found: ${id}`)
+        throw new BackendError('NOT_FOUND', `Profile not found: ${id}`)
       }
       return getMissingFields(current)
     },

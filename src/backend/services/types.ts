@@ -8,6 +8,7 @@ import type {
   ApplicationRecord,
   ApplicationStatusView,
   CreateApplicationInput,
+  SubmitApplicationInput,
   UpdateApplicationFieldsInput,
 } from '../../contracts/application'
 import type { ApplicantProfileV2, ApplicantProfilePatch, MissingField } from '../../contracts/profile'
@@ -64,6 +65,13 @@ export interface ApplicationPersistenceService {
     schemeVersionId: Uuid,
     actorId: Uuid | null,
   ): Promise<ApplicationRecord>
+  /**
+   * Idempotent submission: a retried call with the same idempotencyKey
+   * replays the prior result; a different key on an already-submitted
+   * application is rejected (CONFLICT) rather than double-submitting.
+   * Requires consent to already be recorded.
+   */
+  submit(input: SubmitApplicationInput): Promise<ApplicationRecord>
 }
 
 /** Prerna: citizen/admin status views. */

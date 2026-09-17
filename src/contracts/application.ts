@@ -54,6 +54,8 @@ export interface ApplicationRecord {
   submissionLabelEn: string | null
   submissionLabelKn: string | null
   consentAt: IsoDateTime | null
+  /** Set only once a government/channel-partner system has actually confirmed receipt — never fabricated. */
+  governmentReferenceId: string | null
   createdAt: IsoDateTime
   updatedAt: IsoDateTime
 }
@@ -111,4 +113,16 @@ export interface UpdateApplicationFieldsInput {
   applicationId: Uuid
   actorId: Uuid | null
   fields: ApplicationField[]
+}
+
+export interface SubmitApplicationInput {
+  applicationId: Uuid
+  actorId: Uuid | null
+  mode: SubmissionMode
+  /** Caller-supplied idempotency key — a retried request with the same key replays the prior result instead of double-submitting. */
+  idempotencyKey: string
+  /** Only set when a real integration/channel partner has confirmed receipt. */
+  governmentReferenceId?: string | null
+  submissionLabelEn?: string
+  submissionLabelKn?: string
 }

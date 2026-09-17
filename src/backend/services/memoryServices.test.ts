@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createMemoryApplicationServices, createMemoryProfileService } from '../index'
+import { BackendError } from '../errors'
 import type { Uuid } from '../../contracts/common'
 
 describe('memory profile service', () => {
@@ -55,5 +56,42 @@ describe('memory application services', () => {
     const events = await status.listEvents(app.id)
     expect(events.some((e) => e.type === 'created')).toBe(true)
     expect(events.some((e) => e.type === 'consent_recorded')).toBe(true)
+  })
+
+  it('rejects submission before consent, then submits idempotently and rejects a conflicting retry (Phase 5)', async () => {
+    const { persistence } = createMemoryApplicationServices()
+    const userId = crypto.randomUUID() as Uuid
+    const app = await persistence.create({ userId })
+
+    await expect(
+      persistence.submit({ applicationId: app.id, actorId: userId, mode: 'assisted', idempotencyKey: 'key-1' }),
+    ).rejects.toThrow(BackendError)
+
+    await persistence.recordConsent(app.id, userId)
+
+    const submitted = await persistence.submit({
+      applicationId: app.id,
+      actorId: userId,
+      mode: 'assisted',
+      idempotencyKey: 'key-1',
+      governmentReferenceId: 'NSFDC-REF-001',
+    })
+    expect(submitted.status).toBe('submitted')
+    expect(submitted.submissionMode).toBe('assisted')
+    expect(submitted.governmentReferenceId).toBe('NSFDC-REF-001')
+
+    // Same idempotency key replays the prior result rather than erroring.
+    const replay = await persistence.submit({
+      applicationId: app.id,
+      actorId: userId,
+      mode: 'assisted',
+      idempotencyKey: 'key-1',
+    })
+    expect(replay.status).toBe('submitted')
+
+    // A different key on an already-submitted application is a real conflict.
+    await expect(
+      persistence.submit({ applicationId: app.id, actorId: userId, mode: 'assisted', idempotencyKey: 'key-2' }),
+    ).rejects.toThrow(BackendError)
   })
 })

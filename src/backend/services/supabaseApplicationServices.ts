@@ -8,6 +8,7 @@ import type {
   ApplicationStatus,
   ApplicationStatusView,
   CreateApplicationInput,
+  SubmitApplicationInput,
   UpdateApplicationFieldsInput,
 } from '../../contracts/application'
 import type { ApplicationPersistenceService, ApplicationStatusService } from './types'
@@ -16,6 +17,7 @@ import {
   assertApplicationStatus,
   assertUuid,
   validateCreateApplicationInput,
+  validateSubmitApplicationInput,
   validateUpdateFieldsInput,
 } from '../validation'
 import type { LokPulseSupabaseClient } from '../supabase/client'
@@ -221,6 +223,59 @@ export function createSupabaseApplicationPersistenceService(
           schemeId,
           schemeVersionId,
         })
+        return mapApplication(data as ApplicationRow)
+      } catch (err) {
+        throw toBackendError(err)
+      }
+    },
+
+    async submit(input: SubmitApplicationInput) {
+      validateSubmitApplicationInput(input)
+      try {
+        const { data: raw, error: getErr } = await client
+          .from('applications')
+          .select('*')
+          .eq('id', input.applicationId)
+          .is('deleted_at', null)
+          .maybeSingle()
+        if (getErr) throw toBackendError(getErr)
+        if (!raw) throw new BackendError('NOT_FOUND', `Application not found: ${input.applicationId}`)
+        const row = raw as ApplicationRow
+
+        if (row.submission_idempotency_key) {
+          if (row.submission_idempotency_key === input.idempotencyKey) return mapApplication(row)
+          throw new BackendError('CONFLICT', 'Application already submitted')
+        }
+        if (!row.consent_at) {
+          throw new BackendError('VALIDATION', 'Cannot submit before consent is recorded')
+        }
+
+        // `.is('submission_idempotency_key', null)` makes this an atomic
+        // guard: a concurrent duplicate submit matches zero rows and fails
+        // .single() rather than both requests succeeding.
+        const { data, error } = await client
+          .from('applications')
+          .update({
+            status: 'submitted',
+            submission_mode: input.mode,
+            submission_idempotency_key: input.idempotencyKey,
+            government_reference_id: input.governmentReferenceId ?? row.government_reference_id,
+            submission_label_en: input.submissionLabelEn ?? row.submission_label_en,
+            submission_label_kn: input.submissionLabelKn ?? row.submission_label_kn,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', input.applicationId)
+          .is('submission_idempotency_key', null)
+          .select('*')
+          .single()
+        if (error) {
+          const mapped = toBackendError(error)
+          if (mapped.code === 'NOT_FOUND') {
+            throw new BackendError('CONFLICT', 'Application already submitted (concurrent submission detected)')
+          }
+          throw mapped
+        }
+        await insertEvent(client, input.applicationId, 'submitted', input.actorId, { mode: input.mode })
         return mapApplication(data as ApplicationRow)
       } catch (err) {
         throw toBackendError(err)

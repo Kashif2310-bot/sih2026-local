@@ -5,8 +5,12 @@
 import { BackendError } from './errors'
 import type { Uuid } from '../contracts/common'
 import type { AppLocale } from '../contracts/domain'
-import type { ApplicationStatus } from '../contracts/application'
-import type { CreateApplicationInput, UpdateApplicationFieldsInput } from '../contracts/application'
+import type { ApplicationStatus, SubmissionMode } from '../contracts/application'
+import type {
+  CreateApplicationInput,
+  SubmitApplicationInput,
+  UpdateApplicationFieldsInput,
+} from '../contracts/application'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -78,5 +82,18 @@ export function validateUpdateFieldsInput(input: UpdateApplicationFieldsInput): 
   if (input.actorId) assertUuid(input.actorId, 'actorId')
   if (!input.fields?.length) {
     throw new BackendError('VALIDATION', 'At least one field is required')
+  }
+}
+
+const SUBMISSION_MODES: SubmissionMode[] = ['authorized_api', 'assisted', 'none']
+
+export function validateSubmitApplicationInput(input: SubmitApplicationInput): void {
+  assertUuid(input.applicationId, 'applicationId')
+  if (input.actorId) assertUuid(input.actorId, 'actorId')
+  if (!SUBMISSION_MODES.includes(input.mode)) {
+    throw new BackendError('VALIDATION', `Invalid submission mode: ${input.mode}`)
+  }
+  if (!input.idempotencyKey || typeof input.idempotencyKey !== 'string' || !input.idempotencyKey.trim()) {
+    throw new BackendError('VALIDATION', 'idempotencyKey is required to submit an application')
   }
 }

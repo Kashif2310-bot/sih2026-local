@@ -93,6 +93,9 @@ export interface ApplicationRow {
   submission_label_en: string | null
   submission_label_kn: string | null
   consent_at: string | null
+  government_reference_id: string | null
+  /** Internal dedup bookkeeping — never mapped into the public ApplicationRecord. */
+  submission_idempotency_key?: string | null
   created_at: string
   updated_at: string
 }
@@ -220,6 +223,7 @@ export function mapApplication(row: ApplicationRow): ApplicationRecord {
     submissionLabelEn: row.submission_label_en,
     submissionLabelKn: row.submission_label_kn,
     consentAt: row.consent_at,
+    governmentReferenceId: row.government_reference_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

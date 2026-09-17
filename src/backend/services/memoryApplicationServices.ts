@@ -12,9 +12,18 @@ import type {
   ApplicationStatusView,
   ApplicationVersionRecord,
   CreateApplicationInput,
+  SubmitApplicationInput,
   UpdateApplicationFieldsInput,
 } from '../../contracts/application'
 import type { ApplicationPersistenceService, ApplicationStatusService } from './types'
+import { BackendError } from '../errors'
+import {
+  assertApplicationStatus,
+  assertUuid,
+  validateCreateApplicationInput,
+  validateSubmitApplicationInput,
+  validateUpdateFieldsInput,
+} from '../validation'
 
 function newId(): Uuid {
   return crypto.randomUUID() as Uuid
@@ -42,6 +51,7 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
   const versions = new Map<Uuid, ApplicationVersionRecord[]>()
   const events = new Map<Uuid, ApplicationEvent[]>()
   const fieldBags = new Map<Uuid, Record<string, unknown>>()
+  const submissionKeys = new Map<Uuid, string>()
 
   function pushEvent(
     applicationId: Uuid,
@@ -65,6 +75,7 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
 
   const persistence: ApplicationPersistenceService = {
     async create(input: CreateApplicationInput) {
+      validateCreateApplicationInput(input)
       const id = newId()
       const ts = nowIso()
       const record: ApplicationRecord = {
@@ -78,6 +89,7 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
         submissionLabelEn: null,
         submissionLabelKn: null,
         consentAt: null,
+        governmentReferenceId: null,
         createdAt: ts,
         updatedAt: ts,
       }
@@ -98,12 +110,14 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
     },
 
     async get(applicationId) {
+      assertUuid(applicationId, 'applicationId')
       return applications.get(applicationId) ?? null
     },
 
     async updateFields(input: UpdateApplicationFieldsInput) {
+      validateUpdateFieldsInput(input)
       const app = applications.get(input.applicationId)
-      if (!app) throw new Error(`Application not found: ${input.applicationId}`)
+      if (!app) throw new BackendError('NOT_FOUND', `Application not found: ${input.applicationId}`)
 
       const bag = fieldBags.get(input.applicationId) ?? {}
       for (const f of input.fields) {
@@ -140,21 +154,26 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
     },
 
     async setStatus(applicationId, status: ApplicationStatus, actorId) {
+      assertUuid(applicationId, 'applicationId')
+      const st = assertApplicationStatus(status)
+      if (actorId) assertUuid(actorId, 'actorId')
       const app = applications.get(applicationId)
-      if (!app) throw new Error(`Application not found: ${applicationId}`)
+      if (!app) throw new BackendError('NOT_FOUND', `Application not found: ${applicationId}`)
       const updated: ApplicationRecord = {
         ...app,
-        status,
+        status: st,
         updatedAt: nowIso(),
       }
       applications.set(applicationId, updated)
-      pushEvent(applicationId, 'status_changed', actorId, { status })
+      pushEvent(applicationId, 'status_changed', actorId, { status: st })
       return updated
     },
 
     async recordConsent(applicationId, actorId, at) {
+      assertUuid(applicationId, 'applicationId')
+      assertUuid(actorId, 'actorId')
       const app = applications.get(applicationId)
-      if (!app) throw new Error(`Application not found: ${applicationId}`)
+      if (!app) throw new BackendError('NOT_FOUND', `Application not found: ${applicationId}`)
       const consentAt = at ?? nowIso()
       const updated: ApplicationRecord = {
         ...app,
@@ -168,8 +187,12 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
     },
 
     async attachScheme(applicationId, schemeId, schemeVersionId, actorId) {
+      assertUuid(applicationId, 'applicationId')
+      assertUuid(schemeId, 'schemeId')
+      assertUuid(schemeVersionId, 'schemeVersionId')
+      if (actorId) assertUuid(actorId, 'actorId')
       const app = applications.get(applicationId)
-      if (!app) throw new Error(`Application not found: ${applicationId}`)
+      if (!app) throw new BackendError('NOT_FOUND', `Application not found: ${applicationId}`)
       const updated: ApplicationRecord = {
         ...app,
         schemeId,
@@ -184,10 +207,40 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
       })
       return updated
     },
+
+    async submit(input: SubmitApplicationInput) {
+      validateSubmitApplicationInput(input)
+      const app = applications.get(input.applicationId)
+      if (!app) throw new BackendError('NOT_FOUND', `Application not found: ${input.applicationId}`)
+
+      const priorKey = submissionKeys.get(input.applicationId)
+      if (priorKey) {
+        if (priorKey === input.idempotencyKey) return app
+        throw new BackendError('CONFLICT', 'Application already submitted')
+      }
+      if (!app.consentAt) {
+        throw new BackendError('VALIDATION', 'Cannot submit before consent is recorded')
+      }
+
+      submissionKeys.set(input.applicationId, input.idempotencyKey)
+      const updated: ApplicationRecord = {
+        ...app,
+        status: 'submitted',
+        submissionMode: input.mode,
+        submissionLabelEn: input.submissionLabelEn ?? app.submissionLabelEn,
+        submissionLabelKn: input.submissionLabelKn ?? app.submissionLabelKn,
+        governmentReferenceId: input.governmentReferenceId ?? app.governmentReferenceId,
+        updatedAt: nowIso(),
+      }
+      applications.set(input.applicationId, updated)
+      pushEvent(input.applicationId, 'submitted', input.actorId, { mode: input.mode })
+      return updated
+    },
   }
 
   const status: ApplicationStatusService = {
     async getStatusView(applicationId): Promise<ApplicationStatusView | null> {
+      assertUuid(applicationId, 'applicationId')
       const application = applications.get(applicationId)
       if (!application) return null
       const vers = versions.get(applicationId) ?? []
@@ -201,6 +254,7 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
     },
 
     async listEvents(applicationId, limit = 50) {
+      assertUuid(applicationId, 'applicationId')
       const evs = events.get(applicationId) ?? []
       return evs.slice(-limit)
     },
@@ -214,6 +268,7 @@ export function createMemoryApplicationServices(): MemoryApplicationStore {
       versions.clear()
       events.clear()
       fieldBags.clear()
+      submissionKeys.clear()
     },
   }
 }
