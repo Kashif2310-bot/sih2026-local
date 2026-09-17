@@ -11,6 +11,7 @@
 
 import type { ActionPlanStep } from '../orchestrator'
 import type {
+  ContextualEvidenceItem,
   EligibilityStatus,
   LiveEvidenceItem,
   RetrievalSourceStatus,
@@ -270,6 +271,16 @@ export interface SourceCoverageReport {
   verificationTimestamps: string[]
   /** Always true until a real government-source registry claims otherwise (Vamshi). */
   claimsAllGovernmentSchemesChecked: false
+  /** Government evidence retrieved but not tied to any specific scheme (Prompt 8) — see governmentContextualEvidence on PersonalizedReport for the full items. */
+  contextualEvidenceCount: number
+  /** Raw records seen from connectors before validation/dedup/binding, for audit — 0 whenever live retrieval was not attempted. */
+  recordsRetrieved: number
+  recordsRejected: number
+  recordsDeduplicated: number
+  sourcesFailedCount: number
+  sourcesNotConfiguredCount: number
+  centralSourcesQueried: number
+  stateSourcesQueried: number
 }
 
 export type ExplanationLanguage = 'en' | 'kn' | 'mixed'
@@ -304,6 +315,8 @@ export interface PersonalizedReport {
   opportunityAssessment: OpportunityAssessment
   relevantSchemes: ReportSchemeEntry[]
   comparativeView: ComparativeOption[]
+  /** Official government evidence that could NOT be deterministically bound to any specific scheme this turn (Prompt 8) — never eligibility/benefit proof for any listed scheme, kept structurally separate from relevantSchemes[].liveEvidence. */
+  governmentContextualEvidence: ContextualEvidenceItem[]
   financialPath: FinancialPath
   documentReadiness: DocumentReadinessItem[]
   /** Flat list retained for Prompt 5 consumers — derived from documentReadiness. */

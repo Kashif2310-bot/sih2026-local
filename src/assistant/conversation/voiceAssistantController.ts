@@ -61,6 +61,7 @@ import {
 import { assessReadiness, type ReadinessAssessment } from './readiness'
 import { buildPersonalizedReport, type PersonalizedReport } from './report'
 import { createInitialConversationState, type AskedQuestionRecord, type ConversationState } from './types'
+import type { ContextualEvidenceItem } from '../types'
 
 /** Tracks the last emitted report so refreshes bump version without mutating history. */
 type ReportVersionCursor = Pick<PersonalizedReport, 'reportId' | 'version'>
@@ -119,6 +120,8 @@ export class VoiceAssistantController {
   private readonly listeners = new Set<(event: ConversationEvent) => void>()
   private turnCounter = 0
   private lastReportCursor: ReportVersionCursor | null = null
+  /** Contextual government evidence from the most recent live-evidence fetch — carried forward on turns that don't refetch, exactly like sourceStatus/lastEvidenceFetchSnapshot. Never scheme-specific (see evidence/schemeBinding.ts). */
+  private lastContextualEvidence: ContextualEvidenceItem[] = []
 
   constructor(deps: VoiceAssistantControllerDeps = {}, initialState?: ConversationState) {
     this.deps = {
@@ -204,11 +207,14 @@ export class VoiceAssistantController {
     )
     let sourceStatus = base.sourceStatus
     let lastEvidenceFetchSnapshot = base.lastEvidenceFetchSnapshot
+    let contextualEvidence = this.lastContextualEvidence
     if (invalidation.shouldRefetch) {
       this.emit({ type: 'evidence_fetch_started' })
       const result = await attemptLiveRetrieval(ranked, nextUserProfile, this.deps.liveRetriever)
       ranked = result.ranked
       sourceStatus = result.sourceStatus
+      contextualEvidence = result.contextualEvidence
+      this.lastContextualEvidence = result.contextualEvidence
       lastEvidenceFetchSnapshot = snapshotDecisionCriticalFields(nextUserProfile)
       this.emit({ type: 'evidence_fetch_finished', sourceStatus })
     }
@@ -272,6 +278,7 @@ export class VoiceAssistantController {
       actionPlan,
       readiness,
       sourceStatus,
+      contextualEvidence,
       now,
       previous: this.lastReportCursor,
       userUncertainFields: detectUserUncertainFields(trimmed, updatedFields),

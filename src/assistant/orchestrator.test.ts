@@ -6,7 +6,34 @@ import { defaultRetriever, type SchemeRetriever } from './retrieval'
 import { createInitialProfile, runAssistantTurn } from './orchestrator'
 import type { LiveEvidenceItem } from './types'
 
+/**
+ * A live-evidence fixture that DOES carry deterministic scheme-binding
+ * proof (explicitSchemeId) — the only way (besides a canonical URL match)
+ * evidence.ts's schemeBinding.ts will ever attach evidence to a specific
+ * scheme. Use `genericLiveEvidence` below for evidence that must NOT bind.
+ */
 function liveEvidenceFor(schemeId: string): LiveEvidenceItem {
+  return {
+    schemeId,
+    sourceName: 'data.gov.in (Open Government Data Platform)',
+    sourceUrl: 'https://api.data.gov.in/resource/abc123',
+    sourceType: 'official_open_data',
+    verificationStatus: 'live_official',
+    retrievedAt: new Date().toISOString(),
+    summary: '1,204 units sanctioned in Karnataka in FY2023-24.',
+    explicitSchemeId: schemeId,
+  }
+}
+
+/**
+ * A generic, un-bindable live-evidence fixture — no explicitSchemeId, no
+ * officialApplicationUrl. Mirrors exactly what the REAL data.gov.in Edge
+ * Function produces today (see liveRetrieval.ts / evidence/
+ * dataGovInConnector.ts header comments): a real statistic, but with no
+ * deterministic tie to any one scheme. This must always end up classified
+ * as contextual evidence, never attached to `schemeId`'s liveEvidence.
+ */
+function genericLiveEvidence(schemeId: string): LiveEvidenceItem {
   return {
     schemeId,
     sourceName: 'data.gov.in (Open Government Data Platform)',
@@ -344,11 +371,16 @@ describe('runAssistantTurn — live government-source retrieval', () => {
     expect(result.actionPlan.length).toBeGreaterThan(0)
   })
 
-  it('a live evidence boost never lets a likely_ineligible scheme outrank a likely_eligible one', async () => {
+  it('SECURITY/BINDING: live evidence for a scheme outside this turn\'s queried top-5 is never attached, even carrying explicit binding proof', async () => {
     // For this profile, NBCFDC is likely_ineligible (it targets OBC; this
-    // applicant is SC) — even with live evidence attached and its
-    // relevance/rankScore boosted, it must still sort behind the
-    // likely_eligible NSFDC Term Loan Scheme.
+    // applicant is SC) and therefore falls outside the top-5 schemes this
+    // turn actually queried live evidence for (see "queries live retrieval
+    // only for this turn's actually top-ranked schemes" below). Even a
+    // retriever that returns evidence explicitly tagged for nbcfdc-term-loan
+    // must not have it attached — that scheme was never part of what this
+    // turn asked about, so it can never receive evidence, no matter how the
+    // evidence is tagged. This also guards against a compromised/buggy
+    // retriever trying to attach evidence to an arbitrary scheme id.
     const result = await runAssistantTurn(poultryInput, {
       providers: [offlineProvider],
       retriever: defaultRetriever,
@@ -356,13 +388,41 @@ describe('runAssistantTurn — live government-source retrieval', () => {
     })
     const nbcfdc = result.ranked.find((r) => r.scheme.id === 'nbcfdc-term-loan')
     expect(nbcfdc?.eligibility.status).toBe('likely_ineligible')
-    expect(nbcfdc?.liveEvidence).toHaveLength(1)
+    expect(nbcfdc?.liveEvidence).toBeUndefined()
+  })
+
+  it('a live evidence boost never lets a lower-status scheme outrank a higher-status one, even when the boosted scheme is legitimately queried', async () => {
+    // pm-mudra-yojana is possibly_eligible (not likely_eligible) for this
+    // profile but IS among the top-5 queried schemes — even with live
+    // evidence legitimately bound and its relevance/rankScore boosted, it
+    // must still sort behind a likely_eligible scheme like NSFDC Term Loan.
+    const result = await runAssistantTurn(poultryInput, {
+      providers: [offlineProvider],
+      retriever: defaultRetriever,
+      liveRetriever: succeedingLiveRetriever([liveEvidenceFor('pm-mudra-yojana')]),
+    })
+    const mudra = result.ranked.find((r) => r.scheme.id === 'pm-mudra-yojana')
+    expect(mudra?.eligibility.status).toBe('possibly_eligible')
+    expect(mudra?.liveEvidence).toHaveLength(1)
 
     const ids = result.ranked.map((r) => r.scheme.id)
     const nsfdcTermLoanIdx = ids.indexOf('nsfdc-term-loan')
-    const nbcfdcIdx = ids.indexOf('nbcfdc-term-loan')
+    const mudraIdx = ids.indexOf('pm-mudra-yojana')
     expect(result.ranked[nsfdcTermLoanIdx].eligibility.status).toBe('likely_eligible')
-    expect(nsfdcTermLoanIdx).toBeLessThan(nbcfdcIdx)
+    expect(nsfdcTermLoanIdx).toBeLessThan(mudraIdx)
+  })
+
+  it('BINDING: generic (un-bindable) live evidence never attaches to any scheme — it surfaces as contextual evidence instead', async () => {
+    const result = await runAssistantTurn(poultryInput, {
+      providers: [offlineProvider],
+      retriever: defaultRetriever,
+      liveRetriever: succeedingLiveRetriever([genericLiveEvidence('nsfdc-term-loan')]),
+    })
+    expect(result.sourceStatus.status).toBe('live_official')
+    expect(result.ranked.every((r) => r.liveEvidence === undefined)).toBe(true)
+    expect(result.contextualEvidence.length).toBeGreaterThan(0)
+    expect(result.contextualEvidence[0].verificationStatus).toBe('live_contextual')
+    expect(result.contextualEvidence[0].sourceUrl).toMatch(/^https:\/\/api\.data\.gov\.in/)
   })
 
   it('queries live retrieval only for this turn\'s actually top-ranked schemes, not the whole dataset', async () => {

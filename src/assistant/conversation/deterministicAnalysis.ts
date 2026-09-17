@@ -16,7 +16,9 @@
 import { buildSchemePlan } from '../../lib/finance'
 import type { LokScoreBreakdown } from '../../lib/lokScore'
 import type { ActionPlanStep } from '../orchestrator'
+import type { SourceCoverageAccounting } from '../evidence/types'
 import type {
+  ContextualEvidenceItem,
   EligibilityStatus,
   RankedScheme,
   RetrievalSourceStatus,
@@ -57,6 +59,7 @@ export interface DeterministicAnalysis {
   opportunityAssessment: OpportunityAssessment
   schemeAnalyses: ReportSchemeEntry[]
   comparativeView: ComparativeOption[]
+  governmentContextualEvidence: ContextualEvidenceItem[]
   financialPath: FinancialPath
   documentReadiness: DocumentReadinessItem[]
   applicationReadiness: ApplicationReadinessAssessment
@@ -80,6 +83,10 @@ export interface BuildDeterministicAnalysisInput {
   lokScore?: LokScoreBreakdown
   /** Fields the citizen explicitly said they don't know yet (finance uncertainty). */
   userUncertainFields?: Array<keyof UserProfile>
+  /** Government evidence retrieved this turn that could not be tied to a specific scheme (Prompt 8) — see orchestrator.ts's attemptLiveRetrieval. */
+  contextualEvidence?: ContextualEvidenceItem[]
+  /** Honest source/record coverage accounting for this turn's live retrieval attempt, when it was attempted. */
+  evidenceCoverage?: SourceCoverageAccounting | null
   now?: string
 }
 
@@ -670,7 +677,12 @@ function buildUncertainties(
   })
 }
 
-function buildSourceCoverage(ranked: RankedScheme[], sourceStatus: RetrievalSourceStatus | null): SourceCoverageReport {
+function buildSourceCoverage(
+  ranked: RankedScheme[],
+  sourceStatus: RetrievalSourceStatus | null,
+  contextualEvidence: ContextualEvidenceItem[],
+  evidenceCoverage: SourceCoverageAccounting | null | undefined,
+): SourceCoverageReport {
   const verifiedLocalCount = ranked.filter((r) => !r.liveEvidence || r.liveEvidence.length === 0).length
   const liveOfficialCount = ranked.filter((r) => r.liveEvidence && r.liveEvidence.length > 0).length
   const eligibleOrPossibleCount = ranked.filter(
@@ -700,6 +712,9 @@ function buildSourceCoverage(ranked: RankedScheme[], sourceStatus: RetrievalSour
       verificationTimestamps.push(live.retrievedAt)
     }
   }
+  for (const ctx of contextualEvidence) {
+    verificationTimestamps.push(ctx.retrievedAt)
+  }
 
   return {
     sourcesQueried,
@@ -712,6 +727,14 @@ function buildSourceCoverage(ranked: RankedScheme[], sourceStatus: RetrievalSour
     totalSchemesConsidered: ranked.length,
     verificationTimestamps: Array.from(new Set(verificationTimestamps)),
     claimsAllGovernmentSchemesChecked: false,
+    contextualEvidenceCount: contextualEvidence.length,
+    recordsRetrieved: evidenceCoverage?.recordsRetrieved ?? 0,
+    recordsRejected: evidenceCoverage?.recordsRejected ?? 0,
+    recordsDeduplicated: evidenceCoverage?.recordsDeduplicated ?? 0,
+    sourcesFailedCount: evidenceCoverage?.sourcesFailed ?? 0,
+    sourcesNotConfiguredCount: evidenceCoverage?.sourcesNotConfigured ?? 0,
+    centralSourcesQueried: evidenceCoverage?.centralSourcesQueried ?? 0,
+    stateSourcesQueried: evidenceCoverage?.stateSourcesQueried ?? 0,
   }
 }
 
@@ -727,6 +750,7 @@ export function buildDeterministicAnalysis(input: BuildDeterministicAnalysisInpu
     now,
   } = input
   const userUncertainFields = input.userUncertainFields ?? []
+  const contextualEvidence = input.contextualEvidence ?? []
   const generatedAt = now ?? new Date().toISOString()
 
   const citizenSnapshot = buildCitizenSnapshot(applicantProfile)
@@ -759,7 +783,7 @@ export function buildDeterministicAnalysis(input: BuildDeterministicAnalysisInpu
     financialPath,
     uncertainties,
   )
-  const sourceCoverage = buildSourceCoverage(ranked, sourceStatus)
+  const sourceCoverage = buildSourceCoverage(ranked, sourceStatus, contextualEvidence, input.evidenceCoverage)
 
   return {
     generatedAt,
@@ -775,6 +799,7 @@ export function buildDeterministicAnalysis(input: BuildDeterministicAnalysisInpu
     },
     schemeAnalyses,
     comparativeView,
+    governmentContextualEvidence: contextualEvidence,
     financialPath,
     documentReadiness,
     applicationReadiness,

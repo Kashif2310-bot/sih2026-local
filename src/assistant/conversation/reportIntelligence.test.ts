@@ -505,4 +505,152 @@ describe('Prompt 7 — personalized analysis & report intelligence', () => {
     expect(analysis.schemeAnalyses[0].matchExplanation).toContain('Karnataka')
     expect(analysis.opportunityAssessment.narrative).toBeUndefined()
   })
+
+  describe('Prompt 8 — live verified government evidence layer integration', () => {
+    it('distinguishes verified scheme evidence from government contextual evidence from source unavailable', () => {
+      const profile = dairyExpansionProfile()
+      const local = rankedFor('pmegp', profile)
+      const withVerified: RankedScheme = {
+        ...local,
+        liveEvidence: [
+          {
+            schemeId: 'pmegp',
+            sourceName: 'data.gov.in',
+            sourceUrl: 'https://api.data.gov.in/resource/verified',
+            sourceType: 'official_open_data',
+            verificationStatus: 'live_official',
+            retrievedAt: '2026-01-03T00:00:00.000Z',
+            summary: 'explicitly bound fact',
+            explicitSchemeId: 'pmegp',
+            bindingMethod: 'explicit_scheme_id',
+            bindingReason: 'source record explicitly declares scheme id "pmegp"',
+          },
+        ],
+      }
+      const contextualEvidence = [
+        {
+          sourceName: 'data.gov.in',
+          sourceUrl: 'https://api.data.gov.in/resource/contextual',
+          sourceType: 'official_open_data' as const,
+          verificationStatus: 'live_contextual' as const,
+          retrievedAt: '2026-01-03T00:00:00.000Z',
+          summary: 'generic statistic with no scheme tie',
+          requestedSchemeIds: ['pmegp'],
+          reason: 'no explicit scheme identifier or matching canonical URL',
+        },
+      ]
+      const readiness = assessReadiness({ userProfile: profile, ranked: [withVerified], missingFields: [] })
+      const report = buildPersonalizedReport({
+        applicantProfile: applicantFrom(profile),
+        userProfile: profile,
+        ranked: [withVerified],
+        actionPlan: [],
+        readiness,
+        sourceStatus: { status: 'live_official', checkedAt: '2026-01-03T00:00:00.000Z' },
+        contextualEvidence,
+      })
+
+      // Verified, scheme-specific evidence lives on the scheme entry itself.
+      expect(report.relevantSchemes[0].verificationStatus).toBe('live_official')
+      expect(report.relevantSchemes[0].liveEvidence[0].bindingMethod).toBe('explicit_scheme_id')
+
+      // Contextual evidence is kept structurally separate — never merged into any scheme's liveEvidence.
+      expect(report.governmentContextualEvidence).toHaveLength(1)
+      expect(report.governmentContextualEvidence[0].verificationStatus).toBe('live_contextual')
+      expect(report.relevantSchemes.every((s) => s.liveEvidence.every((e) => e.verificationStatus !== 'live_contextual'))).toBe(true)
+
+      // Source-unavailable is its own distinct, honest state.
+      const unavailableReport = buildPersonalizedReport({
+        applicantProfile: applicantFrom(profile),
+        userProfile: profile,
+        ranked: [local],
+        actionPlan: [],
+        readiness: assessReadiness({ userProfile: profile, ranked: [local], missingFields: [] }),
+        sourceStatus: { status: 'live_unavailable', checkedAt: '2026-01-03T00:00:00.000Z' },
+      })
+      expect(unavailableReport.governmentContextualEvidence).toEqual([])
+      expect(unavailableReport.uncertainties.some((u) => u.kind === 'source_unavailable')).toBe(true)
+    })
+
+    it('coverage accounting exposes contextual-evidence and record-level counts without claiming full government coverage', () => {
+      const profile = dairyExpansionProfile()
+      const ranked = [rankedFor('pmegp', profile)]
+      const contextualEvidence = [
+        {
+          sourceName: 'data.gov.in',
+          sourceUrl: 'https://api.data.gov.in/resource/contextual',
+          sourceType: 'official_open_data' as const,
+          verificationStatus: 'live_contextual' as const,
+          retrievedAt: '2026-01-03T00:00:00.000Z',
+          summary: 'generic statistic',
+          requestedSchemeIds: ['pmegp'],
+          reason: 'no explicit scheme identifier or matching canonical URL',
+        },
+      ]
+      const readiness = assessReadiness({ userProfile: profile, ranked, missingFields: [] })
+      const report = buildPersonalizedReport({
+        applicantProfile: applicantFrom(profile),
+        userProfile: profile,
+        ranked,
+        actionPlan: [],
+        readiness,
+        sourceStatus: { status: 'live_official', checkedAt: '2026-01-03T00:00:00.000Z' },
+        contextualEvidence,
+        evidenceCoverage: {
+          sourcesIntended: 1,
+          sourcesQueried: 1,
+          sourcesSuccessful: 1,
+          sourcesFailed: 0,
+          sourcesNotConfigured: 0,
+          recordsRetrieved: 3,
+          recordsNormalized: 3,
+          recordsRejected: 0,
+          recordsDeduplicated: 1,
+          schemeSpecificVerifiedCount: 0,
+          contextualEvidenceCount: 1,
+          candidateSchemeCount: 1,
+          eligibleSchemeCount: 0,
+          centralSourcesQueried: 1,
+          stateSourcesQueried: 0,
+          claimsAllGovernmentSchemesChecked: false,
+          sourceOutcomes: [],
+        },
+      })
+      expect(report.sourceCoverage.contextualEvidenceCount).toBe(1)
+      expect(report.sourceCoverage.recordsRetrieved).toBe(3)
+      expect(report.sourceCoverage.recordsDeduplicated).toBe(1)
+      expect(report.sourceCoverage.centralSourcesQueried).toBe(1)
+      expect(report.sourceCoverage.claimsAllGovernmentSchemesChecked).toBe(false)
+    })
+
+    it('a candidate scheme with insufficient eligibility criteria never becomes falsely eligible merely because contextual evidence exists', () => {
+      const profile: UserProfile = { businessSector: 'dairy', rawNotes: [] } // thin profile
+      const ranked = [rankedFor('pmegp', profile)]
+      expect(ranked[0].eligibility.status).toBe('insufficient_data')
+      const contextualEvidence = [
+        {
+          sourceName: 'data.gov.in',
+          sourceUrl: 'https://api.data.gov.in/resource/x',
+          sourceType: 'official_open_data' as const,
+          verificationStatus: 'live_contextual' as const,
+          retrievedAt: '2026-01-03T00:00:00.000Z',
+          summary: 'a generic dairy-sector statistic',
+          requestedSchemeIds: ['pmegp'],
+          reason: 'no explicit scheme identifier or matching canonical URL',
+        },
+      ]
+      const readiness = assessReadiness({ userProfile: profile, ranked, missingFields: identifyMissingFields(profile) })
+      const report = buildPersonalizedReport({
+        applicantProfile: applicantFrom(profile),
+        userProfile: profile,
+        ranked,
+        actionPlan: [],
+        readiness,
+        sourceStatus: { status: 'live_official', checkedAt: '2026-01-03T00:00:00.000Z' },
+        contextualEvidence,
+      })
+      expect(report.relevantSchemes[0].eligibilityStatus).toBe('insufficient_data')
+      expect(report.relevantSchemes[0].recommendation).toBe('insufficient_information')
+    })
+  })
 })

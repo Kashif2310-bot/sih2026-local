@@ -166,10 +166,14 @@ export interface RankedScheme {
  *                        deterministically tied to one specific scheme
  *                        (e.g. a generic state/sector statistic). Useful
  *                        context; never presented as proof of a scheme's
- *                        eligibility/benefits.
+ *                        eligibility/benefits. See Prompt 8.
  *   live_unverified    — reserved for a live result that could not be fully
- *                        validated. Current implementation drops invalid
- *                        items rather than emitting this label.
+ *                        validated (e.g. domain allowlisted but response
+ *                        shape unexpected). Never produced by the current
+ *                        implementation, which drops anything it can't
+ *                        validate rather than passing it through with this
+ *                        label — kept in the enum so the UI/tests have a
+ *                        defined place to render it if that changes.
  *   unavailable        — live retrieval was attempted and failed, or was
  *                        never configured/attempted.
  */
@@ -196,11 +200,18 @@ export interface LiveEvidenceItem {
   publishedAt?: string
   /** Short, human-readable fact — e.g. "1,204 units sanctioned in Karnataka in FY2023-24". Never eligibility criteria. */
   summary: string
+
+  // --- Optional provenance/binding/freshness fields (Prompt 8). All
+  // additive and optional: never fabricated when a source doesn't supply
+  // them, and never required for a caller that only knows the pre-Prompt-8
+  // shape (e.g. the current data.gov.in connector, which cannot supply any
+  // of these). ---
+
   /** Stable identifier for the underlying source record, when the source/connector can supply one. */
   sourceRecordId?: string
-  /** A scheme identifier the SOURCE RECORD ITSELF explicitly declares (not merely "which id we requested"). */
+  /** A scheme identifier the SOURCE RECORD ITSELF explicitly declares (not merely "which id we requested"). The only strong basis (besides a canonical URL match) for verificationStatus 'live_official'. */
   explicitSchemeId?: string
-  /** Canonical official application URL the source record cites, if any. */
+  /** Canonical official application URL the source record cites, if any — compared against GovernmentScheme.officialApplicationUrl for binding. */
   officialApplicationUrl?: string
   /** When the source says the underlying data was last updated (may differ from publishedAt). */
   updatedAt?: string
@@ -208,17 +219,20 @@ export interface LiveEvidenceItem {
   version?: string
   /** Source-reported ETag, if any. */
   etag?: string
-  /** Content hash computed over the raw source record, if available. */
+  /** Content hash computed over the raw source record, if available — used for change detection/dedup. */
   contentHash?: string
-  /** How this item came to be bound to `schemeId`. */
+  /** How this item came to be bound to `schemeId`. Absent only for evidence produced before Prompt 8. */
   bindingMethod?: SchemeBindingMethod
-  /** Human-readable justification for the binding decision. */
+  /** Human-readable justification for the binding decision — never blank when bindingMethod is present. */
   bindingReason?: string
 }
 
 /**
  * Official government evidence that was retrieved successfully but could
- * NOT be deterministically tied to one specific local scheme.
+ * NOT be deterministically tied to one specific local scheme — see
+ * VerificationStatus['live_contextual']. Deliberately NOT attached to any
+ * RankedScheme: it is exposed separately (report/coverage) so it can never
+ * be mistaken for scheme-specific proof.
  */
 export interface ContextualEvidenceItem {
   sourceName: string
@@ -228,7 +242,7 @@ export interface ContextualEvidenceItem {
   retrievedAt: string
   publishedAt?: string
   summary: string
-  /** The scheme id(s) this evidence was originally sought for — NOT a binding claim. */
+  /** The scheme id(s) this evidence was originally sought for, purely for audit/debugging — NOT a binding claim. */
   requestedSchemeIds: string[]
   /** Why this could not be bound to a specific scheme. */
   reason: string

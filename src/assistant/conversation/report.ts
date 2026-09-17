@@ -22,7 +22,8 @@
  */
 
 import type { ActionPlanStep } from '../orchestrator'
-import type { RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
+import type { SourceCoverageAccounting } from '../evidence/types'
+import type { ContextualEvidenceItem, RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
 import type { ApplicantProfile } from '../../shared/applicantProfile'
 import type { LokScoreBreakdown } from '../../lib/lokScore'
 import type { ReadinessAssessment } from './readiness'
@@ -59,6 +60,10 @@ export interface BuildPersonalizedReportInput {
   /** Optional existing LokScoreBreakdown — never computed here. */
   lokScore?: LokScoreBreakdown
   userUncertainFields?: Array<keyof UserProfile>
+  /** Government evidence retrieved this turn that could not be tied to a specific scheme (Prompt 8) — from orchestrator.ts's attemptLiveRetrieval. */
+  contextualEvidence?: ContextualEvidenceItem[]
+  /** Honest source/record coverage accounting for this turn's live retrieval attempt, when it was attempted. */
+  evidenceCoverage?: SourceCoverageAccounting | null
   now?: string
   /** Prior emitted report — used only for reportId continuity + version bump. */
   previous?: Pick<PersonalizedReport, 'reportId' | 'version'> | null
@@ -104,6 +109,8 @@ export function buildPersonalizedReport(input: BuildPersonalizedReportInput): Pe
     sourceStatus: input.sourceStatus,
     lokScore: input.lokScore,
     userUncertainFields: input.userUncertainFields,
+    contextualEvidence: input.contextualEvidence,
+    evidenceCoverage: input.evidenceCoverage,
     now: input.now,
   })
 
@@ -129,6 +136,7 @@ export function buildPersonalizedReport(input: BuildPersonalizedReportInput): Pe
     opportunityAssessment: analysis.opportunityAssessment,
     relevantSchemes: analysis.schemeAnalyses,
     comparativeView: analysis.comparativeView,
+    governmentContextualEvidence: analysis.governmentContextualEvidence,
     financialPath: analysis.financialPath,
     documentReadiness: analysis.documentReadiness,
     documentsNeeded: analysis.documentReadiness.map((d) => d.documentName),
