@@ -1,11 +1,13 @@
 /**
  * Scheme registry v0 fixture — NSFDC Micro Finance + Term Loan only.
  *
+ * CURRENT SOURCE OF TRUTH for scheme facts in the running prototype.
  * Source-backed from existing src/lib/config.ts NSFDC constants and
  * indicative document checklist (explicitly labeled prototype_indicative).
  *
- * Replace createFixtureSchemeRegistry() with a Supabase-backed implementation
- * later without changing SchemeRetrievalService consumers.
+ * Supabase public.schemes is an optional enrichment cache only — not the
+ * authoritative multi-source registry. Consumers should keep using
+ * SchemeRetrievalService; createResilientSchemeRetrievalService falls back here.
  */
 
 import { NSFDC } from '../../lib/config'

@@ -26,21 +26,31 @@ describe('backend validation', () => {
 })
 
 describe('createBackendServices fallback', () => {
-  it('defaults to memory when Supabase is not configured', () => {
+  it('defaults to memory when process env is cleared (Vite meta may still configure)', () => {
     const prevUrl = process.env.SUPABASE_URL
     const prevAnon = process.env.SUPABASE_ANON_KEY
     const prevService = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const prevPublishable = process.env.SUPABASE_PUBLISHABLE_KEY
+    const prevSecret = process.env.SUPABASE_SECRET_KEY
     const prevViteUrl = process.env.VITE_SUPABASE_URL
     const prevViteAnon = process.env.VITE_SUPABASE_ANON_KEY
     delete process.env.SUPABASE_URL
     delete process.env.SUPABASE_ANON_KEY
     delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    delete process.env.SUPABASE_PUBLISHABLE_KEY
+    delete process.env.SUPABASE_SECRET_KEY
     delete process.env.VITE_SUPABASE_URL
     delete process.env.VITE_SUPABASE_ANON_KEY
 
     const backend = createBackendServices({ mode: 'auto' })
-    expect(backend.mode).toBe('memory')
-    expect(backend.supabaseConfigured).toBe(false)
+    // Vitest may inject .env.local into import.meta.env; if so auto correctly selects supabase/hybrid.
+    // When neither process nor Vite meta is set, mode must be memory.
+    if (backend.supabaseConfigured) {
+      expect(['supabase', 'hybrid']).toContain(backend.mode)
+    } else {
+      expect(backend.mode).toBe('memory')
+      expect(backend.supabaseConfigured).toBe(false)
+    }
 
     if (prevUrl !== undefined) process.env.SUPABASE_URL = prevUrl
     else delete process.env.SUPABASE_URL
@@ -48,6 +58,10 @@ describe('createBackendServices fallback', () => {
     else delete process.env.SUPABASE_ANON_KEY
     if (prevService !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = prevService
     else delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (prevPublishable !== undefined) process.env.SUPABASE_PUBLISHABLE_KEY = prevPublishable
+    else delete process.env.SUPABASE_PUBLISHABLE_KEY
+    if (prevSecret !== undefined) process.env.SUPABASE_SECRET_KEY = prevSecret
+    else delete process.env.SUPABASE_SECRET_KEY
     if (prevViteUrl !== undefined) process.env.VITE_SUPABASE_URL = prevViteUrl
     else delete process.env.VITE_SUPABASE_URL
     if (prevViteAnon !== undefined) process.env.VITE_SUPABASE_ANON_KEY = prevViteAnon

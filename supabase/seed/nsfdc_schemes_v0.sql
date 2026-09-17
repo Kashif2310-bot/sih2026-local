@@ -1,4 +1,7 @@
--- NSFDC registry v0 seed — mirrors src/backend/registry/fixtureSchemeRegistry.ts
+-- NSFDC registry v0 seed — optional write-through / enrichment cache ONLY.
+-- Authoritative scheme facts for the running prototype remain in TypeScript:
+--   src/backend/registry/fixtureSchemeRegistry.ts (and future assistant scheme modules).
+-- public.schemes here is NOT the multi-source government registry of record.
 -- Stable UUIDs for cross-workstream fixtures.
 
 insert into public.ministries (id, code, name_en, name_kn, level)
