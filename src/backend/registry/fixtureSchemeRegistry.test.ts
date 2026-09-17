@@ -67,4 +67,28 @@ describe('recommendation service v0', () => {
     const result = await svc.recommend({ profile })
     expect(result.data.every((r) => r.eligible === false)).toBe(true)
   })
+
+  it('surfaces freshness, missing fields, and a next step per result (Phase 4)', async () => {
+    const svc = createRecommendationService(createFixtureSchemeRegistry())
+    const profile = fromEntrepreneurProfile(defaultProfile())
+    const result = await svc.recommend({ profile })
+    for (const r of result.data) {
+      expect(r.freshnessScore).toBeGreaterThan(0)
+      expect(Array.isArray(r.missingFields)).toBe(true)
+      expect(r.nextSteps.length).toBeGreaterThan(0)
+    }
+    const eligibleTop = result.data.find((r) => r.eligible)!
+    expect(eligibleTop.nextSteps.some((s) => s.code === 'gather_documents_and_apply')).toBe(true)
+  })
+
+  it('gives an actionable next step when margin capital is zero — a blocking issue, not a missing field', async () => {
+    const svc = createRecommendationService(createFixtureSchemeRegistry())
+    const profile = fromEntrepreneurProfile({ ...defaultProfile(), availableMargin: 0 })
+    const result = await svc.recommend({ profile })
+    for (const r of result.data) {
+      expect(r.eligible).toBe(false)
+      expect(r.reasons.some((rs) => rs.code === 'margin_missing' && rs.severity === 'blocking')).toBe(true)
+      expect(r.nextSteps.some((s) => s.code === 'resolve_blocking_eligibility')).toBe(true)
+    }
+  })
 })

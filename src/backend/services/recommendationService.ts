@@ -4,7 +4,13 @@
  */
 
 import { NSFDC } from '../../lib/config'
-import type { RecommendationEnvelope, RecommendationInput, RecommendationResult } from '../../contracts/recommendation'
+import type { MissingField } from '../../contracts/profile'
+import type {
+  RecommendationEnvelope,
+  RecommendationInput,
+  RecommendationNextStep,
+  RecommendationResult,
+} from '../../contracts/recommendation'
 import type { SchemeRecord } from '../../contracts/scheme'
 import type { RecommendationService, SchemeRegistry } from '../services/types'
 import { getDefaultSchemeRegistry } from '../registry/fixtureSchemeRegistry'
@@ -14,9 +20,47 @@ function projectCostFromMargin(margin: number): number {
   return Math.round(margin * 10 * 100) / 100
 }
 
+/** Deterministic follow-up actions — never an LLM suggestion, only rules over eligible/missing/reasons. */
+function buildNextSteps(
+  eligible: boolean,
+  missing: MissingField[],
+  reasons: RecommendationResult['reasons'],
+): RecommendationNextStep[] {
+  const steps: RecommendationNextStep[] = []
+
+  if (missing.length > 0) {
+    const keys = missing.map((m) => m.key).join(', ')
+    steps.push({
+      code: 'provide_missing_profile_fields',
+      messageEn: `Provide the missing profile details needed to confirm this: ${keys}.`,
+      messageKn: `ಇದನ್ನು ದೃಢೀಕರಿಸಲು ಕೊರತೆಯಿರುವ ಪ್ರೊಫೈಲ್ ವಿವರಗಳನ್ನು ನೀಡಿ: ${keys}.`,
+    })
+  }
+
+  const blocking = reasons.filter((r) => r.severity === 'blocking')
+  if (blocking.length > 0) {
+    steps.push({
+      code: 'resolve_blocking_eligibility',
+      messageEn: 'Resolve the blocking eligibility issue(s) above before applying for this scheme.',
+      messageKn: 'ಈ ಯೋಜನೆಗೆ ಅರ್ಜಿ ಸಲ್ಲಿಸುವ ಮೊದಲು ಮೇಲಿನ ಅಡ್ಡಿಪಡಿಸುವ ಅರ್ಹತಾ ಸಮಸ್ಯೆಗಳನ್ನು ಪರಿಹರಿಸಿ.',
+    })
+  }
+
+  if (eligible && missing.length === 0 && blocking.length === 0) {
+    steps.push({
+      code: 'gather_documents_and_apply',
+      messageEn: 'Gather the listed documents and apply via the NSFDC channelizing agency / bank partner noted in the procedure summary.',
+      messageKn: 'ಪಟ್ಟಿ ಮಾಡಿದ ದಾಖಲೆಗಳನ್ನು ಸಂಗ್ರಹಿಸಿ ಮತ್ತು ಪ್ರಕ್ರಿಯೆ ಸಾರಾಂಶದಲ್ಲಿ ಸೂಚಿಸಿದ NSFDC ಚಾನೆಲೈಸಿಂಗ್ ಏಜೆನ್ಸಿ / ಬ್ಯಾಂಕ್ ಪಾರ್ಟ್‌ನರ್ ಮೂಲಕ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ.',
+    })
+  }
+
+  return steps
+}
+
 function scoreScheme(
   scheme: SchemeRecord,
   input: RecommendationInput,
+  missing: MissingField[],
 ): RecommendationResult | null {
   const v = scheme.latestVersion
   if (!v || !v.loanTerms) return null
@@ -100,6 +144,9 @@ function scoreScheme(
       eligible: false,
       reasons,
       schemeVersion: v.version,
+      missingFields: missing,
+      freshnessScore: v.freshnessScore,
+      nextSteps: buildNextSteps(false, missing, reasons),
     }
   }
 
@@ -147,6 +194,9 @@ function scoreScheme(
     eligible,
     reasons,
     schemeVersion: v.version,
+    missingFields: missing,
+    freshnessScore: v.freshnessScore,
+    nextSteps: buildNextSteps(eligible, missing, reasons),
   }
 }
 
@@ -165,7 +215,7 @@ export function createRecommendationService(
 
       const results: RecommendationResult[] = []
       for (const s of schemes) {
-        const r = scoreScheme(s, input)
+        const r = scoreScheme(s, input, missing)
         if (r) results.push(r)
       }
 
@@ -179,10 +229,6 @@ export function createRecommendationService(
 
       const limit = input.limit ?? 10
       const sliced = results.slice(0, limit)
-
-      if (missing.some((m) => m.key === 'availableMargin' || m.key === 'community')) {
-        // still return ranked schemes but honesty notes incomplete profile
-      }
 
       return {
         data: sliced,
