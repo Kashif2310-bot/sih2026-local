@@ -87,6 +87,8 @@ export {
 } from './services/aditaApplicationPersistence'
 export type { AditaApplicationPersistence } from './services/aditaApplicationPersistence'
 
+export { persistApplicationThenApproval } from './services/persistApplicationThenApproval'
+
 export {
   createMemoryJordanApprovalPersistence,
   createSupabaseJordanApprovalPersistence,
