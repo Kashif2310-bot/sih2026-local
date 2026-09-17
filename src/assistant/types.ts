@@ -148,4 +148,96 @@ export interface RankedScheme {
   eligibility: EligibilityResult
   relevance: number
   rankScore: number
+  /** Live evidence merged in for this scheme this turn, if any — see evidenceMerge.ts. Absent/empty is the normal case. */
+  liveEvidence?: LiveEvidenceItem[]
+}
+
+/**
+ * Trust model for a single piece of retrieved evidence.
+ *   verified_local   — from the curated local dataset (data/schemes.ts).
+ *   live_official     — fetched this turn from an allowlisted official
+ *                        government domain via the live-retrieval Edge
+ *                        Function, AND deterministically bound to this
+ *                        specific scheme (see src/assistant/evidence/
+ *                        schemeBinding.ts) — never merely "requested for
+ *                        this scheme id".
+ *   live_contextual    — official government information that was
+ *                        successfully retrieved but could NOT be
+ *                        deterministically tied to one specific scheme
+ *                        (e.g. a generic state/sector statistic). Useful
+ *                        context; never presented as proof of a scheme's
+ *                        eligibility/benefits.
+ *   live_unverified    — reserved for a live result that could not be fully
+ *                        validated. Current implementation drops invalid
+ *                        items rather than emitting this label.
+ *   unavailable        — live retrieval was attempted and failed, or was
+ *                        never configured/attempted.
+ */
+export type VerificationStatus =
+  | 'verified_local'
+  | 'live_official'
+  | 'live_contextual'
+  | 'live_unverified'
+  | 'unavailable'
+
+/** How a piece of live evidence was deterministically tied to one specific scheme. See src/assistant/evidence/schemeBinding.ts. */
+export type SchemeBindingMethod = 'explicit_scheme_id' | 'canonical_url_match' | 'unbound'
+
+export interface LiveEvidenceItem {
+  /** Local scheme this evidence was matched to — live evidence is never shown as a standalone, unvetted "scheme". */
+  schemeId: string
+  sourceName: string
+  sourceUrl: string
+  sourceType: 'official_open_data' | 'official_ministry' | 'official_other'
+  verificationStatus: VerificationStatus
+  /** When THIS app fetched it. */
+  retrievedAt: string
+  /** When the source itself says the underlying data was published/updated, if it says. */
+  publishedAt?: string
+  /** Short, human-readable fact — e.g. "1,204 units sanctioned in Karnataka in FY2023-24". Never eligibility criteria. */
+  summary: string
+  /** Stable identifier for the underlying source record, when the source/connector can supply one. */
+  sourceRecordId?: string
+  /** A scheme identifier the SOURCE RECORD ITSELF explicitly declares (not merely "which id we requested"). */
+  explicitSchemeId?: string
+  /** Canonical official application URL the source record cites, if any. */
+  officialApplicationUrl?: string
+  /** When the source says the underlying data was last updated (may differ from publishedAt). */
+  updatedAt?: string
+  /** Source-reported version/revision label, if any. */
+  version?: string
+  /** Source-reported ETag, if any. */
+  etag?: string
+  /** Content hash computed over the raw source record, if available. */
+  contentHash?: string
+  /** How this item came to be bound to `schemeId`. */
+  bindingMethod?: SchemeBindingMethod
+  /** Human-readable justification for the binding decision. */
+  bindingReason?: string
+}
+
+/**
+ * Official government evidence that was retrieved successfully but could
+ * NOT be deterministically tied to one specific local scheme.
+ */
+export interface ContextualEvidenceItem {
+  sourceName: string
+  sourceUrl: string
+  sourceType: 'official_open_data' | 'official_ministry' | 'official_other'
+  verificationStatus: 'live_contextual'
+  retrievedAt: string
+  publishedAt?: string
+  summary: string
+  /** The scheme id(s) this evidence was originally sought for — NOT a binding claim. */
+  requestedSchemeIds: string[]
+  /** Why this could not be bound to a specific scheme. */
+  reason: string
+  state?: string
+  sector?: string
+}
+
+/** What actually happened when this turn tried (or didn't try) live retrieval — drives the UI's source-status line. */
+export interface RetrievalSourceStatus {
+  status: 'verified_local' | 'live_official' | 'live_unavailable'
+  checkedAt: string
 }

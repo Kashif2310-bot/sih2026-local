@@ -1,8 +1,10 @@
 /**
- * Backend public surface for other workstreams.
+ * Backend public surface for other workstreams (Option A).
  *
- * Prefer createBackendServices() — auto-selects Supabase when configured,
- * otherwise memory/fixture so the existing prototype never hard-depends on Supabase.
+ * Prefer createBackendServices() — exposes:
+ *   schemeCatalog, sharedProfiles, aditaApplications, jordanApprovals,
+ *   liveRetrieval, admin
+ * plus legacy Phase 1/2 UUID services as compatibility only.
  */
 
 export type * from './services/types'
@@ -37,10 +39,25 @@ export type {
 } from './adapters/profileAdapter'
 
 export {
+  sharedProfileFromV2,
+  v2FromSharedProfile,
+} from './adapters/applicantProfileV2Bridge'
+
+export {
   createFixtureSchemeRegistry,
   getDefaultSchemeRegistry,
   FIXTURE_IDS,
+  FIXTURE_TO_SCHEME_TS_ID,
 } from './registry/fixtureSchemeRegistry'
+
+export {
+  listAuthoritativeSchemes,
+  getAuthoritativeScheme,
+  getSchemeView,
+  listSchemeViews,
+  schemeKnowledgeMeta,
+} from './schemes/schemeSourceOfTruth'
+export type { SchemeView, SchemeCacheRow } from './schemes/schemeSourceOfTruth'
 
 export { createRecommendationService } from './services/recommendationService'
 export { createMemoryProfileService } from './services/memoryProfileService'
@@ -57,6 +74,51 @@ export {
   createSupabaseApplicationPersistenceService,
   createSupabaseApplicationStatusService,
 } from './services/supabaseApplicationServices'
+
+export {
+  createMemorySharedProfilePersistence,
+  createSupabaseSharedProfilePersistence,
+} from './services/sharedProfilePersistence'
+export type { SharedProfilePersistence } from './services/sharedProfilePersistence'
+
+export {
+  createMemoryAditaApplicationPersistence,
+  createSupabaseAditaApplicationPersistence,
+} from './services/aditaApplicationPersistence'
+export type { AditaApplicationPersistence } from './services/aditaApplicationPersistence'
+
+export {
+  createMemoryJordanApprovalPersistence,
+  createSupabaseJordanApprovalPersistence,
+} from './services/jordanApprovalPersistence'
+export type { JordanApprovalPersistence, ChainAnchorRecord } from './services/jordanApprovalPersistence'
+
+export {
+  createLiveRetrievalGateway,
+  createUnavailableLiveRetrievalGateway,
+} from './services/liveRetrievalGateway'
+export type { LiveRetrievalGateway, LiveRetrievalResult } from './services/liveRetrievalGateway'
+
+export { createAdminApplicationQueries } from './services/adminApplicationQueries'
+export type {
+  AdminApplicationQueries,
+  AdminApplicationSummary,
+  AdminApplicationDetail,
+} from './services/adminApplicationQueries'
+
+export {
+  createSchemeCatalogService,
+  SCHEME_TS_IDS,
+} from './services/schemeCatalogService'
+export type { SchemeCatalogService } from './services/schemeCatalogService'
+
+export {
+  DEFAULT_SCHEME_MINISTRY,
+  resolveMinistryForScheme,
+  listSchemeMinistrySeedRows,
+  ministryCatalog,
+} from './services/ministryMapping'
+
 export { createBackendServices } from './services/createBackendServices'
 export type { BackendServices, BackendMode, CreateBackendServicesOptions } from './services/createBackendServices'
 

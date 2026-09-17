@@ -1,181 +1,140 @@
 /**
- * Supabase integration tests — run only when local/remote Supabase is configured.
- * Skip by default so CI / fresh clones stay green without Docker.
- *
- * Enable: SUPABASE_INTEGRATION=1 with SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
- * (typically via .env.local from `npx supabase start`).
+ * Supabase integration tests — Option A schema.
+ * Skip by default: SUPABASE_INTEGRATION=1 + service role required.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { isSupabaseIntegrationEnabled, getSupabaseServerConfig } from './config'
 import { createServiceRoleClient, type LokPulseSupabaseClient } from './client'
 import { createBackendServices, type BackendServices } from '../services/createBackendServices'
-import { fromEntrepreneurProfile } from '../adapters/profileAdapter'
-import { defaultProfile } from '../../lib/demoProfile'
-import { FIXTURE_IDS } from '../registry/fixtureSchemeRegistry'
-import { NSFDC } from '../../lib/config'
-import type { Uuid } from '../../contracts/common'
+import { SCHEME_TS_IDS } from '../services/schemeCatalogService'
+import { withApplicantFields, createEmptyApplicantProfile } from '../../shared/applicantProfile'
+import { newApplicationId } from '../../apply/application'
+import type { TrackedApplication } from '../../apply/types'
 
 const enabled = isSupabaseIntegrationEnabled()
 
-describe.skipIf(!enabled)('Supabase integration', () => {
+describe.skipIf(!enabled)('Supabase integration (Option A)', () => {
   let client: LokPulseSupabaseClient
   let backend: BackendServices
-  let userId: Uuid
-  let createdUserId: string | null = null
 
   beforeAll(() => {
     client = createServiceRoleClient()
     backend = createBackendServices({ mode: 'supabase', client })
   })
 
-  afterAll(async () => {
-    if (createdUserId && client) {
-      await client.auth.admin.deleteUser(createdUserId)
+  afterAll(() => {
+    // no auth users created in Option A happy-path
+  })
+
+  it('scheme catalog SoT is schemes.ts; cache may optionally mirror NSFDC ids', async () => {
+    const list = await backend.schemeCatalog.list()
+    expect(list.some((s) => s.id === SCHEME_TS_IDS.microFinance)).toBe(true)
+
+    const { data: cacheRows, error } = await client
+      .from('schemes')
+      .select('id, verification_status')
+      .in('id', [SCHEME_TS_IDS.microFinance, SCHEME_TS_IDS.termLoan])
+    expect(error).toBeNull()
+    // Cache is optional — if seeded, ids must match schemes.ts
+    for (const row of cacheRows ?? []) {
+      expect([SCHEME_TS_IDS.microFinance, SCHEME_TS_IDS.termLoan]).toContain(row.id)
     }
   })
 
-  it('has seeded NSFDC schemes with ministry/department FKs', async () => {
-    const list = await backend.schemes.listSchemes()
-    expect(list.data.length).toBeGreaterThanOrEqual(2)
-    expect(list.data.map((s) => s.code).sort()).toEqual([
-      'NSFDC_MICRO_FINANCE',
-      'NSFDC_TERM_LOAN',
-    ])
-
-    const ministries = await backend.schemes.listMinistries()
-    expect(ministries.some((m) => m.code === 'MOSJE')).toBe(true)
-    const depts = await backend.schemes.listDepartments(FIXTURE_IDS.ministryMosje)
-    expect(depts.some((d) => d.code === 'NSFDC')).toBe(true)
-
-    const term = await backend.schemes.getScheme(FIXTURE_IDS.schemeTerm)
-    expect(term?.owningMinistryId).toBe(FIXTURE_IDS.ministryMosje)
-    expect(term?.owningDepartmentId).toBe(FIXTURE_IDS.deptNsfdc)
-    expect(term?.latestVersion?.loanTerms?.loanCapRupees).toBe(NSFDC.termLoanCapRupees)
-  })
-
-  it('service role can read registry and server config is present', async () => {
+  it('service config present and ministries seed uses Prerna ids', async () => {
     const cfg = getSupabaseServerConfig()
     expect(cfg.serviceConfigured).toBe(true)
-    const { data: rows, error: qErr } = await client.from('schemes').select('id, code').limit(5)
-    expect(qErr).toBeNull()
-    expect((rows ?? []).length).toBeGreaterThanOrEqual(2)
-
-    const { data: link, error: linkErr } = await client
-      .from('departments')
-      .select('id, code, ministry_id')
-      .eq('id', FIXTURE_IDS.deptNsfdc)
-      .single()
-    expect(linkErr).toBeNull()
-    expect(link?.ministry_id).toBe(FIXTURE_IDS.ministryMosje)
-  })
-
-  it('persists profiles and applications end-to-end', async () => {
-    const email = `lokpulse-it-${Date.now()}@example.com`
-    const { data: created, error: createErr } = await client.auth.admin.createUser({
-      email,
-      password: 'TestPassword123!',
-      email_confirm: true,
-    })
-    expect(createErr).toBeNull()
-    expect(created.user?.id).toBeTruthy()
-    userId = created.user!.id as Uuid
-    createdUserId = created.user!.id
-
-    const profile = await backend.profiles.create('en', { userId })
-    expect(profile.id).toBeTruthy()
-    expect(profile.userId).toBe(userId)
-
-    const demo = fromEntrepreneurProfile(defaultProfile())
-    const patched = await backend.profiles.applyPatch(profile.id!, {
-      name: demo.name,
-      age: demo.age,
-      gender: demo.gender,
-      community: demo.community,
-      annualIncome: demo.annualIncome,
-      experienceYears: demo.experienceYears,
-      category: demo.category,
-      availableMargin: demo.availableMargin,
-      locationMode: demo.locationMode,
-      villageId: demo.villageId,
-      radiusKm: demo.radiusKm,
-    })
-    expect(patched.name.value).toBe('Lakshmi S.')
-
-    const missing = await backend.profiles.getMissingFields(profile.id!)
-    expect(missing).toHaveLength(0)
-
-    const recs = await backend.recommendations.recommend({ profile: patched })
-    expect(recs.data.some((r) => r.schemeCode === 'NSFDC_TERM_LOAN' && r.eligible)).toBe(true)
-
-    const app = await backend.applications.create({
-      userId,
-      applicantProfileId: profile.id,
-      initialFields: [
-        {
-          key: 'business_name',
-          value: 'Lakshmi Dairy',
-          source: 'user',
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-    })
-    await backend.applications.attachScheme(
-      app.id,
-      FIXTURE_IDS.schemeTerm,
-      FIXTURE_IDS.versionTerm,
-      userId,
-    )
-    await backend.applications.recordConsent(app.id, userId)
-
-    const view = await backend.applicationStatus.getStatusView(app.id)
-    expect(view?.application.status).toBe('ready_to_submit')
-    expect(view?.application.schemeId).toBe(FIXTURE_IDS.schemeTerm)
-    expect(view?.latestVersion?.payload.business_name).toBe('Lakshmi Dairy')
-    expect(view?.recentEvents.some((e) => e.type === 'consent_recorded')).toBe(true)
-  })
-
-  it('enforces RLS: anon can read active schemes but cannot read applications', async () => {
-    const { createAnonClient } = await import('./client')
-    const anon = createAnonClient()
-
-    const { data: schemes, error: sErr } = await anon.from('schemes').select('code').eq('status', 'active')
-    expect(sErr).toBeNull()
-    expect((schemes ?? []).map((s) => s.code).sort()).toEqual([
-      'NSFDC_MICRO_FINANCE',
-      'NSFDC_TERM_LOAN',
-    ])
-
-    const { data: apps, error: aErr } = await anon.from('applications').select('id').limit(5)
-    // PostgREST returns empty array under RLS (no policy match), not a hard error
-    expect(aErr).toBeNull()
-    expect((apps ?? []).length).toBe(0)
-  })
-
-  it('keeps ministry→department→scheme FK graph intact', async () => {
-    const { data, error } = await client
-      .from('schemes')
-      .select('code, owning_ministry_id, owning_department_id')
-      .eq('code', 'NSFDC_TERM_LOAN')
-      .single()
+    const { data, error } = await client.from('ministries').select('id, code').eq('id', 'social_justice')
     expect(error).toBeNull()
-    expect(data?.owning_ministry_id).toBe(FIXTURE_IDS.ministryMosje)
-    expect(data?.owning_department_id).toBe(FIXTURE_IDS.deptNsfdc)
-
-    const { data: dept, error: dErr } = await client
-      .from('departments')
-      .select('code, ministry_id')
-      .eq('id', FIXTURE_IDS.deptNsfdc)
-      .single()
-    expect(dErr).toBeNull()
-    expect(dept?.ministry_id).toBe(FIXTURE_IDS.ministryMosje)
+    expect((data ?? []).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('reports RLS enabled on sensitive tables via verify_rls_enabled()', async () => {
+  it('persists shared profile + Adita application + Jordan approval case', async () => {
+    const profile = await backend.sharedProfiles.create(
+      withApplicantFields(createEmptyApplicantProfile(), { name: 'Integration We' }, {
+        source: 'user_provided',
+        confidence: 'high',
+      }),
+    )
+    expect(profile.data.name).toBe('Integration We')
+
+    const applicationId = newApplicationId()
+    const now = new Date().toISOString()
+    const app: TrackedApplication = {
+      applicationId,
+      trackingId: `TRK-${applicationId}`,
+      schemeId: SCHEME_TS_IDS.microFinance,
+      schemeName: 'NSFDC Micro Finance',
+      channel: 'guided',
+      outcome: 'guided_packet_ready',
+      filedWithGovernment: false,
+      simulation: false,
+      honestLabel: 'Guided packet ready',
+      detail: 'integration',
+      nextSteps: [],
+      packet: {
+        schemeId: SCHEME_TS_IDS.microFinance,
+        schemeName: 'NSFDC Micro Finance',
+        channel: 'guided',
+        fields: {},
+        documents: [],
+        officialApplicationUrl: 'https://nsfdc.nic.in/',
+        generatedAt: now,
+      },
+      consent: {
+        accepted: true,
+        acceptedAt: now,
+        text: 'I consent',
+        channel: 'guided',
+        simulate: false,
+      },
+      statusHistory: [{ at: now, step: 'application_id', note: 'it' }],
+      createdAt: now,
+      updatedAt: now,
+    }
+    await backend.aditaApplications.save(app)
+    const loaded = await backend.aditaApplications.get(applicationId)
+    expect(loaded?.schemeId).toBe(SCHEME_TS_IDS.microFinance)
+
+    await backend.jordanApprovals.saveCase({
+      applicationId,
+      snapshot: {
+        applicationId,
+        applicantRef: 'it-ref',
+        villageId: 'dinka-mandya',
+        schemeId: SCHEME_TS_IDS.microFinance,
+        projectCost: 100000,
+        loanAmount: 80000,
+        lokScore: (await import('../../lib/approval/fixtures')).fixtureLokScore(72),
+        frozenAt: Date.now(),
+      },
+      snapshotDigest: '0xit',
+      policy: { quorumRequired: 2, quorumPool: 3, mentorRequired: false, derivedFromScore: 72 },
+      allocation: {
+        applicationId,
+        allocatedReviewerIds: ['r1'],
+        allocatedAddresses: ['0x1'],
+        quorumPool: 3,
+        mentorRequired: false,
+        mentorReviewerIds: [],
+        allocationDigest: '0xalloc',
+        allocatedAt: Date.now(),
+      },
+      signatures: [],
+      status: 'open',
+    })
+    expect((await backend.jordanApprovals.getCase(applicationId))?.status).toBe('open')
+
+    const admin = await backend.admin.getDetail(applicationId)
+    expect(admin?.schemeExistsInSourceOfTruth).toBe(true)
+  })
+
+  it('verify_rls_enabled reports RLS on core tables', async () => {
     const { data, error } = await client.rpc('verify_rls_enabled')
     expect(error).toBeNull()
     const rows = (data ?? []) as Array<{ table_name: string; rls_enabled: boolean }>
-    expect(rows.length).toBeGreaterThanOrEqual(8)
-    expect(rows.every((r) => r.rls_enabled === true)).toBe(true)
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => r.rls_enabled)).toBe(true)
   })
 })

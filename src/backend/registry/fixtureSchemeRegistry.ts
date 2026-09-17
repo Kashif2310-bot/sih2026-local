@@ -1,13 +1,12 @@
 /**
- * Scheme registry v0 fixture — NSFDC Micro Finance + Term Loan only.
+ * LEGACY Phase 1/2 UUID scheme registry — compatibility only.
  *
- * CURRENT SOURCE OF TRUTH for scheme facts in the running prototype.
- * Source-backed from existing src/lib/config.ts NSFDC constants and
- * indicative document checklist (explicitly labeled prototype_indicative).
+ * Option A source of truth is src/assistant/data/schemes.ts
+ * (ids: nsfdc-micro-finance, nsfdc-term-loan, …).
+ * Prefer createSchemeCatalogService / BackendServices.schemeCatalog.
  *
- * Supabase public.schemes is an optional enrichment cache only — not the
- * authoritative multi-source registry. Consumers should keep using
- * SchemeRetrievalService; createResilientSchemeRetrievalService falls back here.
+ * FIXTURE_IDS UUIDs remain for older tests; they are NOT the team scheme identity.
+ * Supabase public.schemes is Kashif's optional enrichment cache only.
  */
 
 import { NSFDC } from '../../lib/config'
@@ -23,7 +22,7 @@ import type {
 } from '../../contracts/scheme'
 import type { SchemeRegistry } from '../services/types'
 
-/** Stable UUIDs so other workstreams can hard-reference in tests/fixtures. */
+/** @deprecated Prefer SCHEME_TS_IDS from schemeCatalogService */
 export const FIXTURE_IDS = {
   ministryMosje: '11111111-1111-4111-8111-111111111101' as Uuid,
   deptNsfdc: '11111111-1111-4111-8111-111111111102' as Uuid,
@@ -34,6 +33,12 @@ export const FIXTURE_IDS = {
   sourceNsfdcSite: '44444444-4444-4444-8444-444444444401' as Uuid,
   sourceConfigConst: '44444444-4444-4444-8444-444444444402' as Uuid,
 } as const
+
+/** Maps legacy UUID fixtures → schemes.ts ids (Option A). */
+export const FIXTURE_TO_SCHEME_TS_ID: Record<string, string> = {
+  [FIXTURE_IDS.schemeMicro]: 'nsfdc-micro-finance',
+  [FIXTURE_IDS.schemeTerm]: 'nsfdc-term-loan',
+}
 
 const RETRIEVED_AT = '2026-09-16T00:00:00.000Z'
 

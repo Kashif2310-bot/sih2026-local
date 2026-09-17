@@ -1,5 +1,6 @@
-# LokPulse Supabase local project
-# Do not put secrets in git. Use `npx supabase status` for local keys.
+# LokPulse Supabase — Option A reconciled config
+# Scheme SoT remains src/assistant/data/schemes.ts
+# public.schemes is Kashif's optional enrichment cache only.
 
 project_id = "lokpulse-sih26091"
 
@@ -16,7 +17,7 @@ major_version = 15
 
 [db.seed]
 enabled = true
-sql_paths = ["./seed/nsfdc_schemes_v0.sql"]
+sql_paths = ["./seed/scheme_cache_v0.sql"]
 
 [studio]
 enabled = true
@@ -35,3 +36,7 @@ enable_confirmations = false
 [storage]
 enabled = true
 file_size_limit = "25MiB"
+
+# Kashif owns live-scheme-retrieval — do not duplicate.
+[functions.live-scheme-retrieval]
+verify_jwt = false

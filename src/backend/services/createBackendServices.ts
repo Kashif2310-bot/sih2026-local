@@ -1,9 +1,16 @@
 /**
- * Backend runtime factory.
- * - memory: always in-process (default when Supabase unset — prototype safe)
- * - supabase: wired clients; scheme reads resiliently fall back to fixture
- * - browser auto: schemes may use anon+resilient; writes stay memory until a
- *   service/session client is injected (avoids breaking the SPA on outages)
+ * Backend runtime factory (Option A).
+ *
+ * Primary surfaces follow teammate contracts:
+ * - schemes: schemes.ts (+ optional Kashif cache)
+ * - sharedProfiles: src/shared/applicantProfile.ts
+ * - aditaApplications: TrackedApplication / LP-APP-*
+ * - jordanApprovals: src/lib/approval/*
+ * - liveRetrieval: Kashif Edge Function wrapper
+ * - admin: Prerna query helpers
+ *
+ * Legacy Phase 1/2 ProfileService + UUID ApplicationRecord services remain
+ * as compatibility adapters only — do not force other workstreams onto them.
  */
 
 import type {
@@ -29,46 +36,114 @@ import {
   type LokPulseSupabaseClient,
 } from '../supabase/client'
 import { getSupabasePublicConfig, getSupabaseServerConfig } from '../supabase/config'
+import {
+  createMemorySharedProfilePersistence,
+  createSupabaseSharedProfilePersistence,
+  type SharedProfilePersistence,
+} from './sharedProfilePersistence'
+import {
+  createMemoryAditaApplicationPersistence,
+  createSupabaseAditaApplicationPersistence,
+  type AditaApplicationPersistence,
+} from './aditaApplicationPersistence'
+import {
+  createMemoryJordanApprovalPersistence,
+  createSupabaseJordanApprovalPersistence,
+  type JordanApprovalPersistence,
+} from './jordanApprovalPersistence'
+import {
+  createLiveRetrievalGateway,
+  createUnavailableLiveRetrievalGateway,
+  type LiveRetrievalGateway,
+} from './liveRetrievalGateway'
+import { createAdminApplicationQueries, type AdminApplicationQueries } from './adminApplicationQueries'
+import { createSchemeCatalogService, type SchemeCatalogService } from './schemeCatalogService'
 
 export type BackendMode = 'auto' | 'memory' | 'supabase'
 
 export interface BackendServices {
   mode: 'memory' | 'supabase' | 'hybrid'
+  /** Option A — schemes.ts catalog */
+  schemeCatalog: SchemeCatalogService
+  /** Option A — shared ApplicantProfile */
+  sharedProfiles: SharedProfilePersistence
+  /** Option A — Adita TrackedApplication */
+  aditaApplications: AditaApplicationPersistence
+  /** Option A — Jordan approval persistence */
+  jordanApprovals: JordanApprovalPersistence
+  /** Option A — Kashif live retrieval gateway */
+  liveRetrieval: LiveRetrievalGateway
+  /** Option A — Prerna admin queries */
+  admin: AdminApplicationQueries
+
+  /** @deprecated Phase 1/2 UUID profile service — compat only */
   profiles: ProfileService
+  /** @deprecated Phase 1/2 UUID fixture registry — use schemeCatalog */
   schemes: SchemeRegistry
   recommendations: RecommendationService
+  /** @deprecated Phase 1/2 UUID application records — use aditaApplications */
   applications: ApplicationPersistenceService
+  /** @deprecated use aditaApplications + admin */
   applicationStatus: ApplicationStatusService
-  /** True when supabase URL/anon present (may still be using memory for writes). */
   supabaseConfigured: boolean
 }
 
 export interface CreateBackendServicesOptions {
   mode?: BackendMode
-  /**
-   * Injected client (tests). When provided with mode supabase/auto, used for all Supabase I/O.
-   * Prefer service-role in Node integration tests.
-   */
   client?: LokPulseSupabaseClient
-  /**
-   * When true (default in browser auto), keep profile/application writes in memory
-   * even if anon Supabase is configured — prevents SPA breakage without auth.
-   */
   browserWriteMemory?: boolean
+}
+
+function attachOptionA(
+  base: Omit<
+    BackendServices,
+    | 'schemeCatalog'
+    | 'sharedProfiles'
+    | 'aditaApplications'
+    | 'jordanApprovals'
+    | 'liveRetrieval'
+    | 'admin'
+  >,
+  client: LokPulseSupabaseClient | null,
+  writeClient: LokPulseSupabaseClient | null,
+): BackendServices {
+  const sharedProfiles = writeClient
+    ? createSupabaseSharedProfilePersistence(writeClient)
+    : createMemorySharedProfilePersistence()
+  const aditaApplications = writeClient
+    ? createSupabaseAditaApplicationPersistence(writeClient)
+    : createMemoryAditaApplicationPersistence()
+  const jordanApprovals = writeClient
+    ? createSupabaseJordanApprovalPersistence(writeClient)
+    : createMemoryJordanApprovalPersistence()
+
+  return {
+    ...base,
+    schemeCatalog: createSchemeCatalogService(client),
+    sharedProfiles,
+    aditaApplications,
+    jordanApprovals,
+    liveRetrieval: client ? createLiveRetrievalGateway() : createUnavailableLiveRetrievalGateway(),
+    admin: createAdminApplicationQueries(aditaApplications),
+  }
 }
 
 function memoryBundle(supabaseConfigured: boolean): BackendServices {
   const memory = createMemoryApplicationServices()
   const schemes = createFixtureSchemeRegistry()
-  return {
-    mode: 'memory',
-    profiles: createMemoryProfileService(),
-    schemes,
-    recommendations: createRecommendationService(schemes),
-    applications: memory.persistence,
-    applicationStatus: memory.status,
-    supabaseConfigured,
-  }
+  return attachOptionA(
+    {
+      mode: 'memory',
+      profiles: createMemoryProfileService(),
+      schemes,
+      recommendations: createRecommendationService(schemes),
+      applications: memory.persistence,
+      applicationStatus: memory.status,
+      supabaseConfigured,
+    },
+    null,
+    null,
+  )
 }
 
 function resolveClient(opts?: CreateBackendServicesOptions): LokPulseSupabaseClient | null {
@@ -107,25 +182,33 @@ export function createBackendServices(opts: CreateBackendServicesOptions = {}): 
 
   if (forceMemoryWrites) {
     const memory = createMemoryApplicationServices()
-    return {
-      mode: 'hybrid',
-      profiles: createMemoryProfileService(),
-      schemes,
-      recommendations: createRecommendationService(schemes),
-      applications: memory.persistence,
-      applicationStatus: memory.status,
-      supabaseConfigured: true,
-    }
+    return attachOptionA(
+      {
+        mode: 'hybrid',
+        profiles: createMemoryProfileService(),
+        schemes,
+        recommendations: createRecommendationService(schemes),
+        applications: memory.persistence,
+        applicationStatus: memory.status,
+        supabaseConfigured: true,
+      },
+      client,
+      null,
+    )
   }
 
   const apps = createSupabaseApplicationServices(client)
-  return {
-    mode: 'supabase',
-    profiles: createSupabaseProfileService(client),
-    schemes,
-    recommendations: createRecommendationService(schemes),
-    applications: apps.persistence,
-    applicationStatus: apps.status,
-    supabaseConfigured: true,
-  }
+  return attachOptionA(
+    {
+      mode: 'supabase',
+      profiles: createSupabaseProfileService(client),
+      schemes,
+      recommendations: createRecommendationService(schemes),
+      applications: apps.persistence,
+      applicationStatus: apps.status,
+      supabaseConfigured: true,
+    },
+    client,
+    client,
+  )
 }
