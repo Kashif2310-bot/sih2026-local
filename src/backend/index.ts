@@ -142,6 +142,12 @@ export { createMemoryApplicationStatusStore } from './services/applicationStatus
 export { createSupabaseApplicationStatusStore } from './services/applicationStatus/supabaseApplicationStatusStore'
 export { withCanonicalStatusPersistence } from './services/applicationStatus/withCanonicalStatusPersistence'
 
+export { getApplicationPackage } from './services/applicationPackage/getApplicationPackage'
+export type {
+  ApplicationPackageResponse,
+  ApplicationPackageDeps,
+} from './services/applicationPackage/getApplicationPackage'
+
 export type * from './services/officialSource/types'
 export { createDataGovInAdapter } from './services/officialSource/dataGovInAdapter'
 export { createRetrievalOrchestrator } from './services/officialSource/orchestrator'
