@@ -48,15 +48,15 @@ test('apply: guided packet is tracked without claiming a government submission',
   await page.getByRole('button', { name: /Consent and run channel/i }).click()
 
   await expect(page.getByRole('heading', { name: /Application status/i })).toBeVisible()
-  await expect(page.getByText(/Guided packet ready/i)).toBeVisible()
+  await expect(page.getByText(/Guided packet ready/i).first()).toBeVisible()
   await expect(page.getByText(/submitted successfully/i)).toHaveCount(0)
-  await expect(page.getByText(/Filed with government/i)).toBeVisible()
+  await expect(page.getByText(/Filed with government/i).first()).toBeVisible()
   await expect(page.getByText(/^No$/).first()).toBeVisible()
-  await expect(page.getByText(/LP-GUIDED-/i)).toBeVisible()
+  await expect(page.getByText(/LP-GUIDED-/i).first()).toBeVisible()
 })
 
 test('apply: government API with no config fails honestly; simulation is labelled', async ({ page }) => {
-  await page.goto('/apply')
+  await page.goto('/apply/hub')
   await expect(page.getByRole('heading', { name: /Application automation/i })).toBeVisible()
   await page.getByRole('button', { name: /Mudra Yojana/i }).click()
 
@@ -86,11 +86,11 @@ test('apply: government API with no config fails honestly; simulation is labelle
   await page.getByText(/I confirm the details are accurate and I consent to this application being sent/i).click()
   await page.getByRole('button', { name: /Consent and run channel/i }).click()
 
-  await expect(page.getByText(/Government API not configured/i)).toBeVisible()
+  await expect(page.getByText(/Government API not configured/i).first()).toBeVisible()
   await expect(page.getByText(/submitted successfully/i)).toHaveCount(0)
-  await expect(page.getByText(/Filed with government/i)).toBeVisible()
+  await expect(page.getByText(/Filed with government/i).first()).toBeVisible()
 
-  await page.goto('/apply')
+  await page.goto('/apply/hub')
   await page.getByRole('button', { name: /Mudra Yojana/i }).click()
   await page.getByLabel(/Applicant full name/i).fill('Test Applicant')
   await page.getByLabel(/Mobile number/i).fill('9123456789')
@@ -114,6 +114,6 @@ test('apply: government API with no config fails honestly; simulation is labelle
   await page.getByText(/Run as simulation/i).click()
   await page.getByText(/I understand this is a SIMULATION only/i).click()
   await page.getByRole('button', { name: /Consent and run channel/i }).click()
-  await expect(page.getByText(/Simulation only — nothing was filed/i)).toBeVisible()
-  await expect(page.getByText(/LP-SIM-/i)).toBeVisible()
+  await expect(page.getByText(/Simulation only — nothing was filed/i).first()).toBeVisible()
+  await expect(page.getByText(/LP-SIM-/i).first()).toBeVisible()
 })
