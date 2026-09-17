@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { formatINR } from '../../lib/finance'
-import { getApplication } from '../../platform/store'
+import { getApplication, getLastApplicationId } from '../../platform/store'
 import { MINISTRIES } from '../../platform/ministries'
 import { useApplicationDraft } from '../../citizen/useApplicationDraft'
 import { useApp } from '../../state/useApp'
@@ -12,7 +12,7 @@ export function FinalReportPage() {
   const kn = i18n.language === 'kn'
   const { submittedId } = useApplicationDraft()
   const { plan, score, profile, location } = useApp()
-  const app = submittedId ? getApplication(submittedId) : undefined
+  const app = getApplication(submittedId ?? getLastApplicationId() ?? '')
 
   return (
     <WizardShell title={t('apply.finalReport.title')} subtitle={t('apply.finalReport.subtitle')}>

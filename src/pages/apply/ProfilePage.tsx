@@ -7,6 +7,7 @@ import { defaultProfile } from '../../lib/demoProfile'
 import type { EntrepreneurProfile } from '../../lib/lokScore'
 import { useApp } from '../../state/useApp'
 import { useApplicationDraft } from '../../citizen/useApplicationDraft'
+import { parseVoiceIntent } from '../../citizen/parseVoiceIntent'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
 
 export function ProfilePage() {
@@ -16,11 +17,20 @@ export function ProfilePage() {
   const { setProfileAndScan, loading, error, errorKn, profile } = useApp()
   const { transcript, updateExtra } = useApplicationDraft()
 
-  const [form, setForm] = useState<EntrepreneurProfile>(() => ({
-    ...defaultProfile(),
-    name: profile?.name ?? defaultProfile().name,
-    demoMode: true,
-  }))
+  const [form, setForm] = useState<EntrepreneurProfile>(() => {
+    const base = {
+      ...defaultProfile(),
+      name: profile?.name ?? defaultProfile().name,
+      demoMode: true as const,
+    }
+    const intent = parseVoiceIntent(transcript)
+    return {
+      ...base,
+      category: intent.category ?? base.category,
+      villageId: intent.villageId ?? base.villageId,
+      availableMargin: intent.availableMargin ?? base.availableMargin,
+    }
+  })
   const [localErr, setLocalErr] = useState<string | null>(null)
 
   const update = <K extends keyof EntrepreneurProfile>(key: K, value: EntrepreneurProfile[K]) => {

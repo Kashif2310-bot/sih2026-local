@@ -3,26 +3,20 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Shield } from 'lucide-react'
 import clsx from 'clsx'
-import {
-  appendAudit,
-  getApplication,
-  setStatus,
-  updateApplication,
-} from '../../platform/store'
+import { appendAudit, getApplication, setStatus, updateApplication } from '../../platform/store'
 import { MINISTRIES, routeApplication } from '../../platform/ministries'
 import type { ApplicationStatus, DocumentRecord } from '../../platform/types'
 import { formatINR } from '../../lib/finance'
-import { LOKSCORE_WEIGHTS } from '../../lib/config'
 import {
-  buildAttestation,
-  createVerifierPool,
-  quorumMet,
-  signAttestation,
-  type Attestation,
-  type SignatureRecord,
-  type Verifier,
-} from '../../lib/multisig'
-import type { LokScoreBreakdown } from '../../lib/lokScore'
+  ApprovalError,
+  authorizeApprovalDisbursement,
+  ensureApprovalCase,
+  lokScoreForApproval,
+  peekApprovalCase,
+  submitApprovalSignature,
+} from '../../platform/approvalBridge'
+import { StatusPipeline } from '../../components/StatusPipeline'
+import type { ApprovalCaseView } from '../../lib/approval/views'
 import { useAdminAuth } from '../useAdminAuth'
 
 type TabId =
@@ -55,10 +49,10 @@ export function AdminApplicationDetailPage() {
   const { session } = useAdminAuth()
   const [tab, setTab] = useState<TabId>('routing')
   const [version, setVersion] = useState(0)
-  const [verifiers] = useState(() => createVerifierPool())
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [approval, setApproval] = useState<ApprovalCaseView | null>(null)
 
   const reload = () => setVersion((v) => v + 1)
   void version
@@ -72,99 +66,53 @@ export function AdminApplicationDetailPage() {
     community: app.applicant.community,
   })
 
-  const scoreLike: LokScoreBreakdown = app.lokScoreBreakdown ?? {
-    demand: 0,
-    competitionGap: 0,
-    weatherFit: 0,
-    financialFit: 0,
-    eligibility: 0,
-    total: app.lokScore,
-    grade: app.lokScore >= 80 ? 'A' : app.lokScore >= 65 ? 'B' : app.lokScore >= 50 ? 'C' : 'D',
-    quorumRequired: app.quorumRequired,
-    quorumPool: app.quorumPool,
-    mentorRequired: app.mentorRequired,
-    rationale: [],
-    rationaleKn: [],
-    weights: LOKSCORE_WEIGHTS,
-  }
+  const actor = session?.name ?? 'Admin'
+  const scoreLike = lokScoreForApproval(app)
+  const caseView = approval ?? peekApprovalCase(app.id)
 
-  const pool = verifiers.slice(0, app.quorumPool)
-  const liveSignatures: SignatureRecord[] = app.signatures.map((s) => ({
-    verifierId: s.reviewerId,
-    address: s.address,
-    signature: s.signature,
-    signedAt: s.signedAt,
-  }))
-  const met = app.attestation ? quorumMet(scoreLike, liveSignatures) : liveSignatures.length >= app.quorumRequired
-
-  const ensureAttestation = (): Attestation => {
-    if (app.attestation) return app.attestation
-    const attestation = buildAttestation({
-      entrepreneurName: app.applicant.name,
-      villageId: app.applicant.villageOrTown || 'unknown',
-      lokScore: app.lokScore,
-      schemeId: app.schemeId,
-      projectCost: app.projectCost,
-      loanAmount: app.loanAmount,
-      quorumRequired: app.quorumRequired,
-      quorumPool: app.quorumPool,
-    })
-    // Drop fixture seed signatures — they are not valid ECDSA over this attestation.
-    updateApplication(app.id, { attestation, signatures: [] })
-    appendAudit(app.id, {
-      actor: session?.name ?? 'Admin',
-      action: 'attestation_created',
-      detail: `Report hash ${attestation.reportHash.slice(0, 18)}…`,
-    })
-    reload()
-    return attestation
+  const openCase = () => {
+    setErr(null)
+    try {
+      const view = ensureApprovalCase(app)
+      setApproval(view)
+      if (app.status === 'submitted' || app.status === 'under_review') {
+        setStatus(app.id, 'reviewer_assigned', actor, 'Jordan approval service allocated reviewers')
+        reload()
+      }
+      return view
+    } catch (e) {
+      setErr(e instanceof ApprovalError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : 'Open failed')
+      return null
+    }
   }
 
   const onAssignReviewers = () => {
-    setStatus(app.id, 'reviewer_assigned', session?.name ?? 'Admin', `Pool of ${app.quorumPool} verifiers assigned`)
+    openCase()
     reload()
   }
 
-  const onSign = async (verifier: Verifier) => {
-    setBusy(verifier.id)
+  const onSign = async (reviewerId: string) => {
+    setBusy(reviewerId)
     setErr(null)
     try {
-      const attestation = ensureAttestation()
-      // ensureAttestation may have cleared signatures — re-read
-      const fresh = getApplication(app.id)
-      if (!fresh?.attestation) throw new Error('Attestation missing')
-      const already = fresh.signatures.some((s) => s.reviewerId === verifier.id)
-      if (already) return
-      const record = await signAttestation(verifier, fresh.attestation ?? attestation)
-      const nextSigs = [
-        ...fresh.signatures,
-        {
-          reviewerId: record.verifierId,
-          address: record.address,
-          signature: record.signature,
-          signedAt: record.signedAt,
-        },
-      ]
-      updateApplication(app.id, { signatures: nextSigs })
-      appendAudit(app.id, {
-        actor: verifier.name,
-        action: 'signed',
-        detail: `ECDSA signature from ${verifier.role}`,
-      })
-      const nextLive: SignatureRecord[] = nextSigs.map((s) => ({
-        verifierId: s.reviewerId,
-        address: s.address,
-        signature: s.signature,
-        signedAt: s.signedAt,
-      }))
-      if (quorumMet(scoreLike, nextLive) && fresh.status !== 'approved') {
-        setStatus(app.id, 'approved', session?.name ?? 'Admin', 'Signing quorum met')
-      }
+      const view = await submitApprovalSignature(app, reviewerId, actor)
+      setApproval(view)
       reload()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Sign failed')
+      setErr(e instanceof ApprovalError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : 'Sign failed')
     } finally {
       setBusy(null)
+    }
+  }
+
+  const onAuthorize = () => {
+    setErr(null)
+    try {
+      const view = authorizeApprovalDisbursement(app, actor)
+      setApproval(view)
+      reload()
+    } catch (e) {
+      setErr(e instanceof ApprovalError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : 'Authorize failed')
     }
   }
 
@@ -224,19 +172,24 @@ export function AdminApplicationDetailPage() {
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
               {t('admin.review.routing.simulatedNote')}
             </p>
-            <div>
-              <p className="text-xs font-semibold uppercase text-ink/45">{t('admin.review.routing.lead')}</p>
-              <p className="mt-1 font-medium">
-                {kn ? MINISTRIES[app.leadMinistryId].nameKn : MINISTRIES[app.leadMinistryId].name}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase text-ink/45">{t('admin.review.routing.supporting')}</p>
-              <ul className="mt-1 list-inside list-disc text-sm">
-                {app.supportingMinistryIds.map((m) => (
-                  <li key={m}>{kn ? MINISTRIES[m].nameKn : MINISTRIES[m].name}</li>
-                ))}
-              </ul>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border-2 border-forest bg-mist/40 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-forest">
+                  {t('admin.review.routing.leadBadge')}
+                </p>
+                <p className="mt-1 font-medium">
+                  {kn ? MINISTRIES[app.leadMinistryId].nameKn : MINISTRIES[app.leadMinistryId].name}
+                </p>
+                <p className="mt-1 text-xs text-ink/50">{t('admin.review.routing.lead')}</p>
+              </div>
+              {app.supportingMinistryIds.map((m) => (
+                <div key={m} className="rounded-2xl border border-forest/15 bg-white p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-ink/45">
+                    {t('admin.review.routing.supportingBadge')}
+                  </p>
+                  <p className="mt-1 font-medium">{kn ? MINISTRIES[m].nameKn : MINISTRIES[m].name}</p>
+                </div>
+              ))}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase text-ink/45">{t('admin.review.routing.rationale')}</p>
@@ -396,10 +349,14 @@ export function AdminApplicationDetailPage() {
               {t('admin.review.approvalRequirement.title')}
             </h2>
             <p className="text-sm text-ink/65">{t('admin.review.approvalRequirement.explanation')}</p>
-            <p className="text-lg font-bold text-forest">
-              {t('admin.review.approvalRequirement.quorum')}: {app.quorumRequired} / {app.quorumPool}
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              {t('admin.review.approvalServiceNote')}
             </p>
-            {app.mentorRequired && (
+            <p className="text-lg font-bold text-forest">
+              {t('admin.review.approvalRequirement.quorum')}:{' '}
+              {caseView ? `${caseView.quorum.required} / ${caseView.quorum.pool}` : `${app.quorumRequired} / ${app.quorumPool}`}
+            </p>
+            {(caseView?.quorum.mentorRequired ?? app.mentorRequired) && (
               <p className="text-sm font-semibold text-amber-800">
                 {t('admin.review.approvalRequirement.mentor')}
               </p>
@@ -416,36 +373,58 @@ export function AdminApplicationDetailPage() {
           <section className="space-y-4">
             <h2 className="font-display text-xl font-bold text-forest">{t('admin.review.reviewers.title')}</h2>
             <p className="text-sm text-ink/65">{t('admin.review.reviewers.subtitle')}</p>
-            <ul className="space-y-2">
-              {pool.map((v) => {
-                const signed = app.signatures.some((s) => s.reviewerId === v.id)
-                return (
-                  <li
-                    key={v.id}
-                    className="flex items-center justify-between rounded-xl border border-forest/10 px-3 py-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium">{kn ? v.nameKn : v.name}</p>
-                      <p className="text-xs text-ink/50">
-                        {t('admin.review.reviewers.role')}: {kn ? v.roleKn : v.role}
-                      </p>
-                    </div>
-                    <span className={clsx('text-xs font-bold', signed ? 'text-forest' : 'text-ink/40')}>
-                      {signed ? t('admin.review.reviewers.signed') : t('admin.review.reviewers.pending')}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-            {(app.status === 'submitted' || app.status === 'under_review') && (
+            {!caseView ? (
               <button
                 type="button"
                 onClick={onAssignReviewers}
                 className="rounded-full bg-forest px-4 py-2 text-sm font-bold text-white"
               >
-                {t('admin.review.tabs.reviewers')}
+                {t('admin.review.reviewers.openCase')}
               </button>
+            ) : (
+              <>
+                <div>
+                  <p className="text-sm font-semibold text-forest">
+                    {t('admin.review.reviewers.progress', {
+                      signed: caseView.validSignatures,
+                      required: caseView.quorum.required,
+                    })}
+                  </p>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
+                    <div
+                      className="h-full rounded-full bg-forest"
+                      style={{
+                        width: `${Math.min(100, (caseView.validSignatures / Math.max(1, caseView.quorum.required)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="font-mono text-[10px] text-ink/45">
+                  {t('admin.review.reviewers.allocationDigest')}: {caseView.allocation.allocationDigest}
+                </p>
+                <ul className="space-y-2">
+                  {caseView.allocation.reviewers.map((r) => (
+                    <li
+                      key={r.reviewerId}
+                      className="flex items-center justify-between rounded-xl border border-forest/10 px-3 py-2 text-sm"
+                    >
+                      <div>
+                        <p className="font-medium">{kn ? r.displayNameKn : r.displayName}</p>
+                        <p className="text-xs text-ink/50">
+                          {t('admin.review.reviewers.role')}: {r.role}
+                          {r.role === 'mentor' ? ' · mentor' : ''}
+                        </p>
+                        <p className="truncate font-mono text-[10px] text-ink/40">{r.address}</p>
+                      </div>
+                      <span className={clsx('text-xs font-bold', r.hasSigned ? 'text-forest' : 'text-ink/40')}>
+                        {r.hasSigned ? t('admin.review.reviewers.signed') : t('admin.review.reviewers.pending')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
+            {err && <p className="text-sm text-red-700">{err}</p>}
           </section>
         )}
 
@@ -456,51 +435,88 @@ export function AdminApplicationDetailPage() {
             <p className="inline-block rounded-full border border-gold/40 bg-gold/20 px-3 py-1 text-xs font-semibold">
               {t('admin.review.multisig.fixtureIdentities')}
             </p>
-            {app.attestation && (
-              <div className="rounded-xl bg-ink px-3 py-3 font-mono text-xs text-gold break-all">
-                <div className="mb-1 flex items-center gap-1 text-white/70">
-                  <Shield className="h-3 w-3" /> Hash
+            {!caseView ? (
+              <button
+                type="button"
+                onClick={onAssignReviewers}
+                className="rounded-full bg-forest px-4 py-2 text-sm font-bold text-white"
+              >
+                {t('admin.review.reviewers.openCase')}
+              </button>
+            ) : (
+              <>
+                <div className="rounded-xl bg-ink px-3 py-3 font-mono text-xs text-gold break-all">
+                  <div className="mb-1 flex items-center gap-1 text-white/70">
+                    <Shield className="h-3 w-3" /> {t('admin.review.multisig.hash')}
+                  </div>
+                  {caseView.applicationHash}
                 </div>
-                {app.attestation.reportHash}
-              </div>
-            )}
-            <p className="text-sm font-semibold">
-              {liveSignatures.length}/{app.quorumRequired} of {app.quorumPool}
-              {met && (
-                <span className="ml-2 text-forest">· {t('admin.review.multisig.quorumMet')}</span>
-              )}
-            </p>
-            {err && <p className="text-sm text-red-700">{err}</p>}
-            <ul className="space-y-2">
-              {pool.map((v) => {
-                const signed = app.signatures.some((s) => s.reviewerId === v.id)
-                return (
-                  <li
-                    key={v.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-forest/10 px-3 py-2"
+                <p className="text-sm font-semibold">
+                  {caseView.validSignatures}/{caseView.quorum.required} of {caseView.quorum.pool}
+                  {caseView.quorumMet && (
+                    <span className="ml-2 text-forest">· {t('admin.review.multisig.quorumMet')}</span>
+                  )}
+                  <span className="ml-2 text-xs font-normal text-ink/50">{caseView.status}</span>
+                </p>
+                {caseView.blockers.length > 0 && (
+                  <ul className="list-inside list-disc text-xs text-amber-800">
+                    {caseView.blockers.map((b) => (
+                      <li key={b}>{b}</li>
+                    ))}
+                  </ul>
+                )}
+                {err && <p className="text-sm text-red-700">{err}</p>}
+                <ul className="space-y-2">
+                  {caseView.allocation.reviewers.map((r) => (
+                    <li
+                      key={r.reviewerId}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-forest/10 px-3 py-2"
+                    >
+                      <div className="text-sm">
+                        <p className="font-medium">{kn ? r.displayNameKn : r.displayName}</p>
+                        <p className="text-xs text-ink/50">{r.role}</p>
+                        {r.signaturePreview && (
+                          <p className="max-w-xs truncate font-mono text-[10px] text-ink/40">{r.signaturePreview}</p>
+                        )}
+                      </div>
+                      {r.hasSigned ? (
+                        <span className="text-xs font-bold text-forest">{t('admin.review.multisig.signed')}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!!busy || app.status === 'rejected'}
+                          onClick={() => void onSign(r.reviewerId)}
+                          className="rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          {busy === r.reviewerId ? '…' : t('admin.review.multisig.sign')}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {caseView.quorumMet && !caseView.disbursementAuthorized && (
+                  <button
+                    type="button"
+                    onClick={onAuthorize}
+                    className="rounded-full bg-forest px-4 py-2 text-sm font-bold text-white"
                   >
-                    <div className="text-sm">
-                      <p className="font-medium">{kn ? v.nameKn : v.name}</p>
-                      <p className="text-xs text-ink/50">{kn ? v.roleKn : v.role}</p>
-                    </div>
-                    {signed ? (
-                      <span className="text-xs font-bold text-forest">{t('admin.review.multisig.signed')}</span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={busy === v.id || app.status === 'approved' || app.status === 'rejected'}
-                        onClick={() => void onSign(v)}
-                        className="rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                      >
-                        {busy === v.id ? '…' : t('admin.review.multisig.sign')}
-                      </button>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-            {app.status === 'approved' && (
-              <p className="font-semibold text-forest">{t('admin.review.multisig.approved')}</p>
+                    {t('admin.review.multisig.authorize')}
+                  </button>
+                )}
+                {caseView.disbursementAuthorized && (
+                  <p className="font-semibold text-forest">{t('admin.review.multisig.approved')}</p>
+                )}
+                {caseView.audit.length > 0 && (
+                  <ol className="max-h-40 space-y-1 overflow-auto text-[11px] text-ink/60">
+                    {caseView.audit.map((e) => (
+                      <li key={e.eventId} className="font-mono">
+                        {e.eventType}
+                        {e.actorRef ? ` · ${e.actorRef}` : ''}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
             )}
           </section>
         )}
@@ -512,6 +528,28 @@ export function AdminApplicationDetailPage() {
               {t('admin.review.statusTab.current')}:{' '}
               <strong>{t(`admin.status.${app.status}`)}</strong>
             </p>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase text-ink/45">
+                {t('admin.review.statusTab.pipeline')}
+              </p>
+              <StatusPipeline
+                status={app.status}
+                labels={{
+                  submitted: t('admin.status.submitted'),
+                  under_review: t('admin.status.under_review'),
+                  reviewer_assigned: t('admin.status.reviewer_assigned'),
+                  approved: t('admin.status.approved'),
+                  disbursed: t('admin.status.disbursed'),
+                  rejected: t('admin.status.rejected'),
+                }}
+              />
+            </div>
+            {caseView && (
+              <p className="text-sm text-ink/70">
+                {t('admin.review.statusTab.approvalCase')}: <strong>{caseView.status}</strong>
+                {caseView.disbursementAuthorized ? ` · ${t('admin.review.multisig.approved')}` : ''}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {(['under_review', 'reviewer_assigned', 'disbursed'] as ApplicationStatus[]).map((s) => (
                 <button

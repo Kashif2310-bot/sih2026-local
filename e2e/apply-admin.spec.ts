@@ -40,6 +40,10 @@ test.describe('Citizen apply → admin visibility', () => {
     const appId = (await idText.first().textContent())?.trim()
     expect(appId).toBeTruthy()
 
+    await page.getByRole('button', { name: /track status|ಟ್ರ್ಯಾಕ್/i }).click()
+    await expect(page.getByText(appId!)).toBeVisible()
+    await expect(page.getByText(/approval service status|ಅನುಮೋದನಾ ಸೇವೆ ಸ್ಥಿತಿ/i)).toBeVisible()
+
     await page.goto('/admin/login')
     await page.getByLabel(/password|ಪಾಸ್‌ವರ್ಡ್/i).fill('x')
     await page.getByRole('button', { name: /log in|ಲಾಗಿನ್/i }).click()

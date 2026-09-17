@@ -426,6 +426,9 @@ export const translationResources = {
           listening: 'Listening…',
           continue: 'Continue',
           skipToForm: 'Skip — I will fill the form myself',
+          speak: 'Read this back',
+          exampleDairy: 'Try: dairy in Mandya with one lakh rupees margin',
+          pickedUp: 'We picked this up',
         },
         profile: {
           intro: 'Confirm or edit what we picked up, then we will run your hyperlocal scan.',
@@ -529,6 +532,12 @@ export const translationResources = {
           signaturesOf: '{{signed}} of {{required}} required signatures',
           auditTitle: 'Activity',
           finalReport: 'View final report',
+          approvalStatus: 'Approval service status',
+          sessionNote:
+            'Jordan\'s approval signatures live in this browser session only — they reset on refresh.',
+          pipeline: 'Application pipeline',
+          approvalClosed:
+            'Approval case not opened yet — an officer will allocate reviewers next.',
         },
         finalReport: {
           title: 'Final Report',
@@ -568,6 +577,13 @@ export const translationResources = {
           byMinistry: 'By lead ministry',
           recent: 'Recent applications',
           viewAll: 'View all applications',
+          approvalPipeline: 'Approval pipeline (this session)',
+          casesOpen: 'Cases open',
+          collecting: 'Collecting signatures',
+          quorumMet: 'Quorum met',
+          authorized: 'Authorized',
+          sessionNote:
+            "Jordan's approval cases live in memory for this browser session — they reset on refresh.",
         },
         applications: {
           title: 'Incoming Applications',
@@ -585,8 +601,10 @@ export const translationResources = {
             lokScore: 'LokScore',
             status: 'Status',
             submitted: 'Submitted',
+            approval: 'Approval',
           },
           view: 'Review',
+          noCase: 'Not opened',
         },
         status: {
           submitted: 'Submitted',
@@ -598,6 +616,8 @@ export const translationResources = {
         },
         review: {
           backToList: 'Back to applications',
+          approvalServiceNote:
+            'Quorum and signatures come from Jordan\'s approval service (src/lib/approval) — not a checkbox. Crypto is real; settlement is simulated and in-memory for this session.',
           tabs: {
             routing: 'Routing',
             details: 'Details',
@@ -614,6 +634,8 @@ export const translationResources = {
             lead: 'Lead department',
             supporting: 'Supporting departments',
             rationale: 'Why this routing',
+            leadBadge: 'Lead',
+            supportingBadge: 'Supporting',
             simulatedNote:
               "Simulated routing rule for this prototype (see docs/PRERNA_HANDOFF.md) — a real deployment would use Vamshi's routing/data API.",
           },
@@ -666,19 +688,24 @@ export const translationResources = {
           reviewers: {
             title: 'Assigned Reviewers',
             subtitle:
-              "Deterministic demo verifier pool (src/lib/multisig.ts) — the same identities LokPulse's citizen-side sanction board uses.",
+              'Deterministic allocation from Jordan\'s approval service — the applicant cannot pick reviewers.',
             role: 'Role',
             pending: 'Pending',
             signed: 'Signed',
+            openCase: 'Open approval case & allocate reviewers',
+            allocationDigest: 'Allocation digest',
+            progress: '{{signed}} of {{required}} signatures collected',
           },
           multisig: {
             title: 'Multisig Approval',
-            subtitle: 'Real ECDSA signatures (ethers.js) over the application attestation — not a checkbox.',
+            subtitle: 'Real ECDSA signatures via Jordan\'s approval service — not a checkbox.',
             sign: 'Sign as this reviewer',
             signed: 'Signed',
             quorumMet: 'Quorum met',
             approve: 'Approve application',
             approved: 'Application approved',
+            authorize: 'Authorize simulated disbursement',
+            hash: 'Application snapshot hash',
             fixtureIdentities: 'Demo / fixture identities — not real government officer accounts.',
           },
           statusTab: {
@@ -687,6 +714,8 @@ export const translationResources = {
             setStatus: 'Set status',
             reject: 'Reject application',
             rejectReason: 'Reason for rejection',
+            pipeline: 'Status pipeline',
+            approvalCase: 'Jordan case',
           },
         },
         audit: {
@@ -1126,6 +1155,9 @@ export const translationResources = {
           listening: 'ಆಲಿಸುತ್ತಿದೆ…',
           continue: 'ಮುಂದುವರಿಸಿ',
           skipToForm: 'ಸ್ಕಿಪ್ — ನಾನೇ ಫಾರ್ಮ್ ಭರ್ತಿ ಮಾಡುತ್ತೇನೆ',
+          speak: 'ಇದನ್ನು ಓದಿ',
+          exampleDairy: 'ಪ್ರಯತ್ನಿಸಿ: ಮಂಡ್ಯದಲ್ಲಿ ಒಂದು ಲಕ್ಷ ರೂಪಾಯಿ ಮಾರ್ಜಿನ್‌ನೊಂದಿಗೆ ಹೈನುಗಾರಿಕೆ',
+          pickedUp: 'ನಾವು ಇದನ್ನು ಗುರುತಿಸಿದ್ದೇವೆ',
         },
         profile: {
           intro: 'ನಾವು ಆಯ್ದುಕೊಂಡದ್ದನ್ನು ಖಚಿತಪಡಿಸಿ ಅಥವಾ ತಿದ್ದಿ, ನಂತರ ನಾವು ನಿಮ್ಮ ಹೈಪರ್‌ಲೋಕಲ್ ಸ್ಕ್ಯಾನ್ ರನ್ ಮಾಡುತ್ತೇವೆ.',
@@ -1229,6 +1261,12 @@ export const translationResources = {
           signaturesOf: 'ಅಗತ್ಯವಿರುವ {{required}} ರಲ್ಲಿ {{signed}} ಸಹಿಗಳು',
           auditTitle: 'ಚಟುವಟಿಕೆ',
           finalReport: 'ಅಂತಿಮ ವರದಿ ನೋಡಿ',
+          approvalStatus: 'ಅನುಮೋದನಾ ಸೇವೆ ಸ್ಥಿತಿ',
+          sessionNote:
+            'ಜೋರ್ಡನ್‌ನ ಅನುಮೋದನಾ ಸಹಿಗಳು ಈ ಬ್ರೌಸರ್ ಸೆಷನ್‌ನಲ್ಲಿ ಮಾತ್ರ — ರಿಫ್ರೆಶ್‌ನಲ್ಲಿ ಮರುಹೊಂದಿಸಲಾಗುತ್ತದೆ.',
+          pipeline: 'ಅರ್ಜಿ ಪೈಪ್‌ಲೈನ್',
+          approvalClosed:
+            'ಅನುಮೋದನಾ ಪ್ರಕರಣ ಇನ್ನೂ ತೆರೆಯಲಾಗಿಲ್ಲ — ಅಧಿಕಾರಿ ಮುಂದೆ ಪರಿಶೀಲಕರನ್ನು ನಿಯೋಜಿಸುತ್ತಾರೆ.',
         },
         finalReport: {
           title: 'ಅಂತಿಮ ವರದಿ',
@@ -1268,6 +1306,13 @@ export const translationResources = {
           byMinistry: 'ಮುಖ್ಯ ಸಚಿವಾಲಯದ ಪ್ರಕಾರ',
           recent: 'ಇತ್ತೀಚಿನ ಅರ್ಜಿಗಳು',
           viewAll: 'ಎಲ್ಲಾ ಅರ್ಜಿಗಳನ್ನು ನೋಡಿ',
+          approvalPipeline: 'ಅನುಮೋದನಾ ಪೈಪ್‌ಲೈನ್ (ಈ ಸೆಷನ್)',
+          casesOpen: 'ತೆರೆದ ಪ್ರಕರಣಗಳು',
+          collecting: 'ಸಹಿಗಳನ್ನು ಸಂಗ್ರಹಿಸಲಾಗುತ್ತಿದೆ',
+          quorumMet: 'ಕೋರಂ ಪೂರ್ಣಗೊಂಡಿದೆ',
+          authorized: 'ಅನುಮೋದಿಸಲಾಗಿದೆ',
+          sessionNote:
+            'ಜೋರ್ಡನ್‌ನ ಅನುಮೋದನಾ ಪ್ರಕರಣಗಳು ಈ ಬ್ರೌಸರ್ ಸೆಷನ್‌ನ ಮೆಮೊರಿಯಲ್ಲಿ — ರಿಫ್ರೆಶ್‌ನಲ್ಲಿ ಮರುಹೊಂದಿಸಲಾಗುತ್ತದೆ.',
         },
         applications: {
           title: 'ಬರುತ್ತಿರುವ ಅರ್ಜಿಗಳು',
@@ -1285,8 +1330,10 @@ export const translationResources = {
             lokScore: 'ಲೋಕ್‌ಸ್ಕೋರ್',
             status: 'ಸ್ಥಿತಿ',
             submitted: 'ಸಲ್ಲಿಸಲಾಗಿದೆ',
+            approval: 'ಅನುಮೋದನೆ',
           },
           view: 'ಪರಿಶೀಲಿಸಿ',
+          noCase: 'ತೆರೆಯಲಾಗಿಲ್ಲ',
         },
         status: {
           submitted: 'ಸಲ್ಲಿಸಲಾಗಿದೆ',
@@ -1298,6 +1345,8 @@ export const translationResources = {
         },
         review: {
           backToList: 'ಅರ್ಜಿಗಳಿಗೆ ಹಿಂತಿರುಗಿ',
+          approvalServiceNote:
+            'ಕೋರಂ ಮತ್ತು ಸಹಿಗಳು ಜೋರ್ಡನ್‌ನ ಅನುಮೋದನಾ ಸೇವೆಯಿಂದ (src/lib/approval) — ಚೆಕ್‌ಬಾಕ್ಸ್ ಅಲ್ಲ. ಕ್ರಿಪ್ಟೋ ನಿಜ; ಸೆಟಲ್‌ಮೆಂಟ್ ಈ ಸೆಷನ್‌ಗೆ ಸಿಮ್ಯುಲೇಟೆಡ್ ಮತ್ತು ಇನ್-ಮೆಮೊರಿ.',
           tabs: {
             routing: 'ರೂಟಿಂಗ್',
             details: 'ವಿವರಗಳು',
@@ -1314,6 +1363,8 @@ export const translationResources = {
             lead: 'ಮುಖ್ಯ ಇಲಾಖೆ',
             supporting: 'ಸಹಾಯಕ ಇಲಾಖೆಗಳು',
             rationale: 'ಈ ರೂಟಿಂಗ್ ಏಕೆ',
+            leadBadge: 'ಮುಖ್ಯ',
+            supportingBadge: 'ಸಹಾಯಕ',
             simulatedNote:
               'ಈ ಪ್ರೋಟೋಟೈಪ್‌ಗೆ ಸಿಮ್ಯುಲೇಟೆಡ್ ರೂಟಿಂಗ್ ನಿಯಮ (docs/PRERNA_HANDOFF.md ನೋಡಿ) — ನಿಜವಾದ ನಿಯೋಜನೆ ವಂಶಿಯ ರೂಟಿಂಗ್/ಡೇಟಾ API ಬಳಸುತ್ತದೆ.',
           },
@@ -1366,19 +1417,24 @@ export const translationResources = {
           reviewers: {
             title: 'ನಿಯೋಜಿತ ಪರಿಶೀಲಕರು',
             subtitle:
-              'ನಿರ್ಧಾರಿತ ಡೆಮೊ ಪರಿಶೀಲಕ ಪೂಲ್ (src/lib/multisig.ts) — ಲೋಕ್‌ಪಲ್ಸ್‌ನ ನಾಗರಿಕ-ಬದಿಯ ಅನುಮೋದನಾ ಮಂಡಳಿ ಬಳಸುವ ಅದೇ ಗುರುತುಗಳು.',
+              'ಜೋರ್ಡನ್‌ನ ಅನುಮೋದನಾ ಸೇವೆಯ ನಿರ್ಧಾರಿತ ನಿಯೋಜನೆ — ಅರ್ಜಿದಾರರು ಪರಿಶೀಲಕರನ್ನು ಆಯ್ಕೆ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ.',
             role: 'ಪಾತ್ರ',
             pending: 'ಬಾಕಿ',
             signed: 'ಸಹಿ ಆಗಿದೆ',
+            openCase: 'ಅನುಮೋದನಾ ಪ್ರಕರಣ ತೆರೆಯಿರಿ ಮತ್ತು ಪರಿಶೀಲಕರನ್ನು ನಿಯೋಜಿಸಿ',
+            allocationDigest: 'ನಿಯೋಜನಾ ಡೈಜೆಸ್ಟ್',
+            progress: 'ಅಗತ್ಯವಿರುವ {{required}} ರಲ್ಲಿ {{signed}} ಸಹಿಗಳು ಸಂಗ್ರಹವಾಗಿವೆ',
           },
           multisig: {
             title: 'ಮಲ್ಟಿ-ಸಿಗ್ ಅನುಮೋದನೆ',
-            subtitle: 'ಅರ್ಜಿ ಪ್ರಮಾಣೀಕರಣದ ಮೇಲೆ ನಿಜವಾದ ECDSA ಸಹಿಗಳು (ethers.js) — ಚೆಕ್‌ಬಾಕ್ಸ್ ಅಲ್ಲ.',
+            subtitle: 'ಜೋರ್ಡನ್‌ನ ಅನುಮೋದನಾ ಸೇವೆಯ ಮೂಲಕ ನಿಜವಾದ ECDSA ಸಹಿಗಳು — ಚೆಕ್‌ಬಾಕ್ಸ್ ಅಲ್ಲ.',
             sign: 'ಈ ಪರಿಶೀಲಕರಾಗಿ ಸಹಿ ಮಾಡಿ',
             signed: 'ಸಹಿ ಆಗಿದೆ',
             quorumMet: 'ಕೋರಂ ಪೂರ್ಣಗೊಂಡಿದೆ',
             approve: 'ಅರ್ಜಿಯನ್ನು ಅನುಮೋದಿಸಿ',
             approved: 'ಅರ್ಜಿ ಅನುಮೋದಿಸಲಾಗಿದೆ',
+            authorize: 'ಸಿಮ್ಯುಲೇಟೆಡ್ ವಿತರಣೆಯನ್ನು ಅನುಮೋದಿಸಿ',
+            hash: 'ಅರ್ಜಿ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್ ಹ್ಯಾಶ್',
             fixtureIdentities: 'ಡೆಮೋ / ಫಿಕ್ಸ್ಚರ್ ಗುರುತುಗಳು — ನಿಜವಾದ ಸರ್ಕಾರಿ ಅಧಿಕಾರಿ ಖಾತೆಗಳಲ್ಲ.',
           },
           statusTab: {
@@ -1387,6 +1443,8 @@ export const translationResources = {
             setStatus: 'ಸ್ಥಿತಿ ಹೊಂದಿಸಿ',
             reject: 'ಅರ್ಜಿಯನ್ನು ತಿರಸ್ಕರಿಸಿ',
             rejectReason: 'ತಿರಸ್ಕಾರದ ಕಾರಣ',
+            pipeline: 'ಸ್ಥಿತಿ ಪೈಪ್‌ಲೈನ್',
+            approvalCase: 'ಜೋರ್ಡನ್ ಪ್ರಕರಣ',
           },
         },
         audit: {

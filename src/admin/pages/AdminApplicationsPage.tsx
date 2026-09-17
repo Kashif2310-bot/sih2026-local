@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listApplications } from '../../platform/store'
 import { MINISTRY_LIST, MINISTRIES, type MinistryId } from '../../platform/ministries'
+import { peekApprovalCase } from '../../platform/approvalBridge'
 import type { ApplicationStatus } from '../../platform/types'
 import { formatINR } from '../../lib/finance'
 
@@ -81,12 +82,15 @@ export function AdminApplicationsPage() {
                 <th className="px-4 py-3">{t('admin.applications.columns.scheme')}</th>
                 <th className="px-4 py-3">{t('admin.applications.columns.lokScore')}</th>
                 <th className="px-4 py-3">{t('admin.applications.columns.status')}</th>
+                <th className="px-4 py-3">{t('admin.applications.columns.approval')}</th>
                 <th className="px-4 py-3">{t('admin.applications.columns.submitted')}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-forest/10">
-              {filtered.map((a) => (
+              {filtered.map((a) => {
+                const approval = peekApprovalCase(a.id)
+                return (
                 <tr key={a.id} className="hover:bg-mist/30">
                   <td className="px-4 py-3 font-mono text-xs">{a.id}</td>
                   <td className="px-4 py-3 font-medium">{a.applicant.name}</td>
@@ -103,6 +107,11 @@ export function AdminApplicationsPage() {
                       {t(`admin.status.${a.status}`)}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-xs text-ink/65">
+                    {approval
+                      ? `${approval.status} · ${approval.validSignatures}/${approval.quorum.required}`
+                      : t('admin.applications.noCase')}
+                  </td>
                   <td className="px-4 py-3 text-xs text-ink/55">
                     {new Date(a.createdAt).toLocaleString(kn ? 'kn-IN' : 'en-IN')}
                   </td>
@@ -115,7 +124,8 @@ export function AdminApplicationsPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

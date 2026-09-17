@@ -3,6 +3,7 @@ import type { RankedScheme } from '../assistant/types'
 import { buildInitialDocuments } from '../platform/documentRequirements'
 import { routeApplication } from '../platform/ministries'
 import { createApplication, newApplicationId } from '../platform/store'
+import { ensureApprovalCase } from '../platform/approvalBridge'
 import type { Application, ApplicantInfo, DocumentRecord } from '../platform/types'
 import { useApp } from '../state/useApp'
 import { ApplicationDraftCtx, type DraftState } from './draft-state'
@@ -99,6 +100,11 @@ export function ApplicationDraftProvider({ children }: { children: ReactNode }) 
       ],
     }
     createApplication(application)
+    try {
+      ensureApprovalCase(application)
+    } catch {
+      // Approval layer is session-memory; a failure must not block citizen submit.
+    }
     setSubmittedId(id)
     return application
   }, [app.profile, app.plan, app.score, app.location, extra, documents, consentGiven, consentAt])

@@ -18,6 +18,7 @@ import type { Application, ApplicationStatus, AuditEvent } from './types'
 
 const STORAGE_KEY = 'lokpulse:admin:applications'
 const SEED_FLAG_KEY = 'lokpulse:admin:seeded:v1'
+const LAST_ID_KEY = 'lokpulse:last-application-id'
 
 function readAll(): Application[] {
   try {
@@ -46,10 +47,27 @@ export function getApplication(id: string): Application | undefined {
   return readAll().find((a) => a.id === id)
 }
 
+export function rememberLastApplicationId(id: string) {
+  try {
+    localStorage.setItem(LAST_ID_KEY, id)
+  } catch {
+    // ignore — tracking can still use in-memory draft state
+  }
+}
+
+export function getLastApplicationId(): string | null {
+  try {
+    return localStorage.getItem(LAST_ID_KEY)
+  } catch {
+    return null
+  }
+}
+
 export function createApplication(app: Application): Application {
   const all = readAll()
   all.push(app)
   writeAll(all)
+  rememberLastApplicationId(app.id)
   return app
 }
 

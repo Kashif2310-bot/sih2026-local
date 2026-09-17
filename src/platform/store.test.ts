@@ -4,6 +4,7 @@ import {
   appendAudit,
   createApplication,
   getApplication,
+  getLastApplicationId,
   listApplications,
   newApplicationId,
   seedDemoApplicationsOnce,
@@ -61,6 +62,7 @@ describe('platform/store', () => {
     const app = makeApp(newApplicationId())
     createApplication(app)
     expect(getApplication(app.id)?.applicant.name).toBe('Test Applicant')
+    expect(getLastApplicationId()).toBe(app.id)
   })
 
   it('lists applications newest-first', () => {
