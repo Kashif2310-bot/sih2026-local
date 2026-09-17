@@ -8,6 +8,9 @@ import type { VoiceEvent, VoiceEventInput, VoiceSession, VoiceSessionError, Voic
 import { VoiceAssistantController } from './voiceAssistantController'
 import type { VoiceAssistantTurnResult } from './voiceAssistantController'
 import { VoiceConversationRuntime, type ConversationTurnHandler, type RuntimeEvent } from './voiceConversationRuntime'
+import { buildPersonalizedReport } from './report'
+import { createEmptyApplicantProfile } from '../../shared/applicantProfile'
+import { EMPTY_PROFILE } from '../types'
 
 function countingLiveRetriever(): LiveRetriever & { calls: number } {
   const state = { calls: 0 }
@@ -136,11 +139,20 @@ class ScriptedController implements ConversationTurnHandler {
 }
 
 function fakeTurnResult(replyText: string): VoiceAssistantTurnResult {
+  const readiness = { status: 'exploratory' as const, rationale: [], materialGapsRemaining: [] }
   return {
     state: {} as VoiceAssistantTurnResult['state'],
     question: { shouldAsk: false, reason: 'test fixture' },
-    readiness: { status: 'exploratory', rationale: [], materialGapsRemaining: [] },
-    report: null,
+    readiness,
+    report: buildPersonalizedReport({
+      applicantProfile: createEmptyApplicantProfile(),
+      userProfile: EMPTY_PROFILE,
+      ranked: [],
+      actionPlan: [],
+      readiness,
+      sourceStatus: null,
+      reportId: 'runtime-fixture',
+    }),
     replyText,
     isFallback: true,
     usedProvider: 'offline',

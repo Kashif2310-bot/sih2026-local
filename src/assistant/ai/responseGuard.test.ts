@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { rankSchemes } from '../ranking'
 import { EMPTY_PROFILE, type UserProfile } from '../types'
-import { findForbiddenClaims, findUnapprovedUrls, validateProviderReply } from './responseGuard'
+import { findForbiddenClaims, findUnapprovedAmounts, findUnapprovedUrls, validateProviderReply } from './responseGuard'
 import type { AIRequestContext } from './types'
 
 const PROFILE: UserProfile = {
@@ -79,6 +79,20 @@ describe('findUnapprovedUrls', () => {
       ],
     }
     expect(findUnapprovedUrls('See https://api.data.gov.in/resource/live123 for the latest figures.', context)).toHaveLength(0)
+  })
+})
+
+describe('findUnapprovedAmounts', () => {
+  it('allows amounts that appear in the profile or scheme evidence', () => {
+    const context = contextWithRealEvidence()
+    context.profile = { ...context.profile, financingRequired: 100_000 }
+    expect(findUnapprovedAmounts('Your stated financing need is about ₹1,00,000.', context)).toHaveLength(0)
+  })
+
+  it('flags a fabricated currency amount not present in evidence', () => {
+    const context = contextWithRealEvidence()
+    const flagged = findUnapprovedAmounts('We will sanction ₹99,99,999 immediately.', context)
+    expect(flagged).toContain(9999999)
   })
 })
 

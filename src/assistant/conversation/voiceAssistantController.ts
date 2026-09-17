@@ -62,6 +62,9 @@ import { assessReadiness, type ReadinessAssessment } from './readiness'
 import { buildPersonalizedReport, type PersonalizedReport } from './report'
 import { createInitialConversationState, type AskedQuestionRecord, type ConversationState } from './types'
 
+/** Tracks the last emitted report so refreshes bump version without mutating history. */
+type ReportVersionCursor = Pick<PersonalizedReport, 'reportId' | 'version'>
+
 export interface VoiceAssistantControllerDeps {
   retriever?: SchemeRetriever
   liveRetriever?: LiveRetriever
@@ -79,7 +82,8 @@ export interface VoiceAssistantTurnResult {
   state: ConversationState
   question: NextQuestionDecision
   readiness: ReadinessAssessment
-  report: PersonalizedReport | null
+  /** Always built — maturity may be exploratory; never requires every field known. */
+  report: PersonalizedReport
   replyText: string
   isFallback: boolean
   usedProvider: ProviderId
@@ -90,11 +94,31 @@ function existingDeclineCountFor(field: keyof UserProfile, questionsAsked: Asked
   return prior?.declineCount ?? 0
 }
 
+/**
+ * When the citizen expresses uncertainty about financing (and did not just
+ * supply a financing figure), preserve that as finance uncertainty in the
+ * report rather than inventing an amount.
+ */
+function detectUserUncertainFields(
+  message: string,
+  updatedFields: Array<keyof UserProfile>,
+): Array<keyof UserProfile> {
+  if (updatedFields.includes('financingRequired') || updatedFields.includes('investmentRequired')) {
+    return []
+  }
+  if (!isUncertaintyResponse(message)) return []
+  if (/\b(loan|financ|amount|how much|investment|ಸಾಲ|ಎಷ್ಟು)\b/i.test(message)) {
+    return ['financingRequired']
+  }
+  return []
+}
+
 export class VoiceAssistantController {
   private state: ConversationState
   private readonly deps: Required<VoiceAssistantControllerDeps>
   private readonly listeners = new Set<(event: ConversationEvent) => void>()
   private turnCounter = 0
+  private lastReportCursor: ReportVersionCursor | null = null
 
   constructor(deps: VoiceAssistantControllerDeps = {}, initialState?: ConversationState) {
     this.deps = {
@@ -236,17 +260,24 @@ export class VoiceAssistantController {
     }
     const reply = await generateWithFallback(context, this.deps.providers)
 
-    // 9. Early value delivery: the report becomes available once readiness
-    // is 'actionable' or better — built purely from existing deterministic
-    // data (never gated on "every field known").
-    const reportReady = readiness.status === 'actionable' || readiness.status === 'application_ready'
-    let report: PersonalizedReport | null = null
-    let actionPlan: ActionPlanStep[] = []
-    if (reportReady) {
-      actionPlan = buildActionPlan(ranked)
-      report = buildPersonalizedReport({ applicantProfile, ranked, actionPlan, readiness, sourceStatus, now })
-      this.emit({ type: 'report_ready', report })
-    }
+    // 9. Incremental personalized analysis: a structured report is always
+    // built from deterministic evidence (exploratory → application_ready).
+    // Never gated on "every field known". Fresh snapshot each turn — prior
+    // emitted reports are never mutated in place (version bumps via cursor).
+    const actionPlan: ActionPlanStep[] = buildActionPlan(ranked)
+    const report = buildPersonalizedReport({
+      applicantProfile,
+      userProfile: nextUserProfile,
+      ranked,
+      actionPlan,
+      readiness,
+      sourceStatus,
+      now,
+      previous: this.lastReportCursor,
+      userUncertainFields: detectUserUncertainFields(trimmed, updatedFields),
+    })
+    this.lastReportCursor = { reportId: report.reportId, version: report.version }
+    this.emit({ type: 'report_ready', report })
 
     const nextState: ConversationState = {
       userProfile: nextUserProfile,

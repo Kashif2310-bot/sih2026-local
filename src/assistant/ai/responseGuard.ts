@@ -59,6 +59,61 @@ export function findUnapprovedUrls(text: string, context: AIRequestContext): str
   return Array.from(new Set(unapproved))
 }
 
+function collectEvidenceAmounts(context: AIRequestContext): Set<number> {
+  const amounts = new Set<number>()
+  const add = (n: number | undefined) => {
+    if (typeof n === 'number' && Number.isFinite(n)) amounts.add(Math.round(n))
+  }
+  const p = context.profile
+  add(p.annualIncome)
+  add(p.investmentRequired)
+  add(p.financingRequired)
+  add(p.ownContribution)
+  add(p.age)
+  for (const r of context.ranked) {
+    add(r.scheme.loanAmount?.minRupees)
+    add(r.scheme.loanAmount?.maxRupees)
+    add(r.scheme.subsidy?.ratePercentMin)
+    add(r.scheme.subsidy?.ratePercentMax)
+    add(r.scheme.interest?.ratePercent)
+    add(r.eligibility.score)
+    add(r.relevance)
+    add(r.rankScore)
+  }
+  return amounts
+}
+
+function parseIndianNumber(raw: string): number {
+  return Number(raw.replace(/,/g, ''))
+}
+
+/**
+ * Currency-like amounts mentioned in reply text that are not present in
+ * profile/scheme evidence for this turn. List indices and bare small
+ * integers are ignored — only ₹ / Rs / lakh / crore style mentions count.
+ */
+export function findUnapprovedAmounts(text: string, context: AIRequestContext): number[] {
+  const allowed = collectEvidenceAmounts(context)
+  const found = new Set<number>()
+
+  const rupeeRe = /(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)/gi
+  let m: RegExpExecArray | null
+  while ((m = rupeeRe.exec(text)) !== null) {
+    const n = Math.round(parseIndianNumber(m[1]))
+    if (Number.isFinite(n) && !allowed.has(n)) found.add(n)
+  }
+
+  const unitRe = /([\d,]+(?:\.\d+)?)\s*(lakh|lac|crore)\b/gi
+  while ((m = unitRe.exec(text)) !== null) {
+    const base = parseIndianNumber(m[1])
+    const unit = m[2].toLowerCase()
+    const n = Math.round(unit === 'crore' ? base * 10_000_000 : base * 100_000)
+    if (Number.isFinite(n) && !allowed.has(n)) found.add(n)
+  }
+
+  return Array.from(found)
+}
+
 export interface GuardResult {
   ok: boolean
   reasons: string[]
@@ -82,6 +137,13 @@ export function validateProviderReply(text: string, context: AIRequestContext): 
   if (urls.length > 0) {
     reasons.push(`reply cites a URL not present in the retrieved evidence: ${urls.join(', ')}`)
   }
+
+  // Amount checking is available via findUnapprovedAmounts() and is applied
+  // by the report explanation seam. It is intentionally NOT part of the
+  // conversational validateProviderReply path: eligibility reason strings
+  // from the curated KB often mention scheme ceiling figures that are
+  // evidence-grounded prose but not always present as structured numeric
+  // fields on UserProfile / loanAmount.
 
   return { ok: reasons.length === 0, reasons }
 }

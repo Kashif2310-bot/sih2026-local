@@ -1,146 +1,123 @@
 /**
- * Structured personalized-report SEAM — a data model and a deterministic
- * builder, not the visual report page (that's Prerna's UI). Everything here
- * is assembled from data that already exists elsewhere in the deterministic
- * pipeline (ApplicantProfile, RankedScheme[], ActionPlanStep[] from
- * orchestrator.ts's buildActionPlan) — nothing is invented, and nothing
- * computes a NEW eligibility/ranking/LokScore value.
+ * Structured personalized-report builder.
  *
- * Every fact in the report is traceable to one of four buckets, matching
- * docs/applicant-profile.md's provenance model exactly:
- *   - verified evidence   -> ReportSchemeEntry.liveEvidence (live_official)
- *   - derived analysis    -> anything computed from the above (readiness,
- *                            eligibility status/score — never re-derived
- *                            here, only read from eligibility.ts's output)
- *   - user-provided facts -> citizenSnapshot, sourced from
- *                            ApplicantProfile.fieldProvenance
- *   - unknown/unverified  -> simply absent — never filled with a guess
+ * Prompt 5 created the PersonalizedReport seam. Prompt 7 completes the
+ * intelligence behind it:
  *
- * `opportunityAssessment.narrative` is left undefined by this builder on
- * purpose: it is a seam for a LATER guarded-AI-generated summary (via the
- * existing promptBuilder/responseGuard path), never fabricated by this
- * deterministic module.
+ *   DeterministicAnalysis (deterministicAnalysis.ts)
+ *        ↓
+ *   PersonalizedReport     (this file — structured, language-neutral)
+ *        ↓
+ *   guarded explanation    (explanationProvider.ts + responseGuard)
+ *        ↓
+ *   UI                     (Prerna — out of scope)
+ *
+ * Every fact is traceable to one of: user-provided, verified government,
+ * derived analysis, uncertainty, assumption/inference, or missing.
+ * Nothing invents schemes, URLs, eligibility, profits, or approvals.
+ *
+ * Snapshot immutability: each build returns a fresh deep-frozen object
+ * with an incremented version. Later conversation changes never mutate a
+ * previously emitted report in place.
  */
 
 import type { ActionPlanStep } from '../orchestrator'
-import type { EligibilityStatus, LiveEvidenceItem, RankedScheme, RetrievalSourceStatus } from '../types'
-import type {
-  ApplicantProfile,
-  ApplicantProfileFieldKey,
-  FieldProvenance,
-} from '../../shared/applicantProfile'
+import type { RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
+import type { ApplicantProfile } from '../../shared/applicantProfile'
+import type { LokScoreBreakdown } from '../../lib/lokScore'
 import type { ReadinessAssessment } from './readiness'
+import { buildDeterministicAnalysis } from './deterministicAnalysis'
+import type { PersonalizedReport } from './reportModel'
+import { deepFreeze } from './reportSnapshot'
 
-export interface ReportSchemeEntry {
-  schemeId: string
-  schemeName: string
-  eligibilityStatus: EligibilityStatus
-  eligibilityConfidence: 'low' | 'medium' | 'high'
-  /** Deterministic reasons FROM eligibility.ts — never re-derived here. */
-  matchReasons: string[]
-  concernReasons: string[]
-  missingRequirements: string[]
-  loanAmount?: { minRupees?: number; maxRupees?: number; notes?: string }
-  subsidyDescription?: string
-  documents: string[]
-  applicationSteps: string[]
-  officialInfoUrl: string
-  /** Present only when live_official evidence was actually merged for this scheme this turn — see evidenceMerge.ts. Empty array, never fabricated. */
-  liveEvidence: LiveEvidenceItem[]
-}
-
-export interface CitizenSnapshotFact {
-  value: unknown
-  source: FieldProvenance['source']
-  confidence?: FieldProvenance['confidence']
-  capturedAt?: string
-}
-
-export interface PersonalizedReport {
-  generatedAt: string
-  /** One entry per ApplicantProfile field actually known, each carrying its own provenance — never a flattened "profile dump" that loses where a fact came from. */
-  citizenSnapshot: Partial<Record<ApplicantProfileFieldKey, CitizenSnapshotFact>>
-  businessIdea: { description?: string; sector?: string }
-  businessContext: { stage?: string; status?: string; experienceYears?: number; location?: { state?: string; district?: string; villageOrTown?: string } }
-  /** Seam only — never populated by buildPersonalizedReport(). See module doc comment. */
-  opportunityAssessment: { narrative?: string }
-  relevantSchemes: ReportSchemeEntry[]
-  documentsNeeded: string[]
-  recommendedNextSteps: ActionPlanStep[]
-  risksAndUncertainties: string[]
-  sourceCoverage: { verifiedLocalCount: number; liveOfficialCount: number; totalSchemesConsidered: number }
-  verification: { checkedAt: string | null; sourceStatus: RetrievalSourceStatus['status'] | null }
-  readiness: ReadinessAssessment
-}
-
-function buildCitizenSnapshot(applicantProfile: ApplicantProfile): Partial<Record<ApplicantProfileFieldKey, CitizenSnapshotFact>> {
-  const snapshot: Partial<Record<ApplicantProfileFieldKey, CitizenSnapshotFact>> = {}
-  for (const [field, provenance] of Object.entries(applicantProfile.fieldProvenance) as Array<
-    [ApplicantProfileFieldKey, FieldProvenance]
-  >) {
-    const value = applicantProfile.data[field]
-    if (value === undefined) continue
-    snapshot[field] = { value, source: provenance.source, confidence: provenance.confidence, capturedAt: provenance.capturedAt }
-  }
-  return snapshot
-}
-
-function buildSchemeEntries(ranked: RankedScheme[]): ReportSchemeEntry[] {
-  return ranked.map((r) => ({
-    schemeId: r.scheme.id,
-    schemeName: r.scheme.name,
-    eligibilityStatus: r.eligibility.status,
-    eligibilityConfidence: r.eligibility.confidence,
-    matchReasons: r.eligibility.reasons,
-    concernReasons: r.eligibility.mismatchReasons,
-    missingRequirements: r.eligibility.missingInfo,
-    loanAmount: r.scheme.loanAmount,
-    subsidyDescription: r.scheme.subsidy?.description,
-    documents: r.scheme.documents,
-    applicationSteps: r.scheme.applicationSteps,
-    officialInfoUrl: r.scheme.officialInfoUrl,
-    liveEvidence: r.liveEvidence ?? [],
-  }))
-}
-
-function collectRisks(ranked: RankedScheme[]): string[] {
-  const risks = new Set<string>()
-  for (const r of ranked.slice(0, 5)) {
-    for (const reason of r.eligibility.mismatchReasons) risks.add(reason)
-  }
-  return Array.from(risks)
-}
-
-function collectDocuments(ranked: RankedScheme[]): string[] {
-  const docs = new Set<string>()
-  for (const r of ranked.slice(0, 3)) {
-    if (r.eligibility.status === 'likely_eligible' || r.eligibility.status === 'possibly_eligible') {
-      for (const d of r.scheme.documents) docs.add(d)
-    }
-  }
-  return Array.from(docs)
-}
+export type {
+  ApplicationReadinessAssessment,
+  ApplicationReadinessStatus,
+  BusinessSnapshot,
+  BusinessSuitabilityAssessment,
+  CitizenSnapshotFact,
+  ComparativeOption,
+  DocumentReadinessItem,
+  ExecutiveSummary,
+  FinancialPath,
+  GuardedExplanation,
+  OpportunityAssessment,
+  PersonalizedReport,
+  ReportSchemeEntry,
+  SourceCoverageReport,
+  UncertaintyItem,
+} from './reportModel'
 
 export interface BuildPersonalizedReportInput {
   applicantProfile: ApplicantProfile
+  /** Used for personalized match explanations; typically ConversationState.userProfile. */
+  userProfile?: UserProfile
   ranked: RankedScheme[]
   actionPlan: ActionPlanStep[]
   readiness: ReadinessAssessment
   sourceStatus: RetrievalSourceStatus | null
+  /** Optional existing LokScoreBreakdown — never computed here. */
+  lokScore?: LokScoreBreakdown
+  userUncertainFields?: Array<keyof UserProfile>
   now?: string
+  /** Prior emitted report — used only for reportId continuity + version bump. */
+  previous?: Pick<PersonalizedReport, 'reportId' | 'version'> | null
+  reportId?: string
 }
 
+function newReportId(): string {
+  return `report_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+/**
+ * Builds a fresh PersonalizedReport snapshot from deterministic inputs.
+ * Always returns a new frozen object — never mutates `previous`.
+ */
 export function buildPersonalizedReport(input: BuildPersonalizedReportInput): PersonalizedReport {
-  const { applicantProfile, ranked, actionPlan, readiness, sourceStatus } = input
-  const now = input.now ?? new Date().toISOString()
-  const data = applicantProfile.data
+  const userProfile: UserProfile = input.userProfile ?? {
+    rawNotes: input.applicantProfile.data.rawNotes ?? [],
+    state: input.applicantProfile.data.state,
+    district: input.applicantProfile.data.district,
+    areaType: input.applicantProfile.data.areaType,
+    age: input.applicantProfile.data.age,
+    gender: input.applicantProfile.data.gender,
+    socialCategory: input.applicantProfile.data.socialCategory,
+    annualIncome: input.applicantProfile.data.annualIncome,
+    businessStatus: input.applicantProfile.data.businessStatus,
+    proposedBusiness: input.applicantProfile.data.businessDescription,
+    businessSector: input.applicantProfile.data.businessSector,
+    investmentRequired: input.applicantProfile.data.investmentRequired,
+    ownContribution: input.applicantProfile.data.ownContribution,
+    financingRequired: input.applicantProfile.data.financingRequired,
+    existingLoans: input.applicantProfile.data.existingLoans,
+    businessStage: input.applicantProfile.data.businessStage,
+    education: input.applicantProfile.data.education,
+    landOrAssets: input.applicantProfile.data.landOrAssets,
+  }
 
-  const verifiedLocalCount = ranked.filter((r) => !r.liveEvidence || r.liveEvidence.length === 0).length
-  const liveOfficialCount = ranked.filter((r) => r.liveEvidence && r.liveEvidence.length > 0).length
+  const analysis = buildDeterministicAnalysis({
+    applicantProfile: input.applicantProfile,
+    userProfile,
+    ranked: input.ranked,
+    actionPlan: input.actionPlan,
+    readiness: input.readiness,
+    sourceStatus: input.sourceStatus,
+    lokScore: input.lokScore,
+    userUncertainFields: input.userUncertainFields,
+    now: input.now,
+  })
 
-  return {
-    generatedAt: now,
-    citizenSnapshot: buildCitizenSnapshot(applicantProfile),
+  const data = input.applicantProfile.data
+  const reportId = input.previous?.reportId ?? input.reportId ?? newReportId()
+  const version = (input.previous?.version ?? 0) + 1
+
+  const report: PersonalizedReport = {
+    reportId,
+    version,
+    generatedAt: analysis.generatedAt,
+    maturity: analysis.maturity,
+    executiveSummary: analysis.executiveSummary,
+    citizenSnapshot: analysis.citizenSnapshot,
     businessIdea: { description: data.businessDescription, sector: data.businessSector },
     businessContext: {
       stage: data.businessStage,
@@ -148,13 +125,21 @@ export function buildPersonalizedReport(input: BuildPersonalizedReportInput): Pe
       experienceYears: data.businessExperienceYears,
       location: { state: data.state, district: data.district, villageOrTown: data.villageOrTown },
     },
-    opportunityAssessment: {},
-    relevantSchemes: buildSchemeEntries(ranked),
-    documentsNeeded: collectDocuments(ranked),
-    recommendedNextSteps: actionPlan,
-    risksAndUncertainties: collectRisks(ranked),
-    sourceCoverage: { verifiedLocalCount, liveOfficialCount, totalSchemesConsidered: ranked.length },
-    verification: { checkedAt: sourceStatus?.checkedAt ?? null, sourceStatus: sourceStatus?.status ?? null },
-    readiness,
+    businessSnapshot: analysis.businessSnapshot,
+    opportunityAssessment: analysis.opportunityAssessment,
+    relevantSchemes: analysis.schemeAnalyses,
+    comparativeView: analysis.comparativeView,
+    financialPath: analysis.financialPath,
+    documentReadiness: analysis.documentReadiness,
+    documentsNeeded: analysis.documentReadiness.map((d) => d.documentName),
+    applicationReadiness: analysis.applicationReadiness,
+    recommendedNextSteps: analysis.actionPlan,
+    risksAndUncertainties: analysis.uncertainties.map((u) => u.message),
+    uncertainties: analysis.uncertainties,
+    sourceCoverage: analysis.sourceCoverage,
+    verification: analysis.verification,
+    readiness: analysis.readiness,
   }
+
+  return deepFreeze(report)
 }

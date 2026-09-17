@@ -270,21 +270,23 @@ describe('VoiceAssistantController — 16/17. conversation phase transitions and
 })
 
 describe('VoiceAssistantController — 18. final report generation seam', () => {
-  it('the report is null while exploratory and becomes available once actionable, matching the emitted event', async () => {
+  it('emits an incremental report even while exploratory, and refreshes once actionable', async () => {
     const events: string[] = []
     const controller = newController()
     controller.subscribe((e) => events.push(e.type))
 
     const t1 = await controller.handleUserTranscript('Hello there.')
-    expect(t1.report).toBeNull()
+    expect(t1.report).not.toBeNull()
+    expect(t1.report.maturity).toBe('exploratory')
+    expect(events).toContain('report_ready')
 
     const t2 = await controller.handleUserTranscript(
       'I want to expand my existing dairy business in Karnataka. I am SC category with annual income of 1.5 lakh and I need 1 lakh in financing.',
     )
+    expect(t2.report.version).toBeGreaterThan(t1.report.version)
+    expect(t2.report.reportId).toBe(t1.report.reportId)
     if (t2.readiness.status === 'actionable' || t2.readiness.status === 'application_ready') {
-      expect(t2.report).not.toBeNull()
-      expect(events).toContain('report_ready')
-      expect(t2.report?.relevantSchemes.length).toBeGreaterThan(0)
+      expect(t2.report.relevantSchemes.length).toBeGreaterThan(0)
     }
   })
 })

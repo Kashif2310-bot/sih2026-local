@@ -39,7 +39,44 @@ export type { EvidenceInvalidationResult, FinancingIntentSignal } from './eviden
 export { mergeExtractedFactsIntoApplicantProfile } from './applicantProfileBridge'
 
 export { buildPersonalizedReport } from './report'
-export type { BuildPersonalizedReportInput, CitizenSnapshotFact, PersonalizedReport, ReportSchemeEntry } from './report'
+export type {
+  BuildPersonalizedReportInput,
+  CitizenSnapshotFact,
+  PersonalizedReport,
+  ReportSchemeEntry,
+  ApplicationReadinessAssessment,
+  BusinessSnapshot,
+  ComparativeOption,
+  DocumentReadinessItem,
+  ExecutiveSummary,
+  FinancialPath,
+  GuardedExplanation,
+  OpportunityAssessment,
+  SourceCoverageReport,
+  UncertaintyItem,
+} from './report'
+
+export { buildDeterministicAnalysis, buildMatchExplanation } from './deterministicAnalysis'
+export type { BuildDeterministicAnalysisInput, DeterministicAnalysis } from './deterministicAnalysis'
+
+export {
+  attachGuardedExplanation,
+  composeOfflineReportExplanation,
+  offlineReportExplanationProvider,
+  OfflineReportExplanationProvider,
+} from './explanationProvider'
+export type { AttachExplanationResult, ReportExplanationProvider, ReportExplanationRequest } from './explanationProvider'
+
+export { deepFreeze, freezeReportSnapshot } from './reportSnapshot'
+
+export type {
+  ApplicationReadinessStatus,
+  BusinessSuitabilityAssessment,
+  ExplanationLanguage,
+  ReportFactCategory,
+  ReportMaturity,
+  SchemeMatchRecommendation,
+} from './reportModel'
 
 export { VoiceAssistantController } from './voiceAssistantController'
 export type { ConversationEvent, VoiceAssistantControllerDeps, VoiceAssistantTurnResult } from './voiceAssistantController'
