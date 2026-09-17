@@ -20,9 +20,11 @@ export function createMemoryProfileService(): ProfileService {
   const store = new Map<Uuid, ApplicantProfileV2>()
 
   return {
-    async create(locale = 'en') {
+    async create(locale = 'en', opts) {
       const profile = createEmptyApplicantProfileV2(locale)
       profile.id = newId()
+      if (opts?.userId) profile.userId = opts.userId
+      if (opts?.conversationId) profile.conversationId = opts.conversationId
       store.set(profile.id, profile)
       return profile
     },

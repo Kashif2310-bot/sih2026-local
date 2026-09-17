@@ -23,8 +23,14 @@ import type {
 import type { Uuid } from '../../contracts/common'
 
 /** Kashif + Backend: conversational profile store / merge. */
+export interface ProfileCreateOptions {
+  /** Required when persisting to Supabase (FK → profiles.id). Optional for memory. */
+  userId?: Uuid
+  conversationId?: Uuid
+}
+
 export interface ProfileService {
-  create(locale?: ApplicantProfileV2['locale']): Promise<ApplicantProfileV2>
+  create(locale?: ApplicantProfileV2['locale'], opts?: ProfileCreateOptions): Promise<ApplicantProfileV2>
   get(id: Uuid): Promise<ApplicantProfileV2 | null>
   applyPatch(id: Uuid, patch: ApplicantProfilePatch): Promise<ApplicantProfileV2>
   getMissingFields(id: Uuid): Promise<MissingField[]>

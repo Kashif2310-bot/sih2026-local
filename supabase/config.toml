@@ -1,5 +1,5 @@
-# LokPulse Supabase local/project skeleton
-# Phase 1 — schema + RLS only. Do not put secrets in git.
+# LokPulse Supabase local project
+# Do not put secrets in git. Use `npx supabase status` for local keys.
 
 project_id = "lokpulse-sih26091"
 
@@ -13,6 +13,10 @@ max_rows = 1000
 [db]
 port = 54322
 major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed/nsfdc_schemes_v0.sql"]
 
 [studio]
 enabled = true

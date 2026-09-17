@@ -16,6 +16,8 @@ dist-ssr
 !.env.example
 test-results
 playwright-report
+supabase/.temp
+supabase/.branches
 
 # Secrets — this project requires none to run, but never commit one if added later.
 .env

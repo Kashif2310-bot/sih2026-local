@@ -1,7 +1,8 @@
 /**
- * Thin typed config for future Supabase client wiring.
- * Phase 1: no runtime connection required; values may be unset.
- * NEVER read SUPABASE_SERVICE_ROLE_KEY from import.meta.env (browser).
+ * Supabase configuration.
+ * Browser: VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY only.
+ * Server/tests: SUPABASE_* from process.env (incl. service role).
+ * NEVER expose service-role via Vite / import.meta.env.
  */
 
 export interface SupabasePublicConfig {
@@ -10,12 +11,63 @@ export interface SupabasePublicConfig {
   configured: boolean
 }
 
+export interface SupabaseServerConfig {
+  url: string | null
+  anonKey: string | null
+  serviceRoleKey: string | null
+  /** True when URL + service role are present (integration / Edge). */
+  serviceConfigured: boolean
+  /** True when URL + anon are present. */
+  anonConfigured: boolean
+}
+
+function readMeta(name: string): string | null {
+  try {
+    const v = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.[name]
+    return typeof v === 'string' && v.trim() ? v.trim() : null
+  } catch {
+    return null
+  }
+}
+
+function readProcess(name: string): string | null {
+  if (typeof process === 'undefined' || !process.env) return null
+  const v = process.env[name]
+  return typeof v === 'string' && v.trim() ? v.trim() : null
+}
+
 export function getSupabasePublicConfig(): SupabasePublicConfig {
-  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || null
-  const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || null
+  const url = readMeta('VITE_SUPABASE_URL') ?? readProcess('VITE_SUPABASE_URL') ?? readProcess('SUPABASE_URL')
+  const anonKey =
+    readMeta('VITE_SUPABASE_ANON_KEY') ?? readProcess('VITE_SUPABASE_ANON_KEY') ?? readProcess('SUPABASE_ANON_KEY')
   return {
     url,
     anonKey,
     configured: Boolean(url && anonKey),
   }
+}
+
+export function getSupabaseServerConfig(): SupabaseServerConfig {
+  const publicCfg = getSupabasePublicConfig()
+  const serviceRoleKey = readProcess('SUPABASE_SERVICE_ROLE_KEY')
+  // Guard: never accept a VITE_-prefixed service role
+  if (readMeta('VITE_SUPABASE_SERVICE_ROLE_KEY') || readProcess('VITE_SUPABASE_SERVICE_ROLE_KEY')) {
+    throw new Error(
+      'Refusing to load VITE_SUPABASE_SERVICE_ROLE_KEY — service role must not be exposed to the browser bundle.',
+    )
+  }
+  return {
+    url: publicCfg.url,
+    anonKey: publicCfg.anonKey,
+    serviceRoleKey,
+    serviceConfigured: Boolean(publicCfg.url && serviceRoleKey),
+    anonConfigured: publicCfg.configured,
+  }
+}
+
+export function isSupabaseIntegrationEnabled(): boolean {
+  const flag = readProcess('SUPABASE_INTEGRATION')
+  if (flag === '0' || flag === 'false') return false
+  if (flag === '1' || flag === 'true') return getSupabaseServerConfig().serviceConfigured
+  return getSupabaseServerConfig().serviceConfigured
 }

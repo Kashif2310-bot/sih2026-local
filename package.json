@@ -9,10 +9,19 @@
     "lint": "oxlint --deny-warnings",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run src/backend/supabase/supabase.integration.test.ts",
     "test:e2e": "playwright test",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:status": "supabase status",
+    "supabase:env": "node scripts/write-env-local.mjs",
+    "supabase:verify": "supabase db query --file scripts/verify-supabase.sql",
+    "supabase:provision": "node scripts/provision-local.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "ethers": "^6.17.0",
@@ -41,6 +50,7 @@
     "@vitest/coverage-v8": "^5.0.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.81.0",
+    "supabase": "^2.117.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
