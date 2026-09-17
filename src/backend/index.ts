@@ -122,6 +122,13 @@ export {
 export { createBackendServices } from './services/createBackendServices'
 export type { BackendServices, BackendMode, CreateBackendServicesOptions } from './services/createBackendServices'
 
+export type * from './services/officialSource/types'
+export { createDataGovInAdapter } from './services/officialSource/dataGovInAdapter'
+export { createRetrievalOrchestrator } from './services/officialSource/orchestrator'
+export type { RetrievalOrchestrator } from './services/officialSource/orchestrator'
+export { createOfficialSchemeDiscoveryService } from './services/officialSource/officialSchemeDiscoveryService'
+export type { OfficialSchemeDiscoveryService, OfficialDiscoveryEnvelope } from './services/officialSource/officialSchemeDiscoveryService'
+
 export {
   getSupabasePublicConfig,
   getSupabaseServerConfig,
