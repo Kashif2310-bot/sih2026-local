@@ -1,15 +1,26 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ExternalLink, FileText, Info, ListChecks, X } from 'lucide-react'
 import { StatusBadge } from './StatusBadge'
-import type { RankedScheme } from '../../assistant/types'
+import type { RankedScheme, UserProfile } from '../../assistant/types'
+import { saveHandoff } from '../../apply/store'
 
 function formatRupees(n: number): string {
   return `₹${n.toLocaleString('en-IN')}`
 }
 
-export function SchemeDetailModal({ ranked, onClose }: { ranked: RankedScheme | null; onClose: () => void }) {
+export function SchemeDetailModal({
+  ranked,
+  profile,
+  onClose,
+}: {
+  ranked: RankedScheme | null
+  profile: UserProfile
+  onClose: () => void
+}) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!ranked) return
@@ -167,6 +178,25 @@ export function SchemeDetailModal({ ranked, onClose }: { ranked: RankedScheme | 
             {t('assistant.detail.source')}: {scheme.source} · {t('assistant.detail.lastVerified')}: {scheme.lastVerifiedDate}
           </p>
           <p className="mt-1 text-xs font-medium text-clay">{t('assistant.detail.referenceNote')}</p>
+          <button
+            type="button"
+            onClick={() => {
+              saveHandoff({
+                schemeId: scheme.id,
+                profile,
+                conversation: {
+                  source: 'assistant',
+                  extractedProfile: { ...profile },
+                  citedScheme: scheme.id,
+                },
+              })
+              onClose()
+              navigate(`/apply/start/${scheme.id}`)
+            }}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-forest px-4 py-2 text-sm font-bold text-white hover:bg-leaf"
+          >
+            {t('assistant.startApplication')}
+          </button>
         </Section>
       </div>
     </div>

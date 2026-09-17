@@ -38,6 +38,27 @@ npm run dev        # then open the printed URL and click "Assistant" in the nav,
 
 **Pipeline:** message → regex/keyword profile extraction (no AI call needed) → retrieval + filtering against the scheme knowledge base (`src/assistant/data/schemes.ts`) → a deterministic eligibility/ranking engine (`src/assistant/eligibility.ts`, `src/assistant/ranking.ts` — a match score and status like "possible match" is *computed*, never invented by a model) → an AI provider explains that evidence in plain language. Every AI reply is checked against the evidence (`src/assistant/ai/responseGuard.ts`) before being shown, rejecting anything that cites a URL or claims an outcome the evidence doesn't support.
 
+## Application automation (Adita)
+
+The assistant advises. **`/apply` helps you actually apply**, using one shared workflow for every last-mile channel:
+
+Citizen profile + selected scheme → application schema → field mapping → missing fields → document requirements → validation → generated application → user review → corrections → explicit consent → submission adapter → tracking id → status tracking.
+
+| Channel | What "submit" means | When it may say the government received it |
+| --- | --- | --- |
+| **Real government API** | `POST` to `VITE_GOV_APPLY_API_URL` | Only if that API returns an application id. If the env var is unset (the default), the result is **"Government API not configured — not submitted"**. |
+| **Assisted** | Packet for bank / SCA / local agency | Never. Outcome is `assisted_packet_ready`. |
+| **Guided** | Packet + official portal link | Never. You still file on the portal. |
+| **Simulation** | Explicit checkbox | Never. Banner: **"Simulation only — nothing was filed"**. |
+
+Start from **Apply** in the nav, or from a scheme's **Start application** button in `/assistant`. Tracked packets are stored on this device (`localStorage`); they are not a government register.
+
+```bash
+# optional — only if you actually have a government apply endpoint
+# VITE_GOV_APPLY_API_URL=https://example.gov/apply
+```
+
+
 **Offline fallback (what you get by default):** no AI provider is configured out of the box, so every reply comes from a deterministic, template-based explanation of the same retrieved evidence — never a live model — and is clearly labelled **"Offline reasoning — no AI model used"** on every such message in the chat.
 
 **Testing the local LLM (Ollama) path — optional:**
