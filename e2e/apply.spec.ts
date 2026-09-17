@@ -53,6 +53,14 @@ test('apply: guided packet is tracked without claiming a government submission',
   await expect(page.getByText(/Filed with government/i).first()).toBeVisible()
   await expect(page.getByText(/^No$/).first()).toBeVisible()
   await expect(page.getByText(/LP-GUIDED-/i).first()).toBeVisible()
+  const appId = (await page.locator('text=/LP-APP-[A-F0-9]{16}/i').first().textContent())?.trim()
+  expect(appId).toMatch(/^LP-APP-[A-F0-9]{16}$/i)
+
+  await page.goto('/admin/login')
+  await page.getByLabel(/password|ಪಾಸ್‌ವರ್ಡ್/i).fill('x')
+  await page.getByRole('button', { name: /log in|ಲಾಗಿನ್/i }).click()
+  await page.goto('/admin/applications')
+  await expect(page.getByText(appId!)).toBeVisible()
 })
 
 test('apply: government API with no config fails honestly; simulation is labelled', async ({ page }) => {

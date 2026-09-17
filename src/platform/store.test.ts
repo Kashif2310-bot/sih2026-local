@@ -60,6 +60,7 @@ beforeEach(() => {
 describe('platform/store', () => {
   it('creates and reads back an application', () => {
     const app = makeApp(newApplicationId())
+    expect(app.id).toMatch(/^LP-APP-[A-F0-9]{16}$/i)
     createApplication(app)
     expect(getApplication(app.id)?.applicant.name).toBe('Test Applicant')
     expect(getLastApplicationId()).toBe(app.id)
@@ -91,10 +92,13 @@ describe('platform/store', () => {
     expect(updated?.auditTrail.at(-1)?.action).toBe('status_changed:approved')
   })
 
-  it('seeds demo applications exactly once', () => {
+  it('seeds demo applications exactly once with legacy APP-DEMO-* ids', () => {
     seedDemoApplicationsOnce()
     const countAfterFirstSeed = listApplications().length
     expect(countAfterFirstSeed).toBeGreaterThan(0)
+    expect(listApplications().map((a) => a.id)).toEqual(
+      expect.arrayContaining(['APP-DEMO-0001', 'APP-DEMO-0002', 'APP-DEMO-0003']),
+    )
     seedDemoApplicationsOnce()
     expect(listApplications().length).toBe(countAfterFirstSeed)
   })

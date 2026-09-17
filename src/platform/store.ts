@@ -13,6 +13,7 @@
  * across devices, and can be cleared by the browser at any time. Every
  * admin screen that reads from here must say so on screen.
  */
+import { newApplicationId as issueCanonicalApplicationId } from '../apply/application'
 import { LOKSCORE_WEIGHTS } from '../lib/config'
 import type { Application, ApplicationStatus, AuditEvent } from './types'
 
@@ -108,8 +109,9 @@ export function setStatus(
   return appendAudit(id, { actor, action: `status_changed:${status}`, detail })
 }
 
+/** Canonical runtime identity is LP-APP-*. APP-DEMO-* is seed-only, never minted here. */
 export function newApplicationId(): string {
-  return `APP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+  return issueCanonicalApplicationId()
 }
 
 function fixtureBreakdown(total: number, quorumRequired: number, quorumPool: number, mentorRequired: boolean) {

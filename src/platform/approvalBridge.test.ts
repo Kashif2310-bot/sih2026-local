@@ -69,6 +69,7 @@ describe('approvalBridge', () => {
 
   it('opens a Jordan approval case from a citizen application', () => {
     const app = makeApp(84)
+    expect(app.id).toMatch(/^LP-APP-[A-F0-9]{16}$/i)
     createApplication(app)
     const view = ensureApprovalCase(app)
     expect(view.applicationId).toBe(app.id)

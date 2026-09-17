@@ -35,10 +35,10 @@ test.describe('Citizen apply → admin visibility', () => {
     await page.getByRole('button', { name: /continue to submission|ಸಲ್ಲಿಕೆ/i }).click()
 
     await page.getByRole('button', { name: /submit application|ಅರ್ಜಿ ಸಲ್ಲಿಸಿ/i }).click()
-    const idText = page.locator('text=/APP-/')
+    const idText = page.locator('text=/LP-APP-/')
     await expect(idText.first()).toBeVisible()
     const appId = (await idText.first().textContent())?.trim()
-    expect(appId).toBeTruthy()
+    expect(appId).toMatch(/^LP-APP-[A-F0-9]{16}$/i)
 
     await page.getByRole('button', { name: /track status|ಟ್ರ್ಯಾಕ್/i }).click()
     await expect(page.getByText(appId!)).toBeVisible()

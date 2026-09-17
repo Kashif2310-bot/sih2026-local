@@ -1,5 +1,6 @@
 import type { UserProfile } from '../assistant/types'
 import type { ConversationPayload } from './application'
+import { publishTrackedApplicationToPlatform } from './projectToPlatform'
 import type { TrackedApplication } from './types'
 
 const APPS_KEY = 'lokpulse.applications'
@@ -30,6 +31,7 @@ export function saveTrackedApplication(app: TrackedApplication): void {
   } catch {
     // Private browsing — caller still holds the in-memory result.
   }
+  publishTrackedApplicationToPlatform(app)
 }
 
 export function getTrackedApplication(trackingId: string): TrackedApplication | undefined {
