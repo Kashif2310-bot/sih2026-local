@@ -122,6 +122,21 @@ export {
 export { createBackendServices } from './services/createBackendServices'
 export type { BackendServices, BackendMode, CreateBackendServicesOptions } from './services/createBackendServices'
 
+export { createMemoryDocumentService } from './services/documents/memoryDocumentService'
+export { createSupabaseDocumentService } from './services/documents/supabaseDocumentService'
+export { computeMissingDocuments } from './services/documents/missingDocuments'
+
+export { createMemoryNotificationService } from './services/notifications/memoryNotificationService'
+export { createSupabaseNotificationService } from './services/notifications/supabaseNotificationService'
+export type { NotificationProvider, NotificationProviderMap } from './services/notifications/provider'
+
+export {
+  CANONICAL_APPLICATION_STATUSES,
+  canonicalStatusForWorkflowStep,
+  canonicalStatusForTrackedApplication,
+} from '../contracts/applicationStatus'
+export type { CanonicalApplicationStatus } from '../contracts/applicationStatus'
+
 export type * from './services/officialSource/types'
 export { createDataGovInAdapter } from './services/officialSource/dataGovInAdapter'
 export { createRetrievalOrchestrator } from './services/officialSource/orchestrator'

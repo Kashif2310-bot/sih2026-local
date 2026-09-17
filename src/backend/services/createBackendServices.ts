@@ -16,6 +16,8 @@
 import type {
   ApplicationPersistenceService,
   ApplicationStatusService,
+  DocumentService,
+  NotificationService,
   ProfileService,
   RecommendationService,
   SchemeRegistry,
@@ -63,6 +65,10 @@ import { createOfficialSchemeDiscoveryService } from './officialSource/officialS
 import { createRetrievalOrchestrator } from './officialSource/orchestrator'
 import { createSupabaseRetrievalAuditLogger } from './officialSource/supabaseRetrievalAuditLogger'
 import type { OfficialSchemeDiscoveryService } from './officialSource/officialSchemeDiscoveryService'
+import { createMemoryDocumentService } from './documents/memoryDocumentService'
+import { createSupabaseDocumentService } from './documents/supabaseDocumentService'
+import { createMemoryNotificationService } from './notifications/memoryNotificationService'
+import { createSupabaseNotificationService } from './notifications/supabaseNotificationService'
 
 export type BackendMode = 'auto' | 'memory' | 'supabase'
 
@@ -80,6 +86,10 @@ export interface BackendServices {
   liveRetrieval: LiveRetrievalGateway
   /** Option A — Prerna admin queries */
   admin: AdminApplicationQueries
+  /** Option A — document metadata boundary, LP-APP-* keyed (public.application_documents) */
+  documents: DocumentService
+  /** Option A — provider-agnostic notifications, LP-APP-* keyed */
+  notifications: NotificationService
 
   /** @deprecated Phase 1/2 UUID profile service — compat only */
   profiles: ProfileService
@@ -131,6 +141,8 @@ function attachOptionA(
     | 'jordanApprovals'
     | 'liveRetrieval'
     | 'admin'
+    | 'documents'
+    | 'notifications'
   >,
   client: LokPulseSupabaseClient | null,
   writeClient: LokPulseSupabaseClient | null,
@@ -153,6 +165,8 @@ function attachOptionA(
     jordanApprovals,
     liveRetrieval: client ? createLiveRetrievalGateway() : createUnavailableLiveRetrievalGateway(),
     admin: createAdminApplicationQueries(aditaApplications),
+    documents: writeClient ? createSupabaseDocumentService(writeClient) : createMemoryDocumentService(),
+    notifications: writeClient ? createSupabaseNotificationService(writeClient) : createMemoryNotificationService(),
   }
 }
 

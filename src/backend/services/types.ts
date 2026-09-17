@@ -11,6 +11,13 @@ import type {
   SubmitApplicationInput,
   UpdateApplicationFieldsInput,
 } from '../../contracts/application'
+import type { ApplicationDocumentRecord, UpsertApplicationDocumentInput } from '../../contracts/documents'
+import type {
+  NotificationPreference,
+  NotificationRecord,
+  NotifyInput,
+  SetNotificationPreferenceInput,
+} from '../../contracts/notification'
 import type { ApplicantProfileV2, ApplicantProfilePatch, MissingField } from '../../contracts/profile'
 import type { RecommendationEnvelope, RecommendationInput } from '../../contracts/recommendation'
 import type {
@@ -21,6 +28,7 @@ import type {
   SchemeSummaryEnvelope,
   SchemeVersionEnvelope,
 } from '../../contracts/scheme'
+import type { ApplicationDocumentSpec } from '../../apply/types'
 import type { Uuid } from '../../contracts/common'
 
 /** Kashif + Backend: conversational profile store / merge. */
@@ -82,3 +90,27 @@ export interface ApplicationStatusService {
 
 /** Registry port — same surface as SchemeRetrievalService for DI. */
 export type SchemeRegistry = SchemeRetrievalService
+
+/**
+ * Option A document metadata boundary — LP-APP-* keyed, wraps the existing
+ * public.application_documents table. Raw files stay in Supabase Storage;
+ * this is metadata/declaration only. See contracts/documents.ts.
+ */
+export interface DocumentService {
+  listForApplication(applicationId: string): Promise<ApplicationDocumentRecord[]>
+  upsertDocument(input: UpsertApplicationDocumentInput): Promise<ApplicationDocumentRecord>
+  /** Deterministic gap check against schemeId's own document spec — never invents a requirement. */
+  getMissingDocuments(applicationId: string, schemeId: string): Promise<ApplicationDocumentSpec[]>
+}
+
+/**
+ * Option A provider-agnostic notifications — LP-APP-* keyed, snapshots the
+ * canonical ApplicationStatus at notify time. Not a lifecycle authority:
+ * see contracts/notification.ts.
+ */
+export interface NotificationService {
+  notify(input: NotifyInput): Promise<NotificationRecord>
+  getPreferences(applicationId: string): Promise<NotificationPreference[]>
+  setPreference(input: SetNotificationPreferenceInput): Promise<NotificationPreference>
+  listForApplication(applicationId: string, limit?: number): Promise<NotificationRecord[]>
+}

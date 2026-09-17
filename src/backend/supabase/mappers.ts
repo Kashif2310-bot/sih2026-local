@@ -10,6 +10,14 @@ import type {
   ApplicationVersionRecord,
   SubmissionMode,
 } from '../../contracts/application'
+import type { ApplicationDocumentRecord, DocumentDeclaration } from '../../contracts/documents'
+import type {
+  NotificationChannel,
+  NotificationPreference,
+  NotificationRecord,
+  NotificationStatus,
+} from '../../contracts/notification'
+import type { CanonicalApplicationStatus } from '../../contracts/applicationStatus'
 import type { ApplicantProfileV2 } from '../../contracts/profile'
 import type {
   Department,
@@ -262,5 +270,72 @@ export function hydrateApplicantProfile(row: ApplicantProfileRow): ApplicantProf
     locale: (row.locale as ApplicantProfileV2['locale']) || body.locale || 'en',
     createdAt: body.createdAt || row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+/** public.application_documents (Option A, LP-APP-* keyed) — see contracts/documents.ts. */
+export interface ApplicationDocumentRow {
+  id: string
+  application_id: string
+  doc_key: string
+  label: string
+  declaration: DocumentDeclaration
+  storage_path: string | null
+  content_hash: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export function mapApplicationDocument(row: ApplicationDocumentRow): ApplicationDocumentRecord {
+  return {
+    id: row.id,
+    applicationId: row.application_id,
+    docKey: row.doc_key,
+    label: row.label,
+    declaration: row.declaration,
+    storagePath: row.storage_path,
+    contentHash: row.content_hash,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+  }
+}
+
+/** public.application_notification_preferences (Option A, LP-APP-* keyed). */
+export interface NotificationPreferenceRow {
+  application_id: string
+  channel: NotificationChannel
+  enabled: boolean
+}
+
+export function mapNotificationPreference(row: NotificationPreferenceRow): NotificationPreference {
+  return { applicationId: row.application_id, channel: row.channel, enabled: Boolean(row.enabled) }
+}
+
+/** public.application_notifications (Option A, LP-APP-* keyed) — see contracts/notification.ts. */
+export interface ApplicationNotificationRow {
+  id: string
+  application_id: string
+  application_status: CanonicalApplicationStatus
+  template_code: string
+  channel: NotificationChannel
+  status: NotificationStatus
+  recipient: string | null
+  provider_ref: string | null
+  error_message: string | null
+  created_at: string
+}
+
+export function mapApplicationNotification(row: ApplicationNotificationRow): NotificationRecord {
+  return {
+    id: row.id,
+    applicationId: row.application_id,
+    applicationStatus: row.application_status,
+    templateCode: row.template_code,
+    channel: row.channel,
+    status: row.status,
+    recipient: row.recipient,
+    providerRef: row.provider_ref,
+    errorMessage: row.error_message,
+    createdAt: row.created_at,
   }
 }
