@@ -5,6 +5,7 @@ import type { AIProvider, AIRequestContext, ProviderReply } from './ai/types'
 import { defaultRetriever, type SchemeRetriever } from './retrieval'
 import { createInitialProfile, runAssistantTurn } from './orchestrator'
 import type { LiveEvidenceItem } from './types'
+import { createEmptyApplicantProfile } from '../shared/applicantProfile'
 
 /**
  * A live-evidence fixture that DOES carry deterministic scheme-binding
@@ -441,5 +442,78 @@ describe('runAssistantTurn — live government-source retrieval', () => {
     })
     expect(queried.length).toBeGreaterThan(0)
     expect(queried).toEqual(result.ranked.slice(0, 5).map((r) => r.scheme.id))
+  })
+})
+
+describe('runAssistantTurn — ApplicantProfile emission (cross-workstream adapter)', () => {
+  const deps = { providers: [offlineProvider], retriever: defaultRetriever, liveRetriever: neverConfiguredLiveRetriever }
+
+  it('starts from an empty ApplicantProfile and populates it from this turn\'s extracted facts when none is supplied', async () => {
+    const result = await runAssistantTurn(
+      {
+        message:
+          'I am 24 years old, from rural Karnataka, SC, my annual income is about ₹2 lakh, and I want to start a poultry business requiring ₹3 lakh.',
+        profile: createInitialProfile(),
+        history: [],
+      },
+      deps,
+    )
+
+    expect(result.applicantProfile.data.state).toBe('Karnataka')
+    expect(result.applicantProfile.data.businessSector).toBe('poultry')
+    expect(result.applicantProfile.data.socialCategory).toBe('sc')
+    expect(result.applicantProfile.fieldProvenance.state?.source).toBe('user_provided')
+  })
+
+  it('never fabricates a field the message did not actually state', async () => {
+    const result = await runAssistantTurn(
+      { message: 'Hi, I need some help.', profile: createInitialProfile(), history: [] },
+      deps,
+    )
+    expect(result.applicantProfile.data.state).toBeUndefined()
+    expect(result.applicantProfile.fieldProvenance.state).toBeUndefined()
+  })
+
+  it('incrementally folds new facts into an ApplicantProfile passed in from a prior turn, without losing what it already knew', async () => {
+    const turn1 = await runAssistantTurn(
+      { message: 'I am from Karnataka.', profile: createInitialProfile(), history: [] },
+      deps,
+    )
+    expect(turn1.applicantProfile.data.state).toBe('Karnataka')
+
+    const turn2 = await runAssistantTurn(
+      {
+        message: 'I want to start a poultry business.',
+        profile: turn1.profile,
+        history: [{ role: 'user', text: 'I am from Karnataka.' }],
+        applicantProfile: turn1.applicantProfile,
+      },
+      deps,
+    )
+
+    expect(turn2.applicantProfile.data.state).toBe('Karnataka')
+    expect(turn2.applicantProfile.data.businessSector).toBe('poultry')
+    // The state fact's own provenance timestamp is untouched by turn 2.
+    expect(turn2.applicantProfile.fieldProvenance.state?.capturedAt).toBe(
+      turn1.applicantProfile.fieldProvenance.state?.capturedAt,
+    )
+  })
+
+  it('accepts a caller-supplied ApplicantProfile that already has unrelated facts on it and preserves them', async () => {
+    let seed = createEmptyApplicantProfile()
+    seed = { ...seed, data: { ...seed.data, name: 'Lakshmi S.' }, fieldProvenance: { name: { source: 'user_provided' } } }
+
+    const result = await runAssistantTurn(
+      {
+        message: 'I am from Kerala.',
+        profile: createInitialProfile(),
+        history: [],
+        applicantProfile: seed,
+      },
+      deps,
+    )
+
+    expect(result.applicantProfile.data.name).toBe('Lakshmi S.')
+    expect(result.applicantProfile.data.state).toBe('Kerala')
   })
 })

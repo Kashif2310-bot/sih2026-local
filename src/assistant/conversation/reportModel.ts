@@ -213,6 +213,20 @@ export interface DocumentReadinessItem {
   source: 'scheme_requirement' | 'user_mentioned' | 'government_verified'
 }
 
+/**
+ * Readiness to START an application — computed entirely from this report's
+ * own deterministic evidence, before any application/applicationId exists.
+ *
+ * This is NOT a persisted application lifecycle status and must never be
+ * confused with one. A future application-automation workstream's own
+ * status (its own concern, keyed by its own application id once one is
+ * issued) is a distinct, later-stage concept: this value only ever answers
+ * "is enough known to reasonably suggest starting an application", not
+ * "where is this application in its own submission/consent/tracking
+ * lifecycle". `ready_for_application` here means exactly that suggestion is
+ * warranted — it never implies an application has been created, consented
+ * to, submitted, or is being tracked anywhere.
+ */
 export type ApplicationReadinessStatus =
   | 'not_ready'
   | 'gathering_information'

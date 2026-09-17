@@ -12,6 +12,7 @@
 import { defaultProviderChain } from './ai'
 import { validateProviderReply } from './ai/responseGuard'
 import type { AIProvider, AIRequestContext, AIReply, ChatTurn } from './ai/types'
+import { mergeExtractedFactsIntoApplicantProfile } from './conversation/applicantProfileBridge'
 import { SCHEMES } from './data/schemes'
 import { mergeLiveEvidence } from './evidenceMerge'
 import { DataGovInConnector } from './evidence/dataGovInConnector'
@@ -23,6 +24,7 @@ import { identifyMissingFields } from './missingFields'
 import { extractAndMerge } from './profileExtraction'
 import { rankSchemes } from './ranking'
 import { defaultRetriever, type SchemeRetriever } from './retrieval'
+import { createEmptyApplicantProfile, type ApplicantProfile } from '../shared/applicantProfile'
 import type { ContextualEvidenceItem, RankedScheme, RetrievalSourceStatus, UserProfile } from './types'
 
 export interface ActionPlanStep {
@@ -45,12 +47,31 @@ export interface AssistantTurnResult {
   contextualEvidence: ContextualEvidenceItem[]
   /** Honest source/record coverage accounting for this turn's live retrieval attempt, or null when live retrieval was never attempted (not configured). Never implies "all government schemes checked". */
   evidenceCoverage: SourceCoverageAccounting | null
+  /**
+   * The shared, cross-workstream ApplicantProfile (src/shared/applicantProfile.ts)
+   * updated with this turn's newly-learned facts. `profile` above (UserProfile)
+   * remains this assistant's own source of truth — this is a read-only
+   * projection of it for any other subsystem (application automation, a
+   * future persistence layer) that wants to consume applicant facts without
+   * depending on UserProfile's internal shape. Every field it carries is
+   * traceable to an actual extracted fact — see
+   * conversation/applicantProfileBridge.ts for the provenance rule.
+   */
+  applicantProfile: ApplicantProfile
 }
 
 export interface RunAssistantTurnInput {
   message: string
   profile: UserProfile
   history: ChatTurn[]
+  /**
+   * The running ApplicantProfile to fold this turn's newly-learned facts
+   * into. Optional and purely additive: omit it (the existing, still-valid
+   * way to call this function) and it starts from an empty profile each
+   * call — callers that only care about UserProfile/ranked schemes/reply
+   * text are entirely unaffected by this field's existence.
+   */
+  applicantProfile?: ApplicantProfile
 }
 
 export interface RunAssistantTurnDeps {
@@ -218,6 +239,12 @@ export async function runAssistantTurn(
   const reply = await generateWithFallback(context, deps.providers)
   const actionPlan = buildActionPlan(ranked)
 
+  const applicantProfile = mergeExtractedFactsIntoApplicantProfile(
+    input.applicantProfile ?? createEmptyApplicantProfile(),
+    mergedProfile,
+    updatedFields,
+  )
+
   return {
     profile: mergedProfile,
     updatedFields,
@@ -228,5 +255,6 @@ export async function runAssistantTurn(
     sourceStatus,
     contextualEvidence,
     evidenceCoverage,
+    applicantProfile,
   }
 }
