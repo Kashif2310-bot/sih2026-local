@@ -2,11 +2,18 @@ import { evaluateEligibility } from './eligibility'
 import { defaultRetriever, type RetrievalQuery, type SchemeRetriever } from './retrieval'
 import type { EligibilityStatus, RankedScheme, UserProfile } from './types'
 
-const STATUS_WEIGHT: Record<EligibilityStatus, number> = {
+export const STATUS_WEIGHT: Record<EligibilityStatus, number> = {
   likely_eligible: 3,
   possibly_eligible: 2,
   insufficient_data: 1,
   likely_ineligible: 0,
+}
+
+/** The single sort rule for any ranked list: status tier first (an ineligible scheme never outranks an uncertain-but-plausible one), rankScore as the tiebreaker within a tier. Shared so re-sorting after a merge (see evidenceMerge.ts) can't accidentally drop the status-first invariant. */
+export function compareRanked(a: RankedScheme, b: RankedScheme): number {
+  const statusDiff = STATUS_WEIGHT[b.eligibility.status] - STATUS_WEIGHT[a.eligibility.status]
+  if (statusDiff !== 0) return statusDiff
+  return b.rankScore - a.rankScore
 }
 
 /**
@@ -30,9 +37,5 @@ export function rankSchemes(
     return { scheme: r.scheme, eligibility, relevance: r.relevance, rankScore }
   })
 
-  return ranked.sort((a, b) => {
-    const statusDiff = STATUS_WEIGHT[b.eligibility.status] - STATUS_WEIGHT[a.eligibility.status]
-    if (statusDiff !== 0) return statusDiff
-    return b.rankScore - a.rankScore
-  })
+  return ranked.sort(compareRanked)
 }

@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * AI Government Scheme Assistant — no local Ollama is running in this test
- * environment, so every reply is expected to come from the deterministic
- * offline provider (labelled as such in the UI). That's fine: the point of
- * this test is the pipeline (extraction -> retrieval -> eligibility ->
- * ranking -> UI), not the AI provider itself.
+ * AI Government Scheme Assistant — no local Ollama and no Supabase project
+ * are configured in this test environment, so every reply comes from the
+ * deterministic offline provider, and every turn's source-status badge
+ * reads "Verified scheme knowledge base" (live retrieval never attempted).
+ * That's fine: the point of these tests is the pipeline (extraction ->
+ * retrieval -> eligibility -> ranking -> UI), not which AI/data path served
+ * a given turn.
  */
 
 test('assistant: poultry/Karnataka/SC profile surfaces matching schemes with sources and an action plan', async ({
@@ -19,7 +21,7 @@ test('assistant: poultry/Karnataka/SC profile surfaces matching schemes with sou
   )
   await page.getByRole('button', { name: 'Send' }).click()
 
-  await expect(page.getByText(/offline reasoning/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Verified scheme knowledge base/i).first()).toBeVisible({ timeout: 15_000 })
 
   await expect(page.getByText('Karnataka').first()).toBeVisible()
   await expect(page.getByText('poultry').first()).toBeVisible()
@@ -134,7 +136,7 @@ test('assistant: HTML/script-like input is shown as inert text and never execute
   await page.goto('/assistant')
   await page.getByLabel('Message').fill('<script>alert("xss")</script> I want to start a shop business.')
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText(/offline reasoning/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Verified scheme knowledge base/i).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('<script>alert("xss")</script>', { exact: false })).toBeVisible()
   expect(dialogs).toHaveLength(0)
 })

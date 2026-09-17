@@ -12,12 +12,20 @@
 import { defaultProviderChain } from './ai'
 import { validateProviderReply } from './ai/responseGuard'
 import type { AIProvider, AIRequestContext, AIReply, ChatTurn } from './ai/types'
+import { mergeExtractedFactsIntoApplicantProfile } from './conversation/applicantProfileBridge'
+import { SCHEMES } from './data/schemes'
+import { mergeLiveEvidence } from './evidenceMerge'
+import { DataGovInConnector } from './evidence/dataGovInConnector'
+import { runGovernmentEvidenceRetrieval } from './evidence/governmentEvidenceOrchestrator'
+import type { SourceCoverageAccounting } from './evidence/types'
+import { defaultLiveRetriever, type LiveRetriever } from './liveRetrieval'
 import type { MissingFieldInfo } from './missingFields'
 import { identifyMissingFields } from './missingFields'
 import { extractAndMerge } from './profileExtraction'
 import { rankSchemes } from './ranking'
 import { defaultRetriever, type SchemeRetriever } from './retrieval'
-import type { RankedScheme, UserProfile } from './types'
+import { createEmptyApplicantProfile, type ApplicantProfile } from '../shared/applicantProfile'
+import type { ContextualEvidenceItem, RankedScheme, RetrievalSourceStatus, UserProfile } from './types'
 
 export interface ActionPlanStep {
   order: number
@@ -33,21 +41,47 @@ export interface AssistantTurnResult {
   ranked: RankedScheme[]
   reply: AIReply
   actionPlan: ActionPlanStep[]
+  /** What actually happened when this turn tried (or didn't try) live government-source retrieval — drives the UI's source-status line. */
+  sourceStatus: RetrievalSourceStatus
+  /** Official government evidence retrieved this turn that could NOT be deterministically tied to one specific scheme — see evidence/schemeBinding.ts. Never merged into any scheme's liveEvidence. */
+  contextualEvidence: ContextualEvidenceItem[]
+  /** Honest source/record coverage accounting for this turn's live retrieval attempt, or null when live retrieval was never attempted (not configured). Never implies "all government schemes checked". */
+  evidenceCoverage: SourceCoverageAccounting | null
+  /**
+   * The shared, cross-workstream ApplicantProfile (src/shared/applicantProfile.ts)
+   * updated with this turn's newly-learned facts. `profile` above (UserProfile)
+   * remains this assistant's own source of truth — this is a read-only
+   * projection of it for any other subsystem (application automation, a
+   * future persistence layer) that wants to consume applicant facts without
+   * depending on UserProfile's internal shape. Every field it carries is
+   * traceable to an actual extracted fact — see
+   * conversation/applicantProfileBridge.ts for the provenance rule.
+   */
+  applicantProfile: ApplicantProfile
 }
 
 export interface RunAssistantTurnInput {
   message: string
   profile: UserProfile
   history: ChatTurn[]
+  /**
+   * The running ApplicantProfile to fold this turn's newly-learned facts
+   * into. Optional and purely additive: omit it (the existing, still-valid
+   * way to call this function) and it starts from an empty profile each
+   * call — callers that only care about UserProfile/ranked schemes/reply
+   * text are entirely unaffected by this field's existence.
+   */
+  applicantProfile?: ApplicantProfile
 }
 
 export interface RunAssistantTurnDeps {
   providers: AIProvider[]
   retriever: SchemeRetriever
+  liveRetriever: LiveRetriever
 }
 
 export function defaultAssistantDeps(): RunAssistantTurnDeps {
-  return { providers: defaultProviderChain(), retriever: defaultRetriever }
+  return { providers: defaultProviderChain(), retriever: defaultRetriever, liveRetriever: defaultLiveRetriever }
 }
 
 export function createInitialProfile(): UserProfile {
@@ -62,7 +96,7 @@ export function createInitialProfile(): UserProfile {
  * anti-hallucination contract in ai/promptBuilder.ts for the analogous
  * guarantee on the conversational reply text.
  */
-function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
+export function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
   const eligible = ranked.filter(
     (r) => r.eligibility.status === 'likely_eligible' || r.eligibility.status === 'possibly_eligible',
   )
@@ -93,7 +127,7 @@ function buildActionPlan(ranked: RankedScheme[]): ActionPlanStep[] {
  * check is treated exactly like a network failure — discarded, falling
  * through to the next provider — never shown to the user.
  */
-async function generateWithFallback(context: AIRequestContext, providers: AIProvider[]): Promise<AIReply> {
+export async function generateWithFallback(context: AIRequestContext, providers: AIProvider[]): Promise<AIReply> {
   for (const provider of providers) {
     try {
       const available = await provider.isAvailable()
@@ -119,13 +153,79 @@ async function generateWithFallback(context: AIRequestContext, providers: AIProv
   throw new Error('All configured AI providers, including any offline fallback, failed to respond.')
 }
 
+export interface AttemptLiveRetrievalResult {
+  ranked: RankedScheme[]
+  sourceStatus: RetrievalSourceStatus
+  contextualEvidence: ContextualEvidenceItem[]
+  evidenceCoverage: SourceCoverageAccounting | null
+}
+
+/**
+ * Attempts live government-source retrieval for this turn's top-ranked
+ * schemes and reports exactly what happened — never fabricating a
+ * "checked" result. Three honest outcomes:
+ *   - not configured at all -> 'verified_local' (we never claimed to check)
+ *   - configured but every source failed/timed out -> 'live_unavailable'
+ *   - configured and at least one source was successfully queried -> 'live_official'
+ * A failure here never affects the local ranking — it only means no live
+ * evidence gets merged in and the UI says so.
+ *
+ * Internally this runs the Prompt 8 government evidence layer (see
+ * evidence/governmentEvidenceOrchestrator.ts): retrieved records are
+ * deterministically BOUND to a specific scheme only when the record itself
+ * proves the tie (schemeBinding.ts) — never merely because it was requested
+ * for that scheme id. Anything that can't be bound comes back as
+ * `contextualEvidence` instead of being attached to any scheme.
+ */
+export async function attemptLiveRetrieval(
+  ranked: RankedScheme[],
+  profile: UserProfile,
+  liveRetriever: LiveRetriever,
+): Promise<AttemptLiveRetrievalResult> {
+  const checkedAt = new Date().toISOString()
+
+  let available: boolean
+  try {
+    available = await liveRetriever.isAvailable()
+  } catch {
+    available = false
+  }
+  if (!available) {
+    return { ranked, sourceStatus: { status: 'verified_local', checkedAt }, contextualEvidence: [], evidenceCoverage: null }
+  }
+
+  const topSchemeIds = ranked.slice(0, 5).map((r) => r.scheme.id)
+  const connector = new DataGovInConnector(liveRetriever)
+
+  const result = await runGovernmentEvidenceRetrieval({
+    connectors: [connector],
+    schemeIds: topSchemeIds,
+    state: profile.state,
+    lookupScheme: (id) => SCHEMES.find((s) => s.id === id),
+    ranked,
+  })
+
+  const anySucceeded = result.coverage.sourcesSuccessful > 0
+  return {
+    ranked: mergeLiveEvidence(ranked, result.boundEvidence),
+    sourceStatus: { status: anySucceeded ? 'live_official' : 'live_unavailable', checkedAt },
+    contextualEvidence: result.contextualEvidence,
+    evidenceCoverage: result.coverage,
+  }
+}
+
 export async function runAssistantTurn(
   input: RunAssistantTurnInput,
   deps: RunAssistantTurnDeps = defaultAssistantDeps(),
 ): Promise<AssistantTurnResult> {
   const { profile: mergedProfile, updatedFields } = extractAndMerge(input.message, input.profile)
   const missingFields = identifyMissingFields(mergedProfile)
-  const ranked = rankSchemes(mergedProfile, input.message, deps.retriever)
+  const rankedLocal = rankSchemes(mergedProfile, input.message, deps.retriever)
+  const { ranked, sourceStatus, contextualEvidence, evidenceCoverage } = await attemptLiveRetrieval(
+    rankedLocal,
+    mergedProfile,
+    deps.liveRetriever,
+  )
 
   const context: AIRequestContext = {
     profile: mergedProfile,
@@ -139,5 +239,22 @@ export async function runAssistantTurn(
   const reply = await generateWithFallback(context, deps.providers)
   const actionPlan = buildActionPlan(ranked)
 
-  return { profile: mergedProfile, updatedFields, missingFields, ranked, reply, actionPlan }
+  const applicantProfile = mergeExtractedFactsIntoApplicantProfile(
+    input.applicantProfile ?? createEmptyApplicantProfile(),
+    mergedProfile,
+    updatedFields,
+  )
+
+  return {
+    profile: mergedProfile,
+    updatedFields,
+    missingFields,
+    ranked,
+    reply,
+    actionPlan,
+    sourceStatus,
+    contextualEvidence,
+    evidenceCoverage,
+    applicantProfile,
+  }
 }

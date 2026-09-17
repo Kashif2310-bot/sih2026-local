@@ -38,5 +38,6 @@ enabled = true
 file_size_limit = "25MiB"
 
 # Kashif owns live-scheme-retrieval — do not duplicate.
+
 [functions.live-scheme-retrieval]
 verify_jwt = false

@@ -160,7 +160,7 @@ export const translationResources = {
         subtitle:
           'Tell me about yourself and your business — I will match you against a maintained knowledge base of real government schemes.',
         knowledgeBaseNote:
-          "Static, manually curated scheme knowledge base — not a live government feed. Always confirm details with each scheme's official source before applying.",
+          "Built on a maintained, manually curated scheme knowledge base, with optional live official-source checks where configured (see the status shown on each reply). Always confirm details with each scheme's official source before applying.",
         newConversation: 'Start over',
         you: 'You',
         assistantName: 'Assistant',
@@ -168,7 +168,11 @@ export const translationResources = {
         inputLabel: 'Message',
         send: 'Send',
         thinking: 'Thinking…',
-        offlineBadge: 'Offline reasoning — no AI model used',
+        sourceStatus: {
+          liveOfficial: 'Official live sources checked · {{time}}',
+          verifiedLocal: 'Verified scheme knowledge base',
+          liveUnavailable: 'Live government sources unavailable · showing verified scheme data',
+        },
         errorTitle: 'Something went wrong',
         retry: 'Retry',
         starterTitle: 'Try an example, or write your own message',
@@ -230,6 +234,9 @@ export const translationResources = {
           lastVerified: 'Last verified',
           referenceNote: "Maintained reference entry — confirm current terms with the official source before applying.",
           close: 'Close',
+          liveEvidence: 'Live official data',
+          retrievedAt: 'Retrieved',
+          publishedAt: 'Published',
         },
         status: {
           likely_eligible: 'Likely match',
@@ -819,7 +826,7 @@ export const translationResources = {
         subtitle:
           'ನಿಮ್ಮ ಬಗ್ಗೆ ಮತ್ತು ನಿಮ್ಮ ವ್ಯಾಪಾರದ ಬಗ್ಗೆ ತಿಳಿಸಿ — ನಿಜವಾದ ಸರ್ಕಾರಿ ಯೋಜನೆಗಳ ಸಂರಕ್ಷಿತ ಜ್ಞಾನ ಭಂಡಾರದೊಂದಿಗೆ ಹೊಂದಿಸುತ್ತೇನೆ.',
         knowledgeBaseNote:
-          'ಸ್ಥಿರ, ಕೈಯಾರೆ ನಿರ್ವಹಿಸಿದ ಯೋಜನಾ ಜ್ಞಾನ ಭಂಡಾರ — ಇದು ಲೈವ್ ಸರ್ಕಾರಿ ಫೀಡ್ ಅಲ್ಲ. ಅರ್ಜಿ ಸಲ್ಲಿಸುವ ಮೊದಲು ಪ್ರತಿ ಯೋಜನೆಯ ಅಧಿಕೃತ ಮೂಲದೊಂದಿಗೆ ಯಾವಾಗಲೂ ವಿವರಗಳನ್ನು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.',
+          'ನಿರ್ವಹಿಸಿದ ಯೋಜನಾ ಜ್ಞಾನ ಭಂಡಾರದ ಆಧಾರದ ಮೇಲೆ, ಕಾನ್ಫಿಗರ್ ಮಾಡಿದಾಗ ಐಚ್ಛಿಕ ಲೈವ್ ಅಧಿಕೃತ-ಮೂಲ ಪರಿಶೀಲನೆಗಳೊಂದಿಗೆ (ಪ್ರತಿ ಪ್ರತ್ಯುತ್ತರದಲ್ಲಿ ತೋರಿಸಿದ ಸ್ಥಿತಿಯನ್ನು ನೋಡಿ). ಅರ್ಜಿ ಸಲ್ಲಿಸುವ ಮೊದಲು ಪ್ರತಿ ಯೋಜನೆಯ ಅಧಿಕೃತ ಮೂಲದೊಂದಿಗೆ ಯಾವಾಗಲೂ ವಿವರಗಳನ್ನು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.',
         newConversation: 'ಹೊಸದಾಗಿ ಪ್ರಾರಂಭಿಸಿ',
         you: 'ನೀವು',
         assistantName: 'ಸಹಾಯಕ',
@@ -827,7 +834,11 @@ export const translationResources = {
         inputLabel: 'ಸಂದೇಶ',
         send: 'ಕಳುಹಿಸಿ',
         thinking: 'ಯೋಚಿಸುತ್ತಿದೆ…',
-        offlineBadge: 'ಆಫ್‌ಲೈನ್ ತಾರ್ಕಿಕತೆ — AI ಮಾದರಿ ಬಳಸಿಲ್ಲ',
+        sourceStatus: {
+          liveOfficial: 'ಅಧಿಕೃತ ಲೈವ್ ಮೂಲಗಳನ್ನು ಪರಿಶೀಲಿಸಲಾಗಿದೆ · {{time}}',
+          verifiedLocal: 'ಪರಿಶೀಲಿತ ಯೋಜನಾ ಜ್ಞಾನ ಭಂಡಾರ',
+          liveUnavailable: 'ಲೈವ್ ಸರ್ಕಾರಿ ಮೂಲಗಳು ಲಭ್ಯವಿಲ್ಲ · ಪರಿಶೀಲಿತ ಯೋಜನಾ ಡೇಟಾ ತೋರಿಸಲಾಗುತ್ತಿದೆ',
+        },
         errorTitle: 'ಏನೋ ತಪ್ಪಾಗಿದೆ',
         retry: 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ',
         starterTitle: 'ಒಂದು ಉದಾಹರಣೆ ಪ್ರಯತ್ನಿಸಿ, ಅಥವಾ ನಿಮ್ಮ ಸ್ವಂತ ಸಂದೇಶ ಬರೆಯಿರಿ',
@@ -889,6 +900,9 @@ export const translationResources = {
           lastVerified: 'ಕೊನೆಯದಾಗಿ ಪರಿಶೀಲಿಸಿದ್ದು',
           referenceNote: 'ನಿರ್ವಹಿಸಿದ ಉಲ್ಲೇಖ ನಮೂದು — ಅರ್ಜಿ ಸಲ್ಲಿಸುವ ಮೊದಲು ಅಧಿಕೃತ ಮೂಲದೊಂದಿಗೆ ಪ್ರಸ್ತುತ ನಿಯಮಗಳನ್ನು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ.',
           close: 'ಮುಚ್ಚಿ',
+          liveEvidence: 'ಲೈವ್ ಅಧಿಕೃತ ಡೇಟಾ',
+          retrievedAt: 'ಪಡೆಯಲಾಗಿದೆ',
+          publishedAt: 'ಪ್ರಕಟಿಸಲಾಗಿದೆ',
         },
         status: {
           likely_eligible: 'ಸಾಧ್ಯ ಹೊಂದಾಣಿಕೆ',

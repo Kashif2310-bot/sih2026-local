@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { rankSchemes } from '../ranking'
 import { EMPTY_PROFILE, type UserProfile } from '../types'
-import { findForbiddenClaims, findUnapprovedUrls, validateProviderReply } from './responseGuard'
+import { findForbiddenClaims, findUnapprovedAmounts, findUnapprovedUrls, validateProviderReply } from './responseGuard'
 import type { AIRequestContext } from './types'
 
 const PROFILE: UserProfile = {
@@ -60,6 +60,39 @@ describe('findUnapprovedUrls', () => {
     const context = contextWithRealEvidence()
     const realUrl = context.ranked[0].scheme.officialInfoUrl
     expect(findUnapprovedUrls(`(see ${realUrl}).`, context)).toHaveLength(0)
+  })
+
+  it('allows a live-evidence source URL merged in for this turn', () => {
+    const context = contextWithRealEvidence()
+    context.ranked[0] = {
+      ...context.ranked[0],
+      liveEvidence: [
+        {
+          schemeId: context.ranked[0].scheme.id,
+          sourceName: 'data.gov.in',
+          sourceUrl: 'https://api.data.gov.in/resource/live123',
+          sourceType: 'official_open_data',
+          verificationStatus: 'live_official',
+          retrievedAt: new Date().toISOString(),
+          summary: 'test',
+        },
+      ],
+    }
+    expect(findUnapprovedUrls('See https://api.data.gov.in/resource/live123 for the latest figures.', context)).toHaveLength(0)
+  })
+})
+
+describe('findUnapprovedAmounts', () => {
+  it('allows amounts that appear in the profile or scheme evidence', () => {
+    const context = contextWithRealEvidence()
+    context.profile = { ...context.profile, financingRequired: 100_000 }
+    expect(findUnapprovedAmounts('Your stated financing need is about ₹1,00,000.', context)).toHaveLength(0)
+  })
+
+  it('flags a fabricated currency amount not present in evidence', () => {
+    const context = contextWithRealEvidence()
+    const flagged = findUnapprovedAmounts('We will sanction ₹99,99,999 immediately.', context)
+    expect(flagged).toContain(9999999)
   })
 })
 
