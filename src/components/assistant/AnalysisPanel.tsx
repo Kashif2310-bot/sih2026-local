@@ -21,7 +21,7 @@ import type { ApplicantProfile } from '../../shared/applicantProfile'
 import type { UserProfile } from '../../assistant/types'
 import { saveHandoff } from '../../apply/store'
 import { buildStartApplicationFromAnalysis } from './applicationHandoffBridge'
-import { buildAnalysisPanelView } from './analysisPanelView'
+import { buildAnalysisPanelView, financingIntentionI18nKey } from './analysisPanelView'
 
 /**
  * Renders the SAME PersonalizedReport the assistant already builds every
@@ -97,7 +97,7 @@ export function AnalysisPanel({
           </p>
           {view.financingIntention !== 'undetermined' && (
             <p className="mt-1 text-sm text-ink/70">
-              {t('assistant.analysis.financingIntention')}: {view.financingIntention}
+              {t('assistant.analysis.financingIntention')}: {financingIntentionCopy(view.financingIntention, t)}
             </p>
           )}
           {view.strengths.length > 0 && (
@@ -384,4 +384,9 @@ function Section({
       <div className="mt-2">{children}</div>
     </div>
   )
+}
+
+function financingIntentionCopy(value: string, t: (key: string) => string): string {
+  const key = financingIntentionI18nKey(value)
+  return key ? t(key) : value
 }

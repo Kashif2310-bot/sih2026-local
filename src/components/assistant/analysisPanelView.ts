@@ -106,6 +106,16 @@ export interface AnalysisPanelView {
   nextStepCount: number
 }
 
+const FINANCING_INTENTION_ENUM = new Set(['undetermined', 'financingRequired', 'investmentRequired'])
+
+/** Map raw enum tokens to i18n keys; leave already-written sentences unchanged. */
+export function financingIntentionI18nKey(value: string): string | null {
+  if (FINANCING_INTENTION_ENUM.has(value)) {
+    return `assistant.analysis.financingIntentionValue.${value}`
+  }
+  return null
+}
+
 function formatSnapshotValue(field: ApplicantProfileFieldKey, value: unknown): string | null {
   if (value === undefined || value === null || value === '') return null
   if (MONEY_FIELDS.has(field) && typeof value === 'number') return `₹${value.toLocaleString('en-IN')}`

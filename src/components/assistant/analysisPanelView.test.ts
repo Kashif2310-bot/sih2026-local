@@ -7,7 +7,7 @@ import { assessReadiness } from '../../assistant/conversation/readiness'
 import { buildPersonalizedReport } from '../../assistant/conversation/report'
 import { buildActionPlan } from '../../assistant/orchestrator'
 import type { ApplicantProfile } from '../../shared/applicantProfile'
-import { buildAnalysisPanelView } from './analysisPanelView'
+import { buildAnalysisPanelView, financingIntentionI18nKey } from './analysisPanelView'
 
 function schemeById(id: string) {
   const s = SCHEMES.find((x) => x.id === id)
@@ -132,5 +132,14 @@ describe('buildAnalysisPanelView — compact projection of the existing Personal
     expect(view.comparative.map((c) => c.schemeId)).not.toContain(topId)
     expect(view.comparative.length).toBeGreaterThan(0)
     expect(view.comparative.length).toBeLessThanOrEqual(4)
+  })
+})
+
+describe('financingIntentionI18nKey', () => {
+  it('maps raw enum tokens and leaves written sentences alone', () => {
+    expect(financingIntentionI18nKey('financingRequired')).toBe(
+      'assistant.analysis.financingIntentionValue.financingRequired',
+    )
+    expect(financingIntentionI18nKey('stated financing about ₹3,00,000')).toBeNull()
   })
 })

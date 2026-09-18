@@ -65,7 +65,14 @@ interface CaseRecord {
 }
 
 export interface ApprovalService {
-  openApprovalCase(snapshot: ApplicationSnapshot): ApprovalCaseView
+  openApprovalCase(
+    snapshot: ApplicationSnapshot,
+    source?: {
+      sourceSnapshotHash: string
+      sourcePayload: Record<string, unknown>
+      filedWithGovernment: boolean
+    },
+  ): ApprovalCaseView
   /** Adita package path: re-hash payload, then open with LP-APP-… applicationId. */
   openApprovalCaseFromAditaPackage(
     pkg: AditaApprovalPackage,
@@ -320,8 +327,8 @@ export function createApprovalService(options: ApprovalServiceOptions = {}): App
   }
 
   return {
-    openApprovalCase(snapshot) {
-      return caseView(insertOpenedCase(snapshot))
+    openApprovalCase(snapshot, source) {
+      return caseView(insertOpenedCase(snapshot, source))
     },
 
     async openApprovalCaseFromAditaPackage(pkg, overlay) {

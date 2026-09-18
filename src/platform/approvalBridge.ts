@@ -78,10 +78,16 @@ export function listOpenApprovalViews(): ApprovalCaseView[] {
   return svc.listApplicationIds().map((id) => svc.getApprovalCase(id))
 }
 
-export function ensureApprovalCase(app: Application): ApprovalCaseView {
+export type AditaSourceEvidence = {
+  sourceSnapshotHash: string
+  sourcePayload: Record<string, unknown>
+  filedWithGovernment: boolean
+}
+
+export function ensureApprovalCase(app: Application, source?: AditaSourceEvidence): ApprovalCaseView {
   const svc = getApprovalService()
   if (svc.hasApprovalCase(app.id)) return svc.getApprovalCase(app.id)
-  return svc.openApprovalCase(snapshotFromApplication(app))
+  return svc.openApprovalCase(snapshotFromApplication(app), source)
 }
 
 function statusFromApproval(view: ApprovalCaseView): ApplicationStatus | null {

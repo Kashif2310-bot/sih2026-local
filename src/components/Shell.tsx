@@ -1,10 +1,11 @@
-import { NavLink, Link } from 'react-router-dom'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Radar } from 'lucide-react'
 import clsx from 'clsx'
 import { readLastAssessmentId } from '../lib/assessmentSnapshot'
 import { useAuth } from '../state/AuthContext'
 import { useApp } from '../state/useApp'
+import { citizenApplyNavPath } from '../apply/resumePath'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
@@ -13,6 +14,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth()
   const caseId = assessmentId ?? readLastAssessmentId()
   const who = user?.name || user?.phone || null
+  const location = useLocation()
+  const applyHref = citizenApplyNavPath()
 
   const toggle = () => {
     void i18n.changeLanguage(kn ? 'en' : 'kn')
@@ -21,17 +24,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const withCase = (page: string) => (caseId ? `/${page}/${caseId}` : `/${page}`)
 
   const links = [
-    { to: '/', label: t('nav.home') },
-    { to: '/apply', label: t('nav.apply') },
-    { to: '/scan', label: t('nav.scan') },
-    { to: '/history', label: t('nav.history') },
-    { to: withCase('pulse'), label: t('nav.pulse') },
-    { to: withCase('report'), label: t('nav.report') },
-    { to: withCase('finance'), label: t('nav.finance') },
-    { to: withCase('sanction'), label: t('nav.sanction') },
-    { to: withCase('export'), label: t('nav.export') },
-    { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant') },
+    { to: '/', label: t('nav.home'), apply: false },
+    { to: applyHref, label: t('nav.apply'), apply: true },
+    { to: '/scan', label: t('nav.scan'), apply: false },
+    { to: '/history', label: t('nav.history'), apply: false },
+    { to: withCase('pulse'), label: t('nav.pulse'), apply: false },
+    { to: withCase('report'), label: t('nav.report'), apply: false },
+    { to: withCase('finance'), label: t('nav.finance'), apply: false },
+    { to: withCase('sanction'), label: t('nav.sanction'), apply: false },
+    { to: withCase('export'), label: t('nav.export'), apply: false },
+    { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant'), apply: false },
   ]
+
+  const isNavActive = (to: string, apply: boolean) => {
+    if (apply) return location.pathname.startsWith('/apply')
+    if (to === '/') return location.pathname === '/'
+    return location.pathname === to || location.pathname.startsWith(`${to}/`)
+  }
 
   return (
     <div className={clsx('min-h-screen', kn && 'kn')}>
@@ -50,15 +59,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
               <NavLink
-                key={l.to}
+                key={l.label}
                 to={l.to}
-                className={({ isActive }) =>
+                className={() =>
                   clsx(
                     'rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    isActive ? 'bg-forest text-white' : 'text-ink/70 hover:bg-mist hover:text-forest',
+                    isNavActive(l.to, l.apply)
+                      ? 'bg-forest text-white'
+                      : 'text-ink/70 hover:bg-mist hover:text-forest',
                   )
                 }
-                end={l.to === '/'}
               >
                 {l.label}
               </NavLink>
@@ -109,15 +119,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
           {links.map((l) => (
             <NavLink
-              key={l.to}
+              key={l.label}
               to={l.to}
-              className={({ isActive }) =>
+              className={() =>
                 clsx(
                   'shrink-0 rounded-full px-3 py-1 text-xs font-medium',
-                  isActive ? 'bg-forest text-white' : 'bg-white text-ink/70',
+                  isNavActive(l.to, l.apply) ? 'bg-forest text-white' : 'bg-white text-ink/70',
                 )
               }
-              end={l.to === '/'}
             >
               {l.label}
             </NavLink>

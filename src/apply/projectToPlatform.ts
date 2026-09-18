@@ -74,12 +74,18 @@ function toSchemeId(schemeId: string, loanAmount: number): SchemeId {
   return loanAmount > 500_000 ? 'term_loan' : 'micro_finance'
 }
 
+function toDocumentStatus(declaration: TrackedApplication['packet']['documents'][number]['declaration']): DocumentRecord['status'] {
+  // Declared-without-file is not an upload. Never collapse it to `uploaded`.
+  if (declaration === 'declared_available') return 'declared_available'
+  return 'missing'
+}
+
 function toDocuments(app: TrackedApplication): DocumentRecord[] {
   return app.packet.documents.map((d, i) => ({
     id: d.key || `doc-${i}`,
     labelEn: d.label,
     labelKn: d.label,
-    status: d.declaration === 'declared_available' ? 'uploaded' : 'missing',
+    status: toDocumentStatus(d.declaration),
   }))
 }
 
@@ -136,7 +142,11 @@ export function projectTrackedApplication(app: TrackedApplication): Application 
       bankAccountNumber: fieldString(fields, 'bank_account_number'),
       bankIfsc: fieldString(fields, 'bank_ifsc'),
       category,
-      businessDescription: fieldString(fields, 'business_sector') || app.schemeName,
+      businessDescription:
+        fieldString(fields, 'proposed_business') ||
+        fieldString(fields, 'business_description') ||
+        fieldString(fields, 'business_sector') ||
+        app.schemeName,
     },
     leadMinistryId: routing.leadMinistryId,
     supportingMinistryIds: routing.supportingMinistryIds,
@@ -175,7 +185,15 @@ export function publishTrackedApplicationToPlatform(app: TrackedApplication): Ap
     createApplication(projected)
   }
   try {
-    ensureApprovalCase(projected)
+    const source =
+      app.snapshot && app.package
+        ? {
+            sourceSnapshotHash: app.snapshot.snapshotHash,
+            sourcePayload: app.snapshot.payload,
+            filedWithGovernment: app.filedWithGovernment,
+          }
+        : undefined
+    ensureApprovalCase(projected, source)
   } catch {
     // Approval layer is session-memory; a failure must not block citizen submit.
   }

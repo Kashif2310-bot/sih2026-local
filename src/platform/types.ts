@@ -57,7 +57,7 @@ export interface DocumentRecord {
   fileName?: string
   sizeBytes?: number
   uploadedAt?: number
-  status: 'missing' | 'uploaded' | 'verified' | 'rejected'
+  status: 'missing' | 'declared_available' | 'uploaded' | 'verified' | 'rejected'
   reviewerNote?: string
 }
 

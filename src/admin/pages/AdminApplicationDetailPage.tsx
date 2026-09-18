@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Shield } from 'lucide-react'
 import clsx from 'clsx'
 import { appendAudit, getApplication, setStatus, updateApplication } from '../../platform/store'
+import { formatJoinedParts, formatBankLine } from '../../platform/displayFormat'
+import { getTrackedApplication } from '../../apply/store'
 import { MINISTRIES, routeApplication } from '../../platform/ministries'
 import type { ApplicationStatus, DocumentRecord } from '../../platform/types'
 import { formatINR } from '../../lib/finance'
@@ -57,6 +59,7 @@ export function AdminApplicationDetailPage() {
   const reload = () => setVersion((v) => v + 1)
   void version
   const app = id ? (getApplication(id) ?? null) : null
+  const trackedPacket = id ? getTrackedApplication(id) : undefined
 
   if (!id || !app) return <Navigate to="/admin/applications" replace />
 
@@ -73,7 +76,16 @@ export function AdminApplicationDetailPage() {
   const openCase = () => {
     setErr(null)
     try {
-      const view = ensureApprovalCase(app)
+      const tracked = getTrackedApplication(app.id)
+      const source =
+        tracked?.snapshot && tracked.package
+          ? {
+              sourceSnapshotHash: tracked.snapshot.snapshotHash,
+              sourcePayload: tracked.snapshot.payload,
+              filedWithGovernment: tracked.filedWithGovernment,
+            }
+          : undefined
+      const view = ensureApprovalCase(app, source)
       setApproval(view)
       if (app.status === 'submitted' || app.status === 'under_review') {
         setStatus(app.id, 'reviewer_assigned', actor, 'Jordan approval service allocated reviewers')
@@ -149,7 +161,7 @@ export function AdminApplicationDetailPage() {
         </span>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="sticky top-28 z-30 -mx-1 flex gap-1 overflow-x-auto bg-[#f0f4f2]/95 px-1 py-2 backdrop-blur-sm">
         {TABS.map((idTab) => (
           <button
             key={idTab}
@@ -218,8 +230,14 @@ export function AdminApplicationDetailPage() {
               <p className="text-xs font-semibold uppercase text-ink/45">
                 {t('admin.review.details.businessDescription')}
               </p>
-              <p className="mt-1 text-sm text-ink/75">{app.applicant.businessDescription || '—'}</p>
+              <p className="mt-1 text-sm text-ink/75">{app.applicant.businessDescription || t('common.notProvided')}</p>
             </div>
+            {trackedPacket && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+                {trackedPacket.honestLabel} · {t('apply.filedWithGov')}:{' '}
+                {trackedPacket.filedWithGovernment ? t('apply.yes') : t('apply.no')}
+              </p>
+            )}
           </section>
         )}
 
@@ -290,11 +308,20 @@ export function AdminApplicationDetailPage() {
               <Field label={t('admin.review.profile.phone')} value={app.applicant.phone} />
               <Field
                 label={t('admin.review.profile.address')}
-                value={`${app.applicant.address}, ${app.applicant.villageOrTown}, ${app.applicant.district}, ${app.applicant.state}`}
+                value={formatJoinedParts([
+                  app.applicant.address,
+                  app.applicant.villageOrTown,
+                  app.applicant.district,
+                  app.applicant.state,
+                ], t('common.notProvided'))}
               />
               <Field
                 label={t('admin.review.profile.bank')}
-                value={`${app.applicant.bankAccountNumber} / ${app.applicant.bankIfsc}`}
+                value={formatBankLine(
+                  app.applicant.bankAccountNumber,
+                  app.applicant.bankIfsc,
+                  t('common.notProvided'),
+                )}
               />
             </dl>
           </section>
@@ -445,11 +472,27 @@ export function AdminApplicationDetailPage() {
               </button>
             ) : (
               <>
-                <div className="rounded-xl bg-ink px-3 py-3 font-mono text-xs text-gold break-all">
-                  <div className="mb-1 flex items-center gap-1 text-white/70">
-                    <Shield className="h-3 w-3" /> {t('admin.review.multisig.hash')}
+                <div className="space-y-3">
+                  {caseView.sourceSnapshotHash && (
+                    <div className="rounded-xl border border-forest/15 bg-mist/40 px-3 py-3 font-mono text-xs text-ink break-all">
+                      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink/55">
+                        {t('apply.packetSnapshotHash')}
+                      </div>
+                      {caseView.sourceSnapshotHash}
+                      <p className="mt-2 font-sans text-[11px] font-normal text-ink/55">
+                        {t('apply.packetSnapshotHashHint')}
+                      </p>
+                    </div>
+                  )}
+                  <div className="rounded-xl bg-ink px-3 py-3 font-mono text-xs text-gold break-all">
+                    <div className="mb-1 flex items-center gap-1 text-white/70">
+                      <Shield className="h-3 w-3" /> {t('apply.approvalSnapshotDigest')}
+                    </div>
+                    {caseView.applicationHash}
+                    <p className="mt-2 font-sans text-[11px] font-normal text-white/55">
+                      {t('apply.approvalSnapshotDigestHint')}
+                    </p>
                   </div>
-                  {caseView.applicationHash}
                 </div>
                 <p className="text-sm font-semibold">
                   {caseView.validSignatures}/{caseView.quorum.required} of {caseView.quorum.pool}

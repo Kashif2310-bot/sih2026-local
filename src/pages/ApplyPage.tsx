@@ -16,6 +16,7 @@ import { listApplySchemes } from '../apply/catalog'
 import { consentTextFor } from '../apply/channels'
 import { loadHandoff, loadTrackedApplications, saveHandoff, saveTrackedApplication } from '../apply/store'
 import { newApplicationId } from '../apply/application'
+import { reviewFieldLabel } from '../apply/reviewLabels'
 import type { ConversationPayload, DocumentDeclaration, FilingChannel, MappedField, TrackedApplication } from '../apply/types'
 import { prepareApplication, submitApplication } from '../apply/workflow'
 import { useApp } from '../state/useApp'
@@ -120,7 +121,7 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="sticky top-16 z-30 -mx-1 flex flex-wrap gap-2 bg-[#f7faf8]/95 px-1 py-2 backdrop-blur-sm">
           {([1, 2, 3, 4] as const).map((n) => (
             <button
               key={n}
@@ -253,7 +254,9 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
               <dl className="mt-4 grid gap-2 sm:grid-cols-2">
                 {Object.entries(prepared.packet.fields).map(([k, v]) => (
                   <div key={k} className="rounded-xl bg-mist/60 px-3 py-2">
-                    <dt className="text-[11px] uppercase tracking-wide text-ink/45">{k}</dt>
+                    <dt className="text-[11px] uppercase tracking-wide text-ink/45">
+                      {reviewFieldLabel(k, prepared.mappedFields.find((f) => f.key === k)?.label)}
+                    </dt>
                     <dd className="text-sm font-medium text-ink">{String(v)}</dd>
                   </div>
                 ))}
@@ -518,8 +521,9 @@ export function ApplicationTrackView({
           <p className="mt-1 text-xs text-ink/50">{t('apply.packageHint')}</p>
           <dl className="mt-3 grid gap-2 sm:grid-cols-2 text-sm">
             <div>
-              <dt className="text-[11px] uppercase text-ink/45">{t('apply.snapshotHash')}</dt>
+              <dt className="text-[11px] uppercase text-ink/45">{t('apply.packetSnapshotHash')}</dt>
               <dd className="break-all font-mono text-xs">{app.package.snapshotHash}</dd>
+              <p className="mt-1 text-[11px] text-ink/45">{t('apply.packetSnapshotHashHint')}</p>
             </div>
             <div>
               <dt className="text-[11px] uppercase text-ink/45">{t('apply.readyForApproval')}</dt>

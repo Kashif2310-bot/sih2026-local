@@ -149,3 +149,46 @@ describe('canonical LP-APP-* identity', () => {
     expect(platformNewApplicationId()).toMatch(/^LP-APP-[A-F0-9]{16}$/i)
   })
 })
+
+describe('admin projection honesty', () => {
+  it('keeps declared_available distinct from uploaded and preserves proposed_business', async () => {
+    const issued = newApplicationId()
+    const prepared = prepareApplication({
+      schemeId: 'nsfdc-term-loan',
+      profile: {
+        ...POULTRY,
+        state: 'Kerala',
+        age: 26,
+        businessSector: 'dairy',
+        proposedBusiness: 'small dairy business',
+      },
+      fieldOverrides: { applicant_name: 'Lakshmi Nair', mobile: '9876543210' },
+      documentDeclarations: declareAllDocs('nsfdc-term-loan'),
+      channel: 'guided',
+    })
+    const tracked = await submitApplication({
+      prepared,
+      channel: 'guided',
+      consentAccepted: true,
+      simulate: false,
+      applicationId: issued,
+    })
+    saveTrackedApplication(tracked)
+
+    const admin = listApplications().find((a) => a.id === issued)
+    expect(admin).toBeDefined()
+    expect(admin!.applicant.businessDescription).toBe('small dairy business')
+    expect(admin!.applicant.category).toBe('dairy')
+    expect(admin!.documents.length).toBeGreaterThan(0)
+    expect(admin!.documents.every((d) => d.status === 'declared_available')).toBe(true)
+    expect(admin!.documents.some((d) => d.status === 'uploaded')).toBe(false)
+
+    const approval = peekApprovalCase(issued)
+    expect(approval).not.toBeNull()
+    expect(tracked.snapshot?.snapshotHash).toMatch(/^sha256:[a-f0-9]+$/i)
+    expect(approval!.sourceSnapshotHash).toBe(tracked.snapshot!.snapshotHash)
+    expect(approval!.applicationHash).toMatch(/^0x[a-f0-9]+$/i)
+    expect(approval!.applicationHash).not.toBe(approval!.sourceSnapshotHash)
+    expect(approval!.filedWithGovernment).toBe(false)
+  })
+})

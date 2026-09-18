@@ -13,6 +13,7 @@ export const translationResources = {
       lang: 'ಕನ್ನಡ',
       common: {
         loading: 'Loading…',
+        notProvided: 'Not provided',
       },
       nav: {
         home: 'Home',
@@ -328,6 +329,11 @@ export const translationResources = {
           strengths: 'Strengths so far',
           blockers: 'Still needed',
           financingIntention: 'Financing',
+          financingIntentionValue: {
+            undetermined: 'Not determined yet',
+            financingRequired: 'Financing needed',
+            investmentRequired: 'Investment needed',
+          },
           citizenSnapshot: 'What we know about you',
           businessContext: 'Business and context',
           location: 'Location',
@@ -489,6 +495,12 @@ export const translationResources = {
         packageTitle: 'Submission-ready package',
         packageHint: 'Frozen snapshot for Jordan’s approval service. This is not an approval and not a government filing.',
         snapshotHash: 'Snapshot hash',
+        packetSnapshotHash: 'Application packet hash (SHA-256)',
+        packetSnapshotHashHint:
+          'SHA-256 of the frozen apply packet. This is not the Jordan approval digest.',
+        approvalSnapshotDigest: 'Approval snapshot digest (Jordan)',
+        approvalSnapshotDigestHint:
+          'Keccak digest of Jordan’s approval snapshot (includes LokScore overlay). It is not the apply-packet SHA-256.',
         readyForApproval: 'Ready for approval',
         nextOwner: 'Next owner',
         nextSteps: 'What happens next',
@@ -769,6 +781,7 @@ export const translationResources = {
             note: 'Reviewer note',
             status: {
               missing: 'Missing',
+              declared_available: 'Declared available',
               uploaded: 'Uploaded — pending verification',
               verified: 'Verified',
               rejected: 'Rejected',
@@ -857,6 +870,7 @@ export const translationResources = {
       lang: 'English',
       common: {
         loading: 'ಲೋಡ್ ಆಗುತ್ತಿದೆ…',
+        notProvided: 'ನೀಡಿಲ್ಲ',
       },
       nav: {
         home: 'ಮುಖಪುಟ',
@@ -1172,6 +1186,11 @@ export const translationResources = {
           strengths: 'ಈವರೆಗಿನ ಬಲಗಳು',
           blockers: 'ಇನ್ನೂ ಬೇಕಾಗಿರುವುದು',
           financingIntention: 'ಹಣಕಾಸು',
+          financingIntentionValue: {
+            undetermined: 'ಇನ್ನೂ ನಿರ್ಧರಿಸಿಲ್ಲ',
+            financingRequired: 'ಹಣಕಾಸು ಅಗತ್ಯ',
+            investmentRequired: 'ಹೂಡಿಕೆ ಅಗತ್ಯ',
+          },
           citizenSnapshot: 'ನಿಮ್ಮ ಬಗ್ಗೆ ತಿಳಿದಿರುವುದು',
           businessContext: 'ವ್ಯಾಪಾರ ಮತ್ತು ಸಂದರ್ಭ',
           location: 'ಸ್ಥಳ',
@@ -1333,6 +1352,12 @@ export const translationResources = {
         packageTitle: 'ಸಲ್ಲಿಕೆ-ಸಿದ್ಧ ಪ್ಯಾಕೇಜ್',
         packageHint: 'ಜೋರ್ಡನ್ ಅನುಮೋದನೆ ಸೇವೆಗೆ ಫ್ರೋಜನ್ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್. ಇದು ಅನುಮೋದನೆಯಲ್ಲ, ಸರ್ಕಾರಿ ಸಲ್ಲಿಕೆಯಲ್ಲ.',
         snapshotHash: 'ಸ್ನ್ಯಾಪ್‌ಶಾಟ್ ಹ್ಯಾಶ್',
+        packetSnapshotHash: 'ಅರ್ಜಿ ಪ್ಯಾಕೆಟ್ ಹ್ಯಾಶ್ (SHA-256)',
+        packetSnapshotHashHint:
+          'ಫ್ರೋಜನ್ ಅರ್ಜಿ ಪ್ಯಾಕೆಟ್‌ನ SHA-256. ಇದು ಜೋರ್ಡನ್ ಅನುಮೋದನಾ ಡೈಜೆಸ್ಟ್ ಅಲ್ಲ.',
+        approvalSnapshotDigest: 'ಅನುಮೋದನಾ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್ ಡೈಜೆಸ್ಟ್ (ಜೋರ್ಡನ್)',
+        approvalSnapshotDigestHint:
+          'ಜೋರ್ಡನ್ ಅನುಮೋದನಾ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್‌ನ Keccak ಡೈಜೆಸ್ಟ್ (LokScore ಒಳಗೊಂಡಿದೆ). ಇದು ಅರ್ಜಿ-ಪ್ಯಾಕೆಟ್ SHA-256 ಅಲ್ಲ.',
         readyForApproval: 'ಅನುಮೋದನೆಗೆ ಸಿದ್ಧ',
         nextOwner: 'ಮುಂದಿನ ಮಾಲೀಕ',
         nextSteps: 'ಮುಂದೆ ಏನು',
@@ -1613,6 +1638,7 @@ export const translationResources = {
             note: 'ಪರಿಶೀಲಕರ ಟಿಪ್ಪಣಿ',
             status: {
               missing: 'ಕಾಣೆಯಾಗಿದೆ',
+              declared_available: 'ಲಭ್ಯವಿದೆ ಎಂದು ಘೋಷಿಸಲಾಗಿದೆ',
               uploaded: 'ಅಪ್‌ಲೋಡ್ ಆಗಿದೆ — ಪರಿಶೀಲನೆ ಬಾಕಿ',
               verified: 'ಪರಿಶೀಲಿಸಲಾಗಿದೆ',
               rejected: 'ತಿರಸ್ಕರಿಸಲಾಗಿದೆ',
