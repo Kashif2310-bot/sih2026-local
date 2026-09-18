@@ -16,11 +16,21 @@ import { listApplySchemes } from '../apply/catalog'
 import { consentTextFor } from '../apply/channels'
 import { loadHandoff, loadTrackedApplications, saveHandoff, saveTrackedApplication } from '../apply/store'
 import { newApplicationId } from '../apply/application'
-import { reviewFieldLabel } from '../apply/reviewLabels'
+import { reviewFieldLabel, formatReviewValue } from '../apply/reviewLabels'
 import type { ConversationPayload, DocumentDeclaration, FilingChannel, MappedField, TrackedApplication } from '../apply/types'
 import { prepareApplication, submitApplication } from '../apply/workflow'
 import { useApp } from '../state/useApp'
 import { WorkflowStepper } from '../components/apply/WorkflowStepper'
+import { getApplication } from '../platform/store'
+import { peekApprovalCase } from '../platform/approvalBridge'
+import { MINISTRIES } from '../platform/ministries'
+import {
+  TRACKING_WORKFLOW_KEYS,
+  formatHandoffOwner,
+  governmentFilingI18nKey,
+  trackingStatusI18nKey,
+  trackingStatusKind,
+} from '../apply/trackingPresentation'
 
 const CHANNELS: FilingChannel[] = ['guided', 'assisted', 'government_api']
 
@@ -116,12 +126,12 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
           </p>
           <h1 className="mt-1 font-display text-2xl font-bold text-forest">{t('apply.wizardTitle')}</h1>
           <p className="mt-2 text-sm text-ink/65">{t('apply.wizardSubtitle')}</p>
-          <p className="mt-3 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[#6b5300]">
+          <p className="mt-3 rounded-xl border border-forest/15 bg-mist px-3 py-2 text-xs text-ink/65">
             {prepared.scheme.channel.rationale}
           </p>
         </div>
 
-        <div className="sticky top-16 z-30 -mx-1 flex flex-wrap gap-2 bg-[#f7faf8]/95 px-1 py-2 backdrop-blur-sm">
+        <div className="sticky top-28 z-20 -mx-1 flex flex-wrap gap-2 bg-[#f7faf8]/95 px-1 py-2 backdrop-blur-sm">
           {([1, 2, 3, 4] as const).map((n) => (
             <button
               key={n}
@@ -257,7 +267,9 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
                     <dt className="text-[11px] uppercase tracking-wide text-ink/45">
                       {reviewFieldLabel(k, prepared.mappedFields.find((f) => f.key === k)?.label)}
                     </dt>
-                    <dd className="text-sm font-medium text-ink">{String(v)}</dd>
+                    <dd className="text-sm font-medium text-ink">
+                      {formatReviewValue(v, t('common.notProvided'))}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -358,7 +370,7 @@ export function ApplyHub() {
         <h1 className="font-display text-3xl font-bold text-forest">{t('apply.title')}</h1>
         <p className="mt-2 max-w-2xl text-ink/65">{t('apply.subtitle')}</p>
       </div>
-      <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#6b5300]">
+      <p className="rounded-xl border border-forest/15 bg-mist px-3.5 py-2.5 text-xs text-ink/70">
         {t('apply.honestyNote')}
       </p>
 
@@ -454,7 +466,8 @@ export function ApplicationTrackView({
   trackingId: string
   fallback?: TrackedApplication
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const kn = i18n.language === 'kn'
   const stored = loadTrackedApplications().find((a) => a.trackingId === trackingId)
   const app = fallback ?? stored
 
@@ -470,11 +483,23 @@ export function ApplicationTrackView({
     )
   }
 
+  const platform = getApplication(app.applicationId)
+  const approval = peekApprovalCase(app.applicationId)
+  const statusKind = trackingStatusKind({
+    outcome: app.outcome,
+    filedWithGovernment: app.filedWithGovernment,
+    simulation: app.simulation,
+    platformStatus: platform?.status,
+  })
+  const routingName = platform
+    ? kn
+      ? MINISTRIES[platform.leadMinistryId].nameKn
+      : MINISTRIES[platform.leadMinistryId].name
+    : null
+  const nextOwner = formatHandoffOwner(app.package?.handoff.nextOwner, app.package?.handoff.nextService)
   const bannerClass = app.simulation
     ? 'border-gold/40 bg-gold/15 text-[#6b5300]'
-    : app.filedWithGovernment
-      ? 'border-forest/20 bg-mist text-forest'
-      : 'border-clay/30 bg-[#fff4ee] text-clay'
+    : 'border-forest/20 bg-mist text-forest'
 
   return (
     <div className="space-y-5">
@@ -483,17 +508,40 @@ export function ApplicationTrackView({
         <h1 className="font-display text-3xl font-bold text-forest">{t('apply.trackTitle')}</h1>
       </div>
 
-      <div className={clsx('rounded-2xl border px-4 py-3 text-sm font-semibold', bannerClass)}>
-        {app.simulation && <ShieldAlert className="mb-1 h-4 w-4" />}
-        {app.filedWithGovernment && <CheckCircle2 className="mb-1 h-4 w-4" />}
-        {app.honestLabel}
-        <p className="mt-1 font-normal">{app.detail}</p>
-      </div>
+      <section className={clsx('rounded-2xl border px-4 py-4', bannerClass)}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70">{t('apply.packageTitle')}</p>
+        <p className="mt-1 flex items-center gap-2 text-lg font-bold">
+          {app.filedWithGovernment ? <CheckCircle2 className="h-5 w-5" /> : null}
+          {app.simulation ? <ShieldAlert className="h-5 w-5" /> : null}
+          {t('apply.packagePrepared')}
+        </p>
+        <p className="mt-1 text-sm font-normal opacity-80">{app.detail || t('apply.packageHint')}</p>
+      </section>
 
       <dl className="glass grid gap-3 rounded-2xl p-5 sm:grid-cols-2">
         <div>
           <dt className="text-[11px] uppercase text-ink/45">{t('apply.applicationId')}</dt>
           <dd className="font-mono text-sm font-semibold">{app.applicationId}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase text-ink/45">{t('apply.applicationStatus')}</dt>
+          <dd className="text-sm font-semibold">{t(trackingStatusI18nKey(statusKind))}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase text-ink/45">{t('apply.routingContext')}</dt>
+          <dd className="text-sm font-semibold">{routingName ?? t('apply.routingIdentified')}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase text-ink/45">{t('apply.responsibleWorkflow')}</dt>
+          <dd className="text-sm font-semibold">{nextOwner}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase text-ink/45">{t('apply.nextOwner')}</dt>
+          <dd className="text-sm font-semibold">{nextOwner}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] uppercase text-ink/45">{t('apply.filedWithGov')}</dt>
+          <dd className="text-sm font-semibold">{t(governmentFilingI18nKey(app.filedWithGovernment))}</dd>
         </div>
         <div>
           <dt className="text-[11px] uppercase text-ink/45">{t('apply.trackingId')}</dt>
@@ -509,10 +557,12 @@ export function ApplicationTrackView({
             <dd className="font-mono text-sm font-semibold">{app.governmentApplicationId}</dd>
           </div>
         )}
-        <div>
-          <dt className="text-[11px] uppercase text-ink/45">{t('apply.filedWithGov')}</dt>
-          <dd className="text-sm font-semibold">{app.filedWithGovernment ? t('apply.yes') : t('apply.no')}</dd>
-        </div>
+        {approval && (
+          <div>
+            <dt className="text-[11px] uppercase text-ink/45">{t('apply.tracking.approvalStatus')}</dt>
+            <dd className="text-sm font-semibold">{approval.status.replace(/_/g, ' ')}</dd>
+          </div>
+        )}
       </dl>
 
       {app.package && (
@@ -531,20 +581,17 @@ export function ApplicationTrackView({
             </div>
             <div>
               <dt className="text-[11px] uppercase text-ink/45">{t('apply.nextOwner')}</dt>
-              <dd>
-                {app.package.handoff.nextOwner} · {app.package.handoff.nextService}
-              </dd>
+              <dd>{nextOwner}</dd>
             </div>
           </dl>
-          <p className="mt-3 text-xs text-ink/55">{app.package.handoff.note}</p>
         </section>
       )}
 
       <section className="glass rounded-2xl p-5">
-        <h2 className="font-display text-lg font-bold text-forest">{t('apply.nextSteps')}</h2>
+        <h2 className="font-display text-lg font-bold text-forest">{t('apply.workflowTitle')}</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink/75">
-          {app.nextSteps.map((s) => (
-            <li key={s}>{s}</li>
+          {TRACKING_WORKFLOW_KEYS.map((key) => (
+            <li key={key}>{t(key)}</li>
           ))}
         </ol>
         {app.officialPortalUrl && (
@@ -552,9 +599,9 @@ export function ApplicationTrackView({
             href={app.officialPortalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest"
+            className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-ink/55 underline-offset-2 hover:text-forest hover:underline"
           >
-            {t('apply.openPortal')} <ExternalLink className="h-3.5 w-3.5" />
+            {t('apply.openPortal')} <ExternalLink className="h-3 w-3" />
           </a>
         )}
       </section>

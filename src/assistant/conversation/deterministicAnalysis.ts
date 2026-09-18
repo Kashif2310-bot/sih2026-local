@@ -200,11 +200,11 @@ export function buildMatchExplanation(ranked: RankedScheme, userProfile: UserPro
 
   if (status === 'likely_eligible' || status === 'possibly_eligible') {
     const reason = ranked.eligibility.reasons[0]
-    return `${context}${name} appears relevant based on retrieved scheme criteria.${reason ? ` ${reason}` : ''} This is not an approval.`
+    return `${context}${name} appears relevant based on retrieved scheme criteria.${reason ? ` ${reason}` : ''} Official verification still applies.`
   }
   if (status === 'likely_ineligible') {
     const concern = ranked.eligibility.mismatchReasons[0]
-    return `${context}${name} does not currently look like a fit.${concern ? ` ${concern}` : ''} This is based on stated facts vs scheme criteria, not a final government decision.`
+    return `${context}${name} does not currently look like a fit.${concern ? ` ${concern}` : ''} Official verification still applies.`
   }
   const missing = ranked.eligibility.missingInfo[0]
   return `${context}${name} cannot be fully evaluated yet.${missing ? ` Missing: ${missing}.` : ''} No eligibility conclusion has been made.`

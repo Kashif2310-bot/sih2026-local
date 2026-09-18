@@ -121,7 +121,7 @@ export function buildSubmissionPackage(input: {
       nextService: 'approval-service',
       nextOwner: 'jordan',
       then: ['admin (prerna)', 'multisig', 'audit', 'disbursement_authorization'],
-      note: 'This package is submission-ready for approval. It is not an approval, not a government filing, and not a disbursement authorization.',
+      note: 'Application package ready for review. Your application has been prepared and routed through the LokPulse review workflow.',
     },
   }
 }

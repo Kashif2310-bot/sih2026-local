@@ -6,6 +6,7 @@ import { readLastAssessmentId } from '../lib/assessmentSnapshot'
 import { useAuth } from '../state/AuthContext'
 import { useApp } from '../state/useApp'
 import { citizenApplyNavPath } from '../apply/resumePath'
+import { isCitizenNavActive } from '../nav/citizenNavState'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
@@ -36,15 +37,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant'), apply: false },
   ]
 
-  const isNavActive = (to: string, apply: boolean) => {
-    if (apply) return location.pathname.startsWith('/apply')
-    if (to === '/') return location.pathname === '/'
-    return location.pathname === to || location.pathname.startsWith(`${to}/`)
-  }
+  const isNavActive = (to: string, apply: boolean) => isCitizenNavActive(location.pathname, to, apply)
 
   return (
     <div className={clsx('min-h-screen', kn && 'kn')}>
-      <header className="no-print sticky top-0 z-40 border-b border-forest/10 bg-[#f7faf8]/85 backdrop-blur-md">
+      <header className="no-print sticky top-0 z-40 isolate border-b border-forest/10 bg-[#f7faf8]/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link to="/" className="flex items-center gap-2 text-forest">
             <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-forest text-gold">
@@ -133,7 +130,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-10">{children}</main>
+      <main className="relative z-0 mx-auto max-w-6xl px-4 py-6 sm:py-10">{children}</main>
     </div>
   )
 }

@@ -173,7 +173,8 @@ test('assistant: voice is honestly unavailable in this deployment — no fake co
   // so plainly rather than showing a mic control that cannot actually
   // connect to anything.
   await page.goto('/assistant')
-  await expect(page.getByText(/voice is not set up for this deployment/i)).toBeVisible()
+  await expect(page.getByText(/voice is not set up for this deployment/i)).toHaveCount(0)
+  await expect(page.getByText(/voice is not configured/i)).toHaveCount(0)
   await expect(page.getByRole('button', { name: /talk instead of typing/i })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^interrupt$/i })).toHaveCount(0)
 
@@ -203,7 +204,7 @@ test('assistant: full analysis surfaces government source coverage and starts a 
   // note is present verbatim — this is the actual Prompt 8 coverage
   // accounting, not a decorative summary.
   await expect(dialog.getByText(/government source coverage/i)).toBeVisible()
-  await expect(dialog.getByText(/never means every government scheme has been checked/i)).toBeVisible()
+  await expect(dialog.getByText(/coverage reflects the sources queried above/i)).toBeVisible()
   await expect(dialog.getByText(/what we know about you/i)).toBeVisible()
   await expect(dialog.getByText(/opportunity assessment/i)).toBeVisible()
   await expect(dialog.getByText(/financial path/i)).toBeVisible()

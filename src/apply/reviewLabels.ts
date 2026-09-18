@@ -10,8 +10,27 @@ export function humanizeSchemaKey(key: string): string {
     .join(' ')
 }
 
+const FALLBACK_LABELS: Record<string, string> = {
+  applicant_name: 'Applicant full name',
+  area_type: 'Area type',
+  loan_amount_requested: 'Loan amount requested',
+}
+
 export function reviewFieldLabel(key: string, mappedLabel?: string): string {
   const trimmed = mappedLabel?.trim()
   if (trimmed) return trimmed
+  const fallback = FALLBACK_LABELS[key.toLowerCase()]
+  if (fallback) return fallback
   return humanizeSchemaKey(key)
+}
+
+export function formatReviewValue(
+  value: string | number | boolean | undefined | null,
+  empty = 'Not provided',
+): string {
+  if (value === undefined || value === null) return empty
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  const text = String(value).trim()
+  if (!text || /^[,/\s]+$/.test(text)) return empty
+  return text
 }

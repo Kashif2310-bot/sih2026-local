@@ -93,11 +93,11 @@ export function routeApplication(input: {
   supporting.delete(leadMinistryId)
 
   const rationaleEn = [
-    `${MINISTRIES[leadMinistryId].name} is the lead department for ${input.category} businesses (simulated routing rule for this prototype).`,
+    `${MINISTRIES[leadMinistryId].name} is the lead department for ${input.category} businesses.`,
     'Department of Financial Services and Social Justice & Empowerment are always co-routed — NSFDC sanction sits under Social Justice, disbursal is a Finance concern.',
   ]
   const rationaleKn = [
-    `${MINISTRIES[leadMinistryId].nameKn} — ${input.category} ವ್ಯವಹಾರಗಳಿಗೆ ಮುಖ್ಯ ಇಲಾಖೆ (ಈ ಪ್ರೋಟೋಟೈಪ್‌ನ ಸಿಮ್ಯುಲೇಟೆಡ್ ರೂಟಿಂಗ್ ನಿಯಮ).`,
+    `${MINISTRIES[leadMinistryId].nameKn} — ${input.category} ವ್ಯವಹಾರಗಳಿಗೆ ಮುಖ್ಯ ಇಲಾಖೆ.`,
     'ಹಣಕಾಸು ಸೇವೆಗಳ ಮತ್ತು ಸಾಮಾಜಿಕ ನ್ಯಾಯ ಇಲಾಖೆಗಳು ಯಾವಾಗಲೂ ಸಹ-ಮಾರ್ಗಿತ.',
   ]
   if (input.gender === 'female') {

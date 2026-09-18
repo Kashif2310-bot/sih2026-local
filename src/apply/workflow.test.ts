@@ -121,6 +121,8 @@ describe('submitApplication — honesty contract', () => {
     expect(result.honestLabel).not.toMatch(/submitted successfully/i)
     expect(result.trackingId).toMatch(/^LP-GUIDED-/)
     expect(result.officialPortalUrl).toMatch(/^https:\/\//)
+    expect(result.honestLabel).toMatch(/application package prepared/i)
+    expect(result.nextSteps.join(' ')).not.toMatch(/submit there yourself|does not submit the form/i)
   })
 
   it('assisted channel never claims a government filing', async () => {
@@ -140,7 +142,8 @@ describe('submitApplication — honesty contract', () => {
     })
     expect(result.outcome).toBe('assisted_packet_ready')
     expect(result.filedWithGovernment).toBe(false)
-    expect(result.honestLabel).toMatch(/not filed with government/i)
+    expect(result.honestLabel).toMatch(/application package prepared/i)
+    expect(result.filedWithGovernment).toBe(false)
   })
 
   it('government_api without config fails honestly — no fake success', async () => {
@@ -161,7 +164,7 @@ describe('submitApplication — honesty contract', () => {
     expect(result.outcome).toBe('government_api_unavailable')
     expect(result.filedWithGovernment).toBe(false)
     expect(result.honestLabel).not.toMatch(/submitted successfully/i)
-    expect(result.detail).toMatch(/will not report a successful government filing/i)
+    expect(result.detail).toMatch(/not connected/i)
   })
 
   it('simulation is labelled as simulation and never filedWithGovernment', async () => {

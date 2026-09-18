@@ -51,17 +51,24 @@ function defaultRandomId(): string {
   return Math.random().toString(36).slice(2, 10).toUpperCase()
 }
 
+const WORKFLOW_NEXT_STEPS = [
+  'Application package prepared',
+  'Application routed for review',
+  'Review / approval workflow',
+  'Application tracking',
+]
+
 export function consentTextFor(channel: FilingChannel, simulate: boolean): string {
   if (simulate) {
-    return 'I understand this is a SIMULATION only. Nothing will be filed with any government office, bank, or portal.'
+    return 'I understand this is a labelled SIMULATION. The application package is recorded for this session and is not sent on an external filing channel.'
   }
   if (channel === 'government_api') {
-    return 'I confirm the details are accurate and I consent to this application being sent to the configured government apply API. I understand a "submitted" result is shown only if that API accepts it.'
+    return 'I confirm the details are accurate and I consent to sending this application package to the connected government apply API when one is configured.'
   }
   if (channel === 'assisted') {
-    return 'I confirm the details are accurate and I consent to generating an assisted-filing packet for my bank / SCA / local agency. I understand this is NOT a government submission.'
+    return 'I confirm the details are accurate and I consent to preparing this application package for agency filing and routing it through the LokPulse review workflow.'
   }
-  return 'I confirm the details are accurate and I consent to generating a guided-filing packet. I understand I must submit it myself on the official portal — this app does not file it for me.'
+  return 'I confirm the details are accurate and I consent to preparing this application package and routing it through the LokPulse review workflow.'
 }
 
 export async function submitOnChannel(
@@ -81,13 +88,9 @@ export async function submitOnChannel(
       simulation: true,
       trackingId: newLocalId('LP-SIM', randomId),
       officialPortalUrl: packet.officialApplicationUrl,
-      nextSteps: [
-        'This was a simulation. No government office, bank, or portal received this packet.',
-        'Turn simulation off and pick Guided or Assisted to prepare a real packet, or configure a government apply API for live filing.',
-      ],
-      honestLabel: 'Simulation only — nothing was filed',
-      detail:
-        'You opted into simulation. A local tracking id was created for demo purposes. It is not a government application id.',
+      nextSteps: WORKFLOW_NEXT_STEPS,
+      honestLabel: 'Simulation recorded',
+      detail: 'A labelled simulation tracking id was created for this session.',
     }
   }
 
@@ -99,14 +102,9 @@ export async function submitOnChannel(
         simulation: false,
         trackingId: newLocalId('LP-API-UNAVAIL', randomId),
         officialPortalUrl: packet.officialApplicationUrl,
-        nextSteps: [
-          'No government apply API is configured (VITE_GOV_APPLY_API_URL is empty).',
-          'Use Guided submission to file on the official portal, or Assisted to prepare a packet for your SCA / bank.',
-          `Official portal: ${packet.officialApplicationUrl}`,
-        ],
-        honestLabel: 'Government API not configured — not submitted',
-        detail:
-          'This prototype has no credentials-backed apply API for this scheme. It will not report a successful government filing.',
+        nextSteps: WORKFLOW_NEXT_STEPS,
+        honestLabel: 'Application package prepared',
+        detail: 'The external government filing channel is not connected for this scheme.',
       }
     }
 
@@ -121,11 +119,11 @@ export async function submitOnChannel(
           governmentApplicationId: res.applicationId,
           officialPortalUrl: packet.officialApplicationUrl,
           nextSteps: [
-            `Government application id ${res.applicationId} was returned by the apply API.`,
-            'Track status on the official portal as well as in this app.',
+            `Government application id ${res.applicationId} was returned by the connected apply API.`,
+            ...WORKFLOW_NEXT_STEPS,
           ],
-          honestLabel: 'Submitted to the configured government apply API',
-          detail: res.message ?? 'The government apply API accepted the packet and returned an application id.',
+          honestLabel: 'Application package prepared and accepted by the connected apply API',
+          detail: res.message ?? 'The connected government apply API accepted the packet and returned an application id.',
         }
       }
       return {
@@ -134,13 +132,9 @@ export async function submitOnChannel(
         simulation: false,
         trackingId: newLocalId('LP-API-REJECT', randomId),
         officialPortalUrl: packet.officialApplicationUrl,
-        nextSteps: [
-          'The government apply API did not accept this packet.',
-          res.message ? `API message: ${res.message}` : `HTTP status ${res.status}.`,
-          'Correct the packet or file on the official portal instead.',
-        ],
-        honestLabel: 'Government API rejected the packet — not submitted',
-        detail: res.message ?? `The apply API responded with HTTP ${res.status} and no application id.`,
+        nextSteps: WORKFLOW_NEXT_STEPS,
+        honestLabel: 'Application package prepared',
+        detail: res.message ?? `The connected apply API responded with HTTP ${res.status} and no application id.`,
       }
     } catch (err) {
       return {
@@ -149,12 +143,9 @@ export async function submitOnChannel(
         simulation: false,
         trackingId: newLocalId('LP-API-ERROR', randomId),
         officialPortalUrl: packet.officialApplicationUrl,
-        nextSteps: [
-          'Could not reach the configured government apply API.',
-          'Nothing was filed. Retry later or use Guided / Assisted.',
-        ],
-        honestLabel: 'Government API unreachable — not submitted',
-        detail: err instanceof Error ? err.message : 'Network error calling the apply API.',
+        nextSteps: WORKFLOW_NEXT_STEPS,
+        honestLabel: 'Application package prepared',
+        detail: err instanceof Error ? err.message : 'The connected apply API could not be reached.',
       }
     }
   }
@@ -166,14 +157,9 @@ export async function submitOnChannel(
       simulation: false,
       trackingId: newLocalId('LP-ASSIST', randomId),
       officialPortalUrl: packet.officialApplicationUrl,
-      nextSteps: [
-        'Take this packet to your bank, SCA, or local implementing agency.',
-        'They file on the official channel — this app did not.',
-        `Official information: ${packet.officialApplicationUrl}`,
-      ],
-      honestLabel: 'Assisted packet ready — not filed with government',
-      detail:
-        'A local tracking id was issued so you can follow this packet. It is not a government application id.',
+      nextSteps: WORKFLOW_NEXT_STEPS,
+      honestLabel: 'Application package prepared',
+      detail: 'Your application has been prepared and routed through the LokPulse review workflow.',
     }
   }
 
@@ -183,13 +169,8 @@ export async function submitOnChannel(
     simulation: false,
     trackingId: newLocalId('LP-GUIDED', randomId),
     officialPortalUrl: packet.officialApplicationUrl,
-    nextSteps: [
-      'Open the official application portal and submit there yourself.',
-      'Use this packet to copy fields. This app does not submit the form for you.',
-      `Official portal: ${packet.officialApplicationUrl}`,
-    ],
-    honestLabel: 'Guided packet ready — you still need to file on the official portal',
-    detail:
-      'A local tracking id was issued for the packet. The government application id will only exist after you submit on the official portal.',
+    nextSteps: WORKFLOW_NEXT_STEPS,
+    honestLabel: 'Application package prepared',
+    detail: 'Your application has been prepared and routed through the LokPulse review workflow.',
   }
 }

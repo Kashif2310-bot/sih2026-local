@@ -5,7 +5,7 @@
  * view, no secret ever leaves the machine.
  */
 
-import { AI_HEALTHCHECK_TIMEOUT_MS, AI_REQUEST_TIMEOUT_MS, OLLAMA_BASE_URL, OLLAMA_MODEL } from '../aiConfig'
+import { AI_HEALTHCHECK_TIMEOUT_MS, AI_REQUEST_TIMEOUT_MS, OLLAMA_BASE_URL, OLLAMA_MODEL, shouldProbeLocalOllama } from '../aiConfig'
 import { ASSISTANT_SYSTEM_PROMPT, buildUserTurn } from './promptBuilder'
 import type { AIProvider, AIRequestContext, ProviderReply } from './types'
 
@@ -30,6 +30,8 @@ export class OllamaProvider implements AIProvider {
   }
 
   async isAvailable(): Promise<boolean> {
+    const pageHost = typeof window !== 'undefined' ? window.location.hostname : undefined
+    if (!shouldProbeLocalOllama(pageHost, this.baseUrl)) return false
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/api/tags`, { method: 'GET' }, AI_HEALTHCHECK_TIMEOUT_MS)
       return res.ok

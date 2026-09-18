@@ -69,7 +69,7 @@ function VoiceControls() {
   } = useAssistant()
 
   if (!voiceAvailable) {
-    return <p className="text-xs text-ink/45">{t('assistant.voice.unavailable')}</p>
+    return null
   }
 
   const showInterrupt = canInterruptVoice(voiceActive, voiceAudioState)

@@ -143,7 +143,8 @@ describe('Prompt 7 — personalized analysis & report intelligence', () => {
     expect(text).toMatch(/Karnataka/)
     expect(text).toMatch(/dairy/)
     expect(text.toLowerCase()).not.toMatch(/perfect for you/)
-    expect(text.toLowerCase()).toMatch(/not an approval|not a final/)
+    expect(text.toLowerCase()).not.toMatch(/you are approved|government has approved|guaranteed/)
+    expect(text.toLowerCase()).toMatch(/relevant|official verification|not a final/)
   })
 
   it('7. scheme mismatch explanation', () => {

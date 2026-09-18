@@ -163,7 +163,7 @@ function documentsFromScheme(schemeId: string): ApplicationDocumentSpec[] {
     key: `${schemeId}-doc-${i}`,
     label,
     required: true,
-    notes: 'Declared locally — this app does not upload files to any government system.',
+    notes: 'Declare whether this document is available. Files are marked uploaded only when attached.',
   }))
 }
 
@@ -177,17 +177,17 @@ const CHANNEL: Record<string, ChannelOverride> = {
   'nsfdc-micro-finance': {
     recommended: 'assisted',
     rationale:
-      'NSFDC applications are filed through the State Channelising Agency, not a public apply API. Assisted submission prepares the packet your SCA / partner bank can take forward.',
+      'NSFDC applications are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
   },
   'nsfdc-term-loan': {
     recommended: 'assisted',
     rationale:
-      'NSFDC term-loan cases go through the SCA. This prototype has no SCA filing credentials, so assisted packet preparation is the honest path.',
+      'NSFDC term-loan cases are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
   },
   pmegp: {
     recommended: 'guided',
     rationale:
-      'KVIC does not publish a public apply API this prototype can call. Guided submission opens the official PMEGP e-portal with your packet pre-filled for you to submit there.',
+      'PMEGP applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
     extraFields: [
       {
         key: 'education',
@@ -203,27 +203,27 @@ const CHANNEL: Record<string, ChannelOverride> = {
   'pm-mudra-yojana': {
     recommended: 'guided',
     rationale:
-      'MUDRA loans are filed with a bank or on Jan Samarth / Udyamimitra. No central public apply API is configured here, so guided filing on the official portal is the honest path.',
+      'MUDRA applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
   },
   'stand-up-india': {
     recommended: 'guided',
     rationale:
-      'Stand-Up India applications go through standupmitra.in or a bank branch. This prototype has no portal credentials, so guided submission is the working channel.',
+      'Stand-Up India applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
   },
   'pm-vishwakarma': {
     recommended: 'guided',
     rationale:
-      'PM Vishwakarma registration is via CSC or the official portal. Guided submission prepares the packet and sends you to pmvishwakarma.gov.in.',
+      'PM Vishwakarma applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
   },
   'nbcfdc-term-loan': {
     recommended: 'assisted',
     rationale:
-      'NBCFDC is routed through the State Channelising Agency. Assisted submission prepares that packet; this platform cannot file with NBCFDC itself.',
+      'NBCFDC applications are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
   },
   'kudumbashree-microenterprise': {
     recommended: 'assisted',
     rationale:
-      'Kudumbashree microenterprise support is endorsed through the NHG / CDS. Assisted submission prepares the packet for your local unit.',
+      'Kudumbashree microenterprise support is prepared for the NHG / CDS unit and routed through the LokPulse review workflow.',
     extraFields: [
       {
         key: 'nhg_membership',

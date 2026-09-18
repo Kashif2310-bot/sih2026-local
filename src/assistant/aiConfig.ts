@@ -4,9 +4,28 @@
  * the existing app's constants.
  */
 
-/** Local Ollama server — see https://ollama.com. Never requires an API key. */
+/** Local Ollama server — optional, loopback-only. Never requires an API key. */
 export const OLLAMA_BASE_URL = 'http://localhost:11434'
 export const OLLAMA_MODEL = 'llama3.1'
+
+export function isLoopbackHostname(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+/**
+ * Friends opening the app on a LAN IP must not have their browsers probe
+ * their own loopback Ollama. Local-dev on localhost still probes as before.
+ */
+export function shouldProbeLocalOllama(pageHostname: string | undefined, ollamaBaseUrl: string): boolean {
+  if (!pageHostname) return true
+  if (isLoopbackHostname(pageHostname)) return true
+  try {
+    return !isLoopbackHostname(new URL(ollamaBaseUrl).hostname)
+  } catch {
+    return false
+  }
+}
 
 /**
  * A hosted LLM provider is only ever reachable through a same-origin (or

@@ -107,8 +107,8 @@ export function composeOfflineReportExplanation(request: ReportExplanationReques
 
   lines.push(
     language === 'kn'
-      ? 'ಇದು ಅನುಮೋದನೆ ಅಲ್ಲ; ಅಧಿಕೃತ ಪರಿಶೀಲನೆ ಅಗತ್ಯ.'
-      : 'This is not an approval or guarantee — official verification is still required.',
+      ? 'ಅಧಿಕೃತ ಪರಿಶೀಲನೆ ಯೋಜನಾ ನಿರ್ಧಾರಕ್ಕೆ ಇನ್ನೂ ಅನ್ವಯಿಸುತ್ತದೆ.'
+      : 'Official verification still applies before any scheme decision.',
   )
 
   return lines.join('\n\n')

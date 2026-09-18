@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { humanizeSchemaKey, reviewFieldLabel } from './reviewLabels'
+import { formatReviewValue, humanizeSchemaKey, reviewFieldLabel } from './reviewLabels'
 
 describe('Apply review field labels', () => {
   it('converts stored schema keys into human-readable labels without changing the key', () => {
@@ -10,6 +10,16 @@ describe('Apply review field labels', () => {
 
   it('prefers the catalog mapped label when present', () => {
     expect(reviewFieldLabel('applicant_name', 'Applicant full name')).toBe('Applicant full name')
-    expect(reviewFieldLabel('area_type')).toBe('Area Type')
+    expect(reviewFieldLabel('area_type')).toBe('Area type')
+    expect(reviewFieldLabel('applicant_name')).toBe('Applicant full name')
+    expect(reviewFieldLabel('LOAN_AMOUNT_REQUESTED')).toBe('Loan amount requested')
+  })
+
+  it('renders empty or placeholder-only values as Not provided', () => {
+    expect(formatReviewValue(undefined)).toBe('Not provided')
+    expect(formatReviewValue('')).toBe('Not provided')
+    expect(formatReviewValue(', , ')).toBe('Not provided')
+    expect(formatReviewValue('/')).toBe('Not provided')
+    expect(formatReviewValue('Kerala')).toBe('Kerala')
   })
 })
