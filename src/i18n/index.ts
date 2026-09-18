@@ -27,6 +27,9 @@ export const translationResources = {
         apply: 'Apply',
         admin: 'Admin',
       },
+      landing: {
+        adminAccess: 'Admin / Operations',
+      },
       pain: {
         title: 'Why rural ventures stall',
         a: 'Only ~8% of informal enterprises accessed a government grant/loan last year.',
@@ -837,6 +840,9 @@ export const translationResources = {
         assistant: 'ಸಹಾಯಕ',
         apply: 'ಅರ್ಜಿ ಸಲ್ಲಿಸಿ',
         admin: 'ಅಡ್ಮಿನ್',
+      },
+      landing: {
+        adminAccess: 'ಅಡ್ಮಿನ್ / ಕಾರ್ಯಾಚರಣೆ',
       },
       pain: {
         title: 'ಗ್ರಾಮೀಣ ಉದ್ಯಮಗಳು ಏಕೆ ನಿಂತುಹೋಗುತ್ತವೆ',

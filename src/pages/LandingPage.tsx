@@ -162,6 +162,18 @@ export function LandingPage() {
           </table>
         </div>
       </section>
+
+      <footer className="border-t border-forest/10 pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-ink/40">{t('brand')}</p>
+          <Link
+            to="/admin/login"
+            className="text-xs font-medium text-ink/45 transition hover:text-forest"
+          >
+            {t('landing.adminAccess')}
+          </Link>
+        </div>
+      </footer>
     </div>
     </MotionConfig>
   )
