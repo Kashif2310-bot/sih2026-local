@@ -164,3 +164,58 @@ test('assistant: an empty or whitespace-only message cannot be sent', async ({ p
   await page.getByLabel('Message').fill('   ')
   await expect(sendBtn).toBeDisabled()
 })
+
+test('assistant: voice is honestly unavailable in this deployment — no fake connected state, text still works', async ({
+  page,
+}) => {
+  // No Gemini Live relay is configured in this test environment (by
+  // design — see src/assistant/voice/geminiLiveConfig.ts). The UI must say
+  // so plainly rather than showing a mic control that cannot actually
+  // connect to anything.
+  await page.goto('/assistant')
+  await expect(page.getByText(/voice is not set up for this deployment/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /talk instead of typing/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^interrupt$/i })).toHaveCount(0)
+
+  // Text chat is completely unaffected by voice being unavailable.
+  await page.getByLabel('Message').fill('I am from Karnataka and want to start a dairy business.')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByRole('article').first()).toBeVisible({ timeout: 15_000 })
+})
+
+test('assistant: full analysis surfaces government source coverage and starts a real application via the existing Apply flow', async ({
+  page,
+}) => {
+  await page.goto('/assistant')
+  await page.getByLabel('Message').fill(
+    'I am 24 years old, from rural Karnataka, SC, my annual income is about ₹2 lakh, and I want to start a poultry business requiring ₹3 lakh.',
+  )
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByRole('article').first()).toBeVisible({ timeout: 15_000 })
+
+  const viewAnalysis = page.getByRole('button', { name: /view full analysis/i })
+  await expect(viewAnalysis).toBeVisible()
+  await viewAnalysis.click()
+
+  const dialog = page.getByRole('dialog', { name: /your personalized analysis/i })
+  await expect(dialog).toBeVisible()
+  // Source coverage is shown, and the "never all schemes checked" honesty
+  // note is present verbatim — this is the actual Prompt 8 coverage
+  // accounting, not a decorative summary.
+  await expect(dialog.getByText(/government source coverage/i)).toBeVisible()
+  await expect(dialog.getByText(/never means every government scheme has been checked/i)).toBeVisible()
+  await expect(dialog.getByText(/what we know about you/i)).toBeVisible()
+  await expect(dialog.getByText(/opportunity assessment/i)).toBeVisible()
+  await expect(dialog.getByText(/financial path/i)).toBeVisible()
+  await expect(dialog.getByText(/document readiness/i)).toBeVisible()
+  await expect(dialog.getByText(/application readiness/i)).toBeVisible()
+  await expect(dialog.getByText(/uncertainties and risks/i)).toBeVisible()
+
+  const startFromAnalysis = dialog.getByRole('button', { name: /start application from this analysis/i })
+  await expect(startFromAnalysis).toBeVisible()
+  await startFromAnalysis.click()
+
+  // Lands on the EXISTING apply-start route for the top-ranked scheme —
+  // never a new route, never a new id scheme.
+  await expect(page).toHaveURL(/\/apply\/start\//)
+})

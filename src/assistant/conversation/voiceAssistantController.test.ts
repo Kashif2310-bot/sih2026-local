@@ -227,6 +227,38 @@ describe('VoiceAssistantController — 12/15. business-intent and state change t
   })
 })
 
+describe('VoiceAssistantController — evidenceCoverage threading (Prompt 8 surfacing)', () => {
+  it('exposes a real SourceCoverageAccounting on the turn result once a fetch has actually run, and folds it into report.sourceCoverage', async () => {
+    const live = countingLiveRetriever()
+    const controller = newController({ liveRetriever: live })
+    const result = await controller.handleUserTranscript('I want to start a poultry business in Karnataka.')
+
+    expect(result.evidenceCoverage).not.toBeNull()
+    expect(result.evidenceCoverage?.sourcesQueried).toBeGreaterThan(0)
+    expect(result.evidenceCoverage?.claimsAllGovernmentSchemesChecked).toBe(false)
+    // The report builder actually received it — never silently dropped on the floor.
+    expect(result.report.sourceCoverage.recordsRetrieved).toBe(result.evidenceCoverage?.recordsRetrieved)
+  })
+
+  it('carries the last coverage forward (never resets to null) on a turn that does not refetch', async () => {
+    const live = countingLiveRetriever()
+    const controller = newController({ liveRetriever: live })
+    const first = await controller.handleUserTranscript('I want to start a poultry business in Karnataka.')
+    expect(first.evidenceCoverage).not.toBeNull()
+
+    const second = await controller.handleUserTranscript('Thank you, that is helpful.')
+    expect(live.calls).toBe(1) // confirms this turn genuinely did not refetch
+    expect(second.evidenceCoverage).toEqual(first.evidenceCoverage)
+  })
+
+  it('is null before any evidence fetch has ever been attempted', async () => {
+    const controller = newController()
+    const result = await controller.handleUserTranscript('Hi, I need some help.')
+    expect(result.evidenceCoverage).toBeNull()
+    expect(result.contextualEvidence).toEqual([])
+  })
+})
+
 describe('VoiceAssistantController — 14. financing-intent change', () => {
   it('"I only need a subsidy, no loan" is captured as a note and triggers a refetch even with no field change', async () => {
     const live = countingLiveRetriever()

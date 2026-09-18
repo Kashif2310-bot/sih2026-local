@@ -1,9 +1,11 @@
 import { Bot, User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import clsx from 'clsx'
 import type { UIMessage } from '../../assistant/state/assistant-state'
 import { SourceStatusBadge } from './SourceStatusBadge'
 
 export function ChatMessageBubble({ message }: { message: UIMessage }) {
+  const { t } = useTranslation()
   const isUser = message.role === 'user'
 
   return (
@@ -26,7 +28,14 @@ export function ChatMessageBubble({ message }: { message: UIMessage }) {
         >
           {message.text}
         </div>
-        {!isUser && message.sourceStatus && <SourceStatusBadge status={message.sourceStatus} />}
+        <div className={clsx('flex flex-wrap items-center gap-1.5', isUser && 'justify-end')}>
+          {message.fromVoice && (
+            <span className="inline-flex rounded-full border border-forest/20 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-forest">
+              {t('assistant.voice.fromVoiceTag')}
+            </span>
+          )}
+          {!isUser && message.sourceStatus && <SourceStatusBadge status={message.sourceStatus} />}
+        </div>
       </div>
     </div>
   )

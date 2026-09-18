@@ -39,3 +39,12 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
   configurable: true,
 })
+
+// src/apply/store.ts's saveHandoff/loadHandoff use sessionStorage — same
+// shim, same reasoning, just the other Web Storage global.
+const session = new MemoryStorage()
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: session,
+  writable: true,
+  configurable: true,
+})

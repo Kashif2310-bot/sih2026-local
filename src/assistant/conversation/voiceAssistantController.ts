@@ -62,6 +62,7 @@ import { assessReadiness, type ReadinessAssessment } from './readiness'
 import { buildPersonalizedReport, type PersonalizedReport } from './report'
 import { createInitialConversationState, type AskedQuestionRecord, type ConversationState } from './types'
 import type { ContextualEvidenceItem } from '../types'
+import type { SourceCoverageAccounting } from '../evidence/types'
 
 /** Tracks the last emitted report so refreshes bump version without mutating history. */
 type ReportVersionCursor = Pick<PersonalizedReport, 'reportId' | 'version'>
@@ -88,6 +89,10 @@ export interface VoiceAssistantTurnResult {
   replyText: string
   isFallback: boolean
   usedProvider: ProviderId
+  /** Official government evidence retrieved this turn that could not be tied to one specific scheme — same value already folded into `report.governmentContextualEvidence`; exposed here too since a caller may want it before/without rebuilding from the report. */
+  contextualEvidence: ContextualEvidenceItem[]
+  /** Honest source/record coverage accounting for this turn's live-evidence attempt (or the last one, on a turn that didn't refetch), or null if none has been attempted yet. */
+  evidenceCoverage: SourceCoverageAccounting | null
 }
 
 function existingDeclineCountFor(field: keyof UserProfile, questionsAsked: AskedQuestionRecord[]): number {
@@ -122,6 +127,8 @@ export class VoiceAssistantController {
   private lastReportCursor: ReportVersionCursor | null = null
   /** Contextual government evidence from the most recent live-evidence fetch — carried forward on turns that don't refetch, exactly like sourceStatus/lastEvidenceFetchSnapshot. Never scheme-specific (see evidence/schemeBinding.ts). */
   private lastContextualEvidence: ContextualEvidenceItem[] = []
+  /** Coverage accounting from the most recent live-evidence fetch — carried forward on turns that don't refetch, same rule as lastContextualEvidence. */
+  private lastEvidenceCoverage: SourceCoverageAccounting | null = null
 
   constructor(deps: VoiceAssistantControllerDeps = {}, initialState?: ConversationState) {
     this.deps = {
@@ -208,6 +215,7 @@ export class VoiceAssistantController {
     let sourceStatus = base.sourceStatus
     let lastEvidenceFetchSnapshot = base.lastEvidenceFetchSnapshot
     let contextualEvidence = this.lastContextualEvidence
+    let evidenceCoverage = this.lastEvidenceCoverage
     if (invalidation.shouldRefetch) {
       this.emit({ type: 'evidence_fetch_started' })
       const result = await attemptLiveRetrieval(ranked, nextUserProfile, this.deps.liveRetriever)
@@ -215,6 +223,8 @@ export class VoiceAssistantController {
       sourceStatus = result.sourceStatus
       contextualEvidence = result.contextualEvidence
       this.lastContextualEvidence = result.contextualEvidence
+      evidenceCoverage = result.evidenceCoverage
+      this.lastEvidenceCoverage = result.evidenceCoverage
       lastEvidenceFetchSnapshot = snapshotDecisionCriticalFields(nextUserProfile)
       this.emit({ type: 'evidence_fetch_finished', sourceStatus })
     }
@@ -279,6 +289,7 @@ export class VoiceAssistantController {
       readiness,
       sourceStatus,
       contextualEvidence,
+      evidenceCoverage,
       now,
       previous: this.lastReportCursor,
       userUncertainFields: detectUserUncertainFields(trimmed, updatedFields),
@@ -314,6 +325,8 @@ export class VoiceAssistantController {
       replyText: reply.text,
       isFallback: reply.isFallback,
       usedProvider: reply.usedProvider,
+      contextualEvidence,
+      evidenceCoverage,
     }
   }
 

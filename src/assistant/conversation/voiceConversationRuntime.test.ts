@@ -156,6 +156,8 @@ function fakeTurnResult(replyText: string): VoiceAssistantTurnResult {
     replyText,
     isFallback: true,
     usedProvider: 'offline',
+    contextualEvidence: [],
+    evidenceCoverage: null,
   }
 }
 

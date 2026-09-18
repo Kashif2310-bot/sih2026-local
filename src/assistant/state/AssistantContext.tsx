@@ -1,29 +1,64 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createEmptyApplicantProfile, type ApplicantProfile } from '../../shared/applicantProfile'
 import type { ChatTurn } from '../ai/types'
+import { assessReadiness } from '../conversation/readiness'
+import { buildPersonalizedReport } from '../conversation/report'
+import type { PersonalizedReport } from '../conversation/reportModel'
+import { createInitialConversationState } from '../conversation/types'
+import { VoiceAssistantController, type VoiceAssistantTurnResult } from '../conversation/voiceAssistantController'
+import {
+  VoiceConversationRuntime,
+  type AssistantAudioState,
+  type RuntimeEvent,
+} from '../conversation/voiceConversationRuntime'
+import type { SourceCoverageAccounting } from '../evidence/types'
 import type { MissingFieldInfo } from '../missingFields'
 import { createInitialProfile, defaultAssistantDeps, runAssistantTurn, type ActionPlanStep } from '../orchestrator'
-import type { RankedScheme, UserProfile } from '../types'
+import type { ContextualEvidenceItem, RankedScheme, UserProfile } from '../types'
+import { geminiLiveVoiceSessionFactory } from '../voice'
+import type { VoiceSessionFactory } from '../voice/types'
 import { AssistantCtx, type AssistantState, type UIMessage } from './assistant-state'
+import { mapVoiceTurnResult } from './voiceTurnMapping'
+
+export interface AssistantProviderProps {
+  children: ReactNode
+  initialProfile?: UserProfile
+  caseBound?: boolean
+  /**
+   * Injection point for tests only — defaults to the real Gemini Live
+   * factory. The typed-text pipeline never goes through a VoiceSession at
+   * all (see runTurn below), so swapping this never affects text-chat
+   * behavior; it only controls what `startVoice()` connects to.
+   */
+  voiceSessionFactory?: VoiceSessionFactory
+}
 
 export function AssistantProvider({
   children,
   initialProfile,
   caseBound = false,
-}: {
-  children: ReactNode
-  initialProfile?: UserProfile
-  caseBound?: boolean
-}) {
+  voiceSessionFactory = geminiLiveVoiceSessionFactory,
+}: AssistantProviderProps) {
   const seed = () => initialProfile ?? createInitialProfile()
   const [profile, setProfile] = useState<UserProfile>(seed)
+  const [applicantProfile, setApplicantProfile] = useState<ApplicantProfile>(() => createEmptyApplicantProfile())
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [ranked, setRanked] = useState<RankedScheme[]>([])
   const [missingFields, setMissingFields] = useState<MissingFieldInfo[]>([])
   const [actionPlan, setActionPlan] = useState<ActionPlanStep[]>([])
+  const [sourceStatus, setSourceStatus] = useState<AssistantState['sourceStatus']>(null)
+  const [contextualEvidence, setContextualEvidence] = useState<ContextualEvidenceItem[]>([])
+  const [evidenceCoverage, setEvidenceCoverage] = useState<SourceCoverageAccounting | null>(null)
+  const [report, setReport] = useState<PersonalizedReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null)
   const [hasStarted, setHasStarted] = useState(false)
+
+  const [voiceAvailable, setVoiceAvailable] = useState(false)
+  const [voiceAudioState, setVoiceAudioState] = useState<AssistantAudioState>('idle')
+  const [voiceActive, setVoiceActive] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
 
   const pendingTextRef = useRef<string | null>(null)
   const idCounterRef = useRef(0)
@@ -31,6 +66,40 @@ export function AssistantProvider({
     idCounterRef.current += 1
     return `msg-${idCounterRef.current}`
   }
+
+  /** Tracks the last emitted report so refreshes bump version without mutating history — same pattern VoiceAssistantController itself uses internally for its own report cursor. */
+  const reportCursorRef = useRef<{ reportId: string; version: number } | null>(null)
+
+  const voiceRuntimeRef = useRef<VoiceConversationRuntime | null>(null)
+  const voiceUnsubscribeRef = useRef<(() => void) | null>(null)
+
+  // Cheap, non-hanging support check (see VoiceSessionFactory.isSupported
+  // contract) — with no Gemini relay configured (the default), this
+  // resolves false and the UI must show an honest "voice not available"
+  // state rather than ever faking a connection. Never re-checked mid
+  // session; a real deployment's configuration doesn't change at runtime.
+  useEffect(() => {
+    let cancelled = false
+    voiceSessionFactory
+      .isSupported()
+      .then((supported) => {
+        if (!cancelled) setVoiceAvailable(supported)
+      })
+      .catch(() => {
+        if (!cancelled) setVoiceAvailable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [voiceSessionFactory])
+
+  useEffect(() => {
+    return () => {
+      // Unmount safety net — never leave a live session/socket behind.
+      voiceUnsubscribeRef.current?.()
+      void voiceRuntimeRef.current?.dispose()
+    }
+  }, [])
 
   // Every turn re-runs the full pipeline (extract -> retrieve -> eligibility
   // -> rank -> AI explanation) against the CURRENT profile — never a cached
@@ -47,11 +116,42 @@ export function AssistantProvider({
       pendingTextRef.current = text
       try {
         const history: ChatTurn[] = messages.map((m) => ({ role: m.role, text: m.text }))
-        const result = await runAssistantTurn({ message: text, profile, history }, defaultAssistantDeps())
+        const result = await runAssistantTurn(
+          { message: text, profile, history, applicantProfile },
+          defaultAssistantDeps(),
+        )
         setProfile(result.profile)
+        setApplicantProfile(result.applicantProfile)
         setRanked(result.ranked)
         setMissingFields(result.missingFields)
         setActionPlan(result.actionPlan)
+        setSourceStatus(result.sourceStatus)
+        setContextualEvidence(result.contextualEvidence)
+        setEvidenceCoverage(result.evidenceCoverage)
+
+        // Same deterministic evidence already computed above — never a
+        // second analysis engine, just the existing report builder fed
+        // from this turn's own outputs (mirrors VoiceAssistantController's
+        // internal report-building step exactly).
+        const readiness = assessReadiness({
+          userProfile: result.profile,
+          ranked: result.ranked,
+          missingFields: result.missingFields,
+        })
+        const nextReport = buildPersonalizedReport({
+          applicantProfile: result.applicantProfile,
+          userProfile: result.profile,
+          ranked: result.ranked,
+          actionPlan: result.actionPlan,
+          readiness,
+          sourceStatus: result.sourceStatus,
+          contextualEvidence: result.contextualEvidence,
+          evidenceCoverage: result.evidenceCoverage,
+          previous: reportCursorRef.current,
+        })
+        reportCursorRef.current = { reportId: nextReport.reportId, version: nextReport.version }
+        setReport(nextReport)
+
         setMessages((prev) => [
           ...prev,
           {
@@ -75,16 +175,27 @@ export function AssistantProvider({
         setLoading(false)
       }
     },
-    [messages, profile],
+    [messages, profile, applicantProfile],
   )
 
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
-      if (!trimmed || loading) return
+      if (!trimmed) return
+      // Text-input escape hatch while a voice session is active (see
+      // VoiceSession.sendTextInput's own docs): goes through the SAME
+      // session -> event -> controller pipeline a spoken turn would,
+      // rather than a second, disconnected text path — so typing still
+      // works exactly as documented even when a live mic transport isn't
+      // available yet.
+      if (voiceActive && voiceRuntimeRef.current) {
+        voiceRuntimeRef.current.sendText(trimmed)
+        return
+      }
+      if (loading) return
       await runTurn(trimmed, true)
     },
-    [runTurn, loading],
+    [runTurn, loading, voiceActive],
   )
 
   const retryLast = useCallback(async () => {
@@ -95,24 +206,130 @@ export function AssistantProvider({
 
   const selectScheme = useCallback((id: string | null) => setSelectedSchemeId(id), [])
 
+  /**
+   * Folds one completed VOICE turn into the exact same state text turns
+   * write into — one assistant state model, never a second one. See
+   * VoiceAssistantController/VoiceConversationRuntime for the engine that
+   * produced this (question policy, readiness, evidence-invalidation
+   * gating) — none of that is reimplemented here. The actual field mapping
+   * is a pure function (voiceTurnMapping.ts) so it can be unit-tested
+   * without a browser.
+   */
+  const mergeVoiceTurn = useCallback((result: VoiceAssistantTurnResult) => {
+    const mapped = mapVoiceTurnResult(result, genId)
+    setProfile(mapped.profile)
+    setApplicantProfile(mapped.applicantProfile)
+    setRanked(mapped.ranked)
+    setMissingFields(mapped.missingFields)
+    setActionPlan(mapped.actionPlan)
+    setSourceStatus(mapped.sourceStatus)
+    setContextualEvidence(mapped.contextualEvidence)
+    setEvidenceCoverage(mapped.evidenceCoverage)
+    reportCursorRef.current = { reportId: mapped.report.reportId, version: mapped.report.version }
+    setReport(mapped.report)
+    setMessages((prev) => [...prev, ...mapped.newMessages])
+    setHasStarted(true)
+  }, [])
+
+  const startVoice = useCallback(async () => {
+    if (voiceRuntimeRef.current) return // already active — idempotent
+    setVoiceError(null)
+    if (!voiceAvailable) {
+      setVoiceError('Voice is not configured for this deployment — continue with text below.')
+      return
+    }
+    try {
+      const supported = await voiceSessionFactory.isSupported()
+      if (!supported) {
+        setVoiceError('Voice is not available right now — continue with text below.')
+        return
+      }
+      const controller = new VoiceAssistantController({}, createInitialConversationState(applicantProfile, profile))
+      const session = voiceSessionFactory.create({
+        language: { primary: 'auto', allowCodeSwitching: true },
+        applicantProfile,
+        replySource: 'external',
+      })
+      const runtime = new VoiceConversationRuntime({ session, controller })
+      voiceUnsubscribeRef.current = runtime.subscribe((event: RuntimeEvent) => {
+        switch (event.type) {
+          case 'audio_state_changed':
+            setVoiceAudioState(event.audioState)
+            return
+          case 'turn_completed':
+            mergeVoiceTurn(event.result)
+            return
+          case 'error':
+            setVoiceError(event.error.message)
+            return
+          case 'closed':
+            setVoiceActive(false)
+            setVoiceAudioState('idle')
+            return
+        }
+      })
+      voiceRuntimeRef.current = runtime
+      await runtime.start()
+      setVoiceActive(true)
+    } catch (e) {
+      voiceUnsubscribeRef.current?.()
+      voiceUnsubscribeRef.current = null
+      voiceRuntimeRef.current = null
+      setVoiceError(e instanceof Error ? e.message : 'Voice could not start — continue with text below.')
+    }
+  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, mergeVoiceTurn])
+
+  const stopVoice = useCallback(async () => {
+    const runtime = voiceRuntimeRef.current
+    voiceUnsubscribeRef.current?.()
+    voiceUnsubscribeRef.current = null
+    voiceRuntimeRef.current = null
+    if (runtime) await runtime.dispose()
+    setVoiceActive(false)
+    setVoiceAudioState('idle')
+  }, [])
+
+  const interruptVoice = useCallback(() => {
+    voiceRuntimeRef.current?.interrupt()
+  }, [])
+
   const reset = useCallback(() => {
+    voiceUnsubscribeRef.current?.()
+    void voiceRuntimeRef.current?.dispose()
+    voiceUnsubscribeRef.current = null
+    voiceRuntimeRef.current = null
+
     setProfile(seed())
+    setApplicantProfile(createEmptyApplicantProfile())
     setMessages([])
     setRanked([])
     setMissingFields([])
     setActionPlan([])
+    setSourceStatus(null)
+    setContextualEvidence([])
+    setEvidenceCoverage(null)
+    setReport(null)
+    reportCursorRef.current = null
     setError(null)
     setSelectedSchemeId(null)
     setHasStarted(false)
+    setVoiceActive(false)
+    setVoiceAudioState('idle')
+    setVoiceError(null)
     pendingTextRef.current = null
   }, [initialProfile])
 
   const value: AssistantState = {
     profile,
+    applicantProfile,
     messages,
     ranked,
     missingFields,
     actionPlan,
+    sourceStatus,
+    contextualEvidence,
+    evidenceCoverage,
+    report,
     loading,
     error,
     selectedSchemeId,
@@ -122,6 +339,13 @@ export function AssistantProvider({
     retryLast,
     selectScheme,
     reset,
+    voiceAvailable,
+    voiceAudioState,
+    voiceActive,
+    voiceError,
+    startVoice,
+    stopVoice,
+    interruptVoice,
   }
 
   return <AssistantCtx.Provider value={value}>{children}</AssistantCtx.Provider>

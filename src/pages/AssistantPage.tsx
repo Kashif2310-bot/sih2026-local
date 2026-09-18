@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Loader2, RotateCcw, Send } from 'lucide-react'
+import { FileSearch, Loader2, Mic, MicOff, RotateCcw, Send } from 'lucide-react'
 import { profileFromAssessment } from '../assistant/fromAssessment'
 import { AssistantProvider } from '../assistant/state/AssistantContext'
 import { useAssistant } from '../assistant/state/useAssistant'
+import type { AssistantAudioState } from '../assistant/conversation/voiceConversationRuntime'
+import { canInterruptVoice } from '../assistant/state/voiceTurnMapping'
 import { ActionPlanPanel } from '../components/assistant/ActionPlanPanel'
+import { AnalysisPanel } from '../components/assistant/AnalysisPanel'
 import { ChatMessageBubble } from '../components/assistant/ChatMessageBubble'
 import { ProfileSidebar } from '../components/assistant/ProfileSidebar'
 import { SchemeCard } from '../components/assistant/SchemeCard'
@@ -34,6 +37,88 @@ export function AssistantPage() {
   )
 }
 
+function voiceAudioStateKey(state: AssistantAudioState): string {
+  switch (state) {
+    case 'idle':
+      return 'assistant.voice.idle'
+    case 'listening':
+      return 'assistant.voice.listening'
+    case 'processing':
+      return 'assistant.voice.processing'
+    case 'speaking':
+      return 'assistant.voice.speaking'
+    case 'interrupted':
+      return 'assistant.voice.interrupted'
+    case 'error':
+      return 'assistant.voice.errorState'
+    case 'closed':
+      return 'assistant.voice.closed'
+  }
+}
+
+function VoiceControls() {
+  const { t } = useTranslation()
+  const {
+    voiceAvailable,
+    voiceAudioState,
+    voiceActive,
+    voiceError,
+    startVoice,
+    stopVoice,
+    interruptVoice,
+  } = useAssistant()
+
+  if (!voiceAvailable) {
+    return <p className="text-xs text-ink/45">{t('assistant.voice.unavailable')}</p>
+  }
+
+  const showInterrupt = canInterruptVoice(voiceActive, voiceAudioState)
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {!voiceActive ? (
+        <button
+          type="button"
+          onClick={() => void startVoice()}
+          className="inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3.5 py-2 text-xs font-semibold text-forest hover:border-forest/40"
+        >
+          <Mic className="h-3.5 w-3.5" />
+          {t('assistant.voice.micLabel')}
+        </button>
+      ) : (
+        <>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-forest/10 px-3 py-1.5 text-xs font-semibold text-forest">
+            <Mic className={voiceAudioState === 'listening' ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} />
+            {t(voiceAudioStateKey(voiceAudioState))}
+          </span>
+          {showInterrupt && (
+            <button
+              type="button"
+              onClick={() => interruptVoice()}
+              className="inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3 py-1.5 text-xs font-semibold text-forest hover:border-forest/40"
+            >
+              {t('assistant.voice.interruptLabel')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void stopVoice()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10"
+          >
+            <MicOff className="h-3.5 w-3.5" />
+            {t('assistant.voice.stopLabel')}
+          </button>
+        </>
+      )}
+      {voiceError && (
+        <span role="alert" className="text-xs text-danger">
+          {voiceError}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function AssistantPageInner({
   placeName,
   categoryLabel,
@@ -46,10 +131,12 @@ function AssistantPageInner({
   const { t } = useTranslation()
   const {
     profile,
+    applicantProfile,
     messages,
     ranked,
     missingFields,
     actionPlan,
+    report,
     loading,
     error,
     selectedSchemeId,
@@ -61,6 +148,7 @@ function AssistantPageInner({
     reset,
   } = useAssistant()
   const [draft, setDraft] = useState('')
+  const [showAnalysis, setShowAnalysis] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -84,16 +172,28 @@ function AssistantPageInner({
           <h1 className="font-display text-3xl font-bold text-forest">{t('assistant.title')}</h1>
           <p className="mt-2 max-w-2xl text-ink/65">{t('assistant.subtitle')}</p>
         </div>
-        {hasStarted && (
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3.5 py-2 text-xs font-semibold text-forest hover:border-forest/40"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            {t('assistant.newConversation')}
-          </button>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {report && (
+            <button
+              type="button"
+              onClick={() => setShowAnalysis(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3.5 py-2 text-xs font-semibold text-forest hover:border-forest/40"
+            >
+              <FileSearch className="h-3.5 w-3.5" />
+              {t('assistant.analysis.viewButton')}
+            </button>
+          )}
+          {hasStarted && (
+            <button
+              type="button"
+              onClick={reset}
+              className="inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-white px-3.5 py-2 text-xs font-semibold text-forest hover:border-forest/40"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t('assistant.newConversation')}
+            </button>
+          )}
+        </div>
       </div>
 
       <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#6b5300]">
@@ -152,33 +252,36 @@ function AssistantPageInner({
             )}
           </div>
 
-          <form onSubmit={submit} className="mt-3 flex items-end gap-2 border-t border-forest/10 pt-3">
-            <label className="sr-only" htmlFor="assistant-input">
-              {t('assistant.inputLabel')}
-            </label>
-            <textarea
-              id="assistant-input"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  submit()
-                }
-              }}
-              placeholder={t('assistant.inputPlaceholder')}
-              rows={2}
-              className="flex-1 resize-none rounded-xl border border-forest/15 bg-white px-3.5 py-2.5 text-sm outline-none ring-forest/30 focus:ring-2"
-            />
-            <button
-              type="submit"
-              disabled={loading || !draft.trim()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-forest px-4 py-2.5 text-sm font-bold text-white transition hover:bg-leaf disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              {t('assistant.send')}
-            </button>
-          </form>
+          <div className="mt-3 border-t border-forest/10 pt-3">
+            <VoiceControls />
+            <form onSubmit={submit} className="mt-2 flex items-end gap-2">
+              <label className="sr-only" htmlFor="assistant-input">
+                {t('assistant.inputLabel')}
+              </label>
+              <textarea
+                id="assistant-input"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    submit()
+                  }
+                }}
+                placeholder={t('assistant.inputPlaceholder')}
+                rows={2}
+                className="flex-1 resize-none rounded-xl border border-forest/15 bg-white px-3.5 py-2.5 text-sm outline-none ring-forest/30 focus:ring-2"
+              />
+              <button
+                type="submit"
+                disabled={loading || !draft.trim()}
+                className="inline-flex items-center gap-1.5 rounded-full bg-forest px-4 py-2.5 text-sm font-bold text-white transition hover:bg-leaf disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {t('assistant.send')}
+              </button>
+            </form>
+          </div>
         </div>
 
         <div className="order-3 space-y-4">
@@ -202,6 +305,14 @@ function AssistantPageInner({
       </div>
 
       <SchemeDetailModal ranked={selectedRanked} profile={profile} onClose={() => selectScheme(null)} />
+      {showAnalysis && (
+        <AnalysisPanel
+          report={report}
+          applicantProfile={applicantProfile}
+          profile={profile}
+          onClose={() => setShowAnalysis(false)}
+        />
+      )}
     </div>
   )
 }
