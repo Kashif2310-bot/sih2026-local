@@ -1,31 +1,10 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
-from app.db import Base, enable_sqlite_foreign_keys
 from app.models import Assessment, Loan, Repayment, User
-
-
-@pytest.fixture()
-def session() -> Session:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    enable_sqlite_foreign_keys(engine)
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-        engine.dispose()
 
 
 def _user(**kwargs) -> User:

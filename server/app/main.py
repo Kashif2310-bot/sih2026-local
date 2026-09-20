@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.db import engine
+from app.routers import assessments as assessments_router
+from app.routers import users as users_router
 
 app = FastAPI(title="LokPulse API")
 
@@ -18,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(users_router.router)
+app.include_router(assessments_router.router)
 
 
 @app.get("/health")
