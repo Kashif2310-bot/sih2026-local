@@ -11,7 +11,7 @@ import {
 } from '../lib/assessmentSnapshot'
 import { useApp } from '../state/useApp'
 
-export type AssessmentPage = 'pulse' | 'report' | 'finance' | 'sanction' | 'export'
+export type AssessmentPage = 'pulse' | 'report' | 'finance' | 'sanction' | 'export' | 'assistant'
 
 export function LegacyAssessmentRedirect({ page }: { page: AssessmentPage }) {
   const { assessmentId } = useApp()

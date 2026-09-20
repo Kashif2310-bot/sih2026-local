@@ -1,6 +1,7 @@
 import { createContext } from 'react'
 import type { ApprovalCaseView } from '../lib/approval/views'
 import type { AssessmentSnapshot } from '../lib/assessmentSnapshot'
+import type { LiveSourceId } from '../lib/liveSignals'
 import type { SchemePlan } from '../lib/finance'
 import type {
   EntrepreneurProfile,
@@ -30,6 +31,9 @@ export interface AppState {
   assessmentId: string | null
   /** False when the last scan was not saved to the backend. */
   persisted: boolean
+  failedSources: LiveSourceId[]
+  dataStatus: 'complete' | 'incomplete'
+  retryingSignals: boolean
   setProfileAndScan: (p: EntrepreneurProfile) => Promise<string | null>
   hydrateFromSnapshot: (
     id: string,
@@ -37,6 +41,7 @@ export interface AppState {
     persisted: boolean,
   ) => Promise<void>
   hasAssessment: (id: string) => boolean
+  retryLiveSignals: () => Promise<void>
   signAs: (reviewerId: string) => Promise<void>
   releaseEscrow: () => void
   reset: () => void

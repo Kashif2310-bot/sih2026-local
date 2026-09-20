@@ -16,3 +16,20 @@ export function defaultProfile() {
     radiusKm: 7,
   }
 }
+
+/** Empty Scan form — no demo identity prefilled. */
+export function emptyScanForm() {
+  return {
+    name: '',
+    age: 29,
+    gender: 'female' as const,
+    community: 'sc' as const,
+    annualIncome: 180000,
+    experienceYears: 2,
+    villageId: 'dinka-mandya',
+    category: 'dairy' as BusinessCategory,
+    availableMargin: 0,
+    locationMode: 'curated' as const,
+    radiusKm: 7,
+  }
+}

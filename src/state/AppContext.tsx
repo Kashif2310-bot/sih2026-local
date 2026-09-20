@@ -7,8 +7,15 @@ import {
   type AssessmentSnapshot,
 } from '../lib/assessmentSnapshot'
 import { buildSchemePlan } from '../lib/finance'
+import { collectFailedSources, dataStatusFromFailures, type LiveSourceId } from '../lib/liveSignals'
 import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '../lib/lokScore'
 import { fetchMandiSignal } from '../lib/mandi'
+import { canSanction } from '../lib/sanctionGate'
+import {
+  fetchCompetitorsNearby,
+  geocodeLocation,
+  reverseGeocode,
+} from '../lib/geo'
 import { fetchWeather, fetchWeekTemps, unavailableWeather } from '../lib/weather'
 import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } from '../lib/resolveLocation'
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
@@ -54,9 +61,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [escrowReleased, setEscrowReleased] = useState(false)
   const [assessmentId, setAssessmentId] = useState<string | null>(null)
   const [persisted, setPersisted] = useState(false)
+  const [failedSources, setFailedSources] = useState<LiveSourceId[]>([])
+  const [retryingSignals, setRetryingSignals] = useState(false)
   const serviceRef = useRef<ApprovalService | null>(null)
   const applicationIdRef = useRef<string | null>(null)
   const assessmentIdRef = useRef<string | null>(null)
+  const snapshotRef = useRef<AssessmentSnapshot | null>(null)
   const readyRef = useRef(false)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
@@ -149,6 +159,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       applicationIdRef.current = applicationId
 
+      const weatherSkipped = !!p.demoMode
+      const failed = collectFailedSources(resolved, w, weatherSkipped)
       const snapshot: AssessmentSnapshot = {
         profile: p,
         location: resolved,
@@ -159,6 +171,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         workingCapital: wc,
         score: lok,
         approval: { applicationId, frozenAt },
+        failedSources: failed,
+        weatherSkipped,
       }
 
       let id: string = crypto.randomUUID()
@@ -173,6 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       cacheSnapshot(id, snapshot)
       writeLastAssessmentId(id, saved)
       assessmentIdRef.current = id
+      snapshotRef.current = snapshot
       readyRef.current = true
 
       setProfile(p)
@@ -186,6 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setApprovalCase(view)
       setAssessmentId(id)
       setPersisted(saved)
+      setFailedSources(failed)
       return id
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
@@ -213,7 +229,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       applicationIdRef.current = snapshot.approval.applicationId
       assessmentIdRef.current = id
+      snapshotRef.current = snapshot
       readyRef.current = true
+      const failed =
+        snapshot.failedSources ??
+        collectFailedSources(snapshot.location, snapshot.weather, snapshot.weatherSkipped ?? false)
       setProfile(snapshot.profile)
       setLocation(snapshot.location)
       setWeather(snapshot.weather)
@@ -226,6 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setEscrowReleased(false)
       setAssessmentId(id)
       setPersisted(saved)
+      setFailedSources(failed)
       setError(null)
       setErrorKn(null)
     },
@@ -236,10 +257,107 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return readyRef.current && assessmentIdRef.current === id
   }, [])
 
+  const retryLiveSignals = useCallback(async () => {
+    const snap = snapshotRef.current
+    const id = assessmentIdRef.current
+    if (!snap || !id) return
+    setRetryingSignals(true)
+    try {
+      let location = snap.location
+      let weather = snap.weather
+      let week = snap.week
+      const failed = [...(snap.failedSources ?? collectFailedSources(snap.location, snap.weather, snap.weatherSkipped ?? false))]
+
+      if (failed.includes('geocoding')) {
+        const q = snap.profile.liveQuery
+        const lat = snap.profile.liveLat ?? location.lat
+        const lng = snap.profile.liveLng ?? location.lng
+        const hit = q?.trim() ? await geocodeLocation(q) : await reverseGeocode(lat, lng)
+        if (hit) {
+          location = { ...location, name: hit.displayName.split(',')[0] ?? location.name, lat: hit.lat, lng: hit.lng, geocodeOk: true }
+        }
+      }
+
+      if (failed.includes('overpass')) {
+        const live = await fetchCompetitorsNearby({
+          lat: location.lat,
+          lng: location.lng,
+          category: snap.profile.category,
+          radiusKm: location.radiusKm,
+        })
+        if (live.ok) {
+          location = { ...location, competitors: live.pois, competitorQueryOk: true, competitorError: undefined }
+        }
+      }
+
+      if (failed.includes('weather')) {
+        try {
+          const [w, wk] = await Promise.all([
+            fetchWeather(location.lat, location.lng),
+            fetchWeekTemps(location.lat, location.lng),
+          ])
+          weather = w
+          week = wk
+        } catch {
+          weather = unavailableWeather()
+        }
+      }
+
+      const nextFailed = collectFailedSources(location, weather, snap.weatherSkipped ?? false)
+      const lok = computeLokScore({
+        profile: snap.profile,
+        location,
+        weather,
+        mandi: snap.mandi,
+        plan: snap.plan,
+      })
+      const approval = await loadApproval()
+      const svc = approval.service.createApprovalService()
+      serviceRef.current = svc
+      const frozenAt = Date.now()
+      const applicationId = snap.approval.applicationId
+      const view = svc.openApprovalCase({
+        applicationId,
+        applicantRef: snap.profile.name,
+        villageId: location.id,
+        schemeId: snap.plan.schemeId,
+        projectCost: snap.plan.projectCost,
+        loanAmount: snap.plan.loanAmount,
+        lokScore: lok,
+        frozenAt,
+      })
+      applicationIdRef.current = applicationId
+      const next: AssessmentSnapshot = {
+        ...snap,
+        location,
+        weather,
+        week,
+        score: lok,
+        approval: { applicationId, frozenAt },
+        failedSources: nextFailed,
+      }
+      snapshotRef.current = next
+      cacheSnapshot(id, next)
+      setLocation(location)
+      setWeather(weather)
+      setWeek(week)
+      setScore(lok)
+      setApprovalCase(view)
+      setFailedSources(nextFailed)
+    } finally {
+      setRetryingSignals(false)
+    }
+  }, [])
+
   const signAs = useCallback(async (reviewerId: string) => {
     const svc = serviceRef.current
     const applicationId = applicationIdRef.current
-    if (!svc || !applicationId) return
+    const snap = snapshotRef.current
+    if (!svc || !applicationId || !snap) return
+    const status = dataStatusFromFailures(
+      snap.failedSources ?? collectFailedSources(snap.location, snap.weather, snap.weatherSkipped ?? false),
+    )
+    if (!canSanction(status)) return
     setApprovalCase(await svc.submitSignature(applicationId, reviewerId))
   }, [])
 
@@ -268,11 +386,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEscrowReleased(false)
     setAssessmentId(null)
     setPersisted(false)
+    setFailedSources([])
+    setRetryingSignals(false)
     setError(null)
     setErrorKn(null)
     serviceRef.current = null
     applicationIdRef.current = null
     assessmentIdRef.current = null
+    snapshotRef.current = null
     readyRef.current = false
   }, [])
 
@@ -292,9 +413,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     escrowReleased,
     assessmentId,
     persisted,
+    failedSources,
+    dataStatus: dataStatusFromFailures(failedSources),
+    retryingSignals,
     setProfileAndScan,
     hydrateFromSnapshot,
     hasAssessment,
+    retryLiveSignals,
     signAs,
     releaseEscrow,
     reset,

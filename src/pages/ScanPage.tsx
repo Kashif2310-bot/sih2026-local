@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { BUSINESS_META, VILLAGES, type BusinessCategory } from '../data/villages'
-import { defaultProfile } from '../lib/demoProfile'
+import { defaultProfile, emptyScanForm } from '../lib/demoProfile'
 import { useApp } from '../state/useApp'
 import type { EntrepreneurProfile } from '../lib/lokScore'
 import { Loader2, MapPin, Crosshair, WifiOff } from 'lucide-react'
@@ -10,6 +10,8 @@ import { REACH_KM } from '../lib/config'
 import { NSFDC } from '../lib/config'
 
 const DEMO_MODE_STORAGE_KEY = 'lokpulse:offlineDemoMode'
+
+type ScanField = 'name' | 'age' | 'income' | 'experience' | 'livePlace' | 'margin'
 
 function readStoredDemoMode(): boolean {
   try {
@@ -38,11 +40,11 @@ export function ScanPage() {
   const demo = params.get('demo') === '1'
 
   const [form, setForm] = useState<EntrepreneurProfile>(() => ({
-    ...defaultProfile(),
+    ...(demo ? defaultProfile() : emptyScanForm()),
     demoMode: readStoredDemoMode(),
   }))
   const [geoBusy, setGeoBusy] = useState(false)
-  const [localErr, setLocalErr] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ScanField, { key: string; values?: Record<string, string> }>>>({})
 
   const toggleDemoMode = (on: boolean) => {
     writeStoredDemoMode(on)
@@ -61,10 +63,28 @@ export function ScanPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  const clearField = (key: ScanField) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  const loadDemoCase = () => {
+    setFieldErrors({})
+    setForm((f) => ({
+      ...defaultProfile(),
+      demoMode: f.demoMode,
+      locationMode: f.demoMode ? 'curated' : defaultProfile().locationMode,
+    }))
+  }
+
   const useMyLocation = () => {
-    setLocalErr(null)
+    clearField('livePlace')
     if (!navigator.geolocation) {
-      setLocalErr(kn ? 'ಜಿಯೋಲೊಕೇಶನ್ ಬೆಂಬಲವಿಲ್ಲ' : 'Geolocation not supported')
+      setFieldErrors((prev) => ({ ...prev, livePlace: { key: 'validation.geoUnsupported' } }))
       return
     }
     setGeoBusy(true)
@@ -77,52 +97,45 @@ export function ScanPage() {
           liveLng: pos.coords.longitude,
           liveQuery: '',
         }))
+        clearField('livePlace')
         setGeoBusy(false)
       },
       () => {
-        setLocalErr(kn ? 'ಸ್ಥಳ ಪಡೆಯಲಾಗಲಿಲ್ಲ' : 'Could not read device location')
+        setFieldErrors((prev) => ({ ...prev, livePlace: { key: 'validation.geoFailed' } }))
         setGeoBusy(false)
       },
       { enableHighAccuracy: false, timeout: 12_000 },
     )
   }
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLocalErr(null)
-    // These three mirror what the removed native `required`/`min`/`max`
-    // attributes used to silently enforce with an unstyled browser tooltip
-    // (the same failure class as the margin-field bug: form has noValidate
-    // so the app's own bilingual role=alert message must be authoritative
-    // for every field, not just margin).
-    if (!form.name.trim()) {
-      setLocalErr(kn ? 'ಪೂರ್ಣ ಹೆಸರು ಅಗತ್ಯ' : 'Full name is required')
-      return
-    }
-    if (!Number.isFinite(form.age) || form.age < 18 || form.age > 70) {
-      setLocalErr(kn ? 'ವಯಸ್ಸು 18 ಮತ್ತು 70 ರ ನಡುವೆ ಇರಬೇಕು' : 'Age must be between 18 and 70')
-      return
+  const validate = (): Partial<Record<ScanField, { key: string; values?: Record<string, string> }>> => {
+    const next: Partial<Record<ScanField, { key: string; values?: Record<string, string> }>> = {}
+    if (!form.name.trim()) next.name = { key: 'validation.nameRequired' }
+    if (!Number.isFinite(form.age) || form.age < 18 || form.age > 70) next.age = { key: 'validation.ageRange' }
+    if (!Number.isFinite(form.annualIncome) || form.annualIncome < 0) {
+      next.income = { key: 'validation.incomeNegative' }
     }
     if (!Number.isFinite(form.experienceYears) || form.experienceYears < 0) {
-      setLocalErr(kn ? 'ಅನುಭವದ ವರ್ಷಗಳು ಋಣಾತ್ಮಕವಾಗಿರಬಾರದು' : 'Years of experience cannot be negative')
-      return
+      next.experience = { key: 'validation.experienceNegative' }
     }
-    if (form.availableMargin <= 0) {
-      setLocalErr(kn ? 'ಮಾರ್ಜಿನ್ ಧನಾತ್ಮಕವಾಗಿರಬೇಕು' : 'Margin capital must be positive')
-      return
-    }
-    if (form.availableMargin > NSFDC.maxMarginRupees) {
-      setLocalErr(
-        kn
-          ? `ಗರಿಷ್ಠ ಮಾರ್ಜಿನ್ ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')} (ಯೋಜನೆ ₹50 ಲಕ್ಷ)`
-          : `Max margin ₹${NSFDC.maxMarginRupees.toLocaleString('en-IN')} (₹50L project cap)`,
-      )
-      return
+    if (form.availableMargin <= 0) next.margin = { key: 'validation.marginPositive' }
+    else if (form.availableMargin > NSFDC.maxMarginRupees) {
+      next.margin = {
+        key: 'validation.marginMax',
+        values: { max: NSFDC.maxMarginRupees.toLocaleString('en-IN') },
+      }
     }
     if (form.locationMode === 'live' && !form.liveQuery?.trim() && form.liveLat == null) {
-      setLocalErr(kn ? 'ಸ್ಥಳ ನಮೂದಿಸಿ ಅಥವಾ GPS ಬಳಸಿ' : 'Enter a place or use GPS')
-      return
+      next.livePlace = { key: 'validation.livePlaceRequired' }
     }
+    return next
+  }
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const next = validate()
+    setFieldErrors(next)
+    if (Object.keys(next).length > 0) return
     const id = await setProfileAndScan(form)
     if (id) navigate(`/pulse/${id}`)
   }
@@ -161,6 +174,15 @@ export function ScanPage() {
       {demo && (
         <p className="mt-2 text-xs font-semibold text-sky">{t('wizard.demoHint')}</p>
       )}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={loadDemoCase}
+          className="rounded-full border border-forest/20 bg-white px-4 py-2 text-xs font-bold text-forest"
+        >
+          {t('wizard.loadDemo')}
+        </button>
+      </div>
 
       {/* noValidate: the app's own validation (onSubmit below) owns rejection
           messaging so it's bilingual and role=alert — native browser
@@ -174,7 +196,16 @@ export function ScanPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium">
             {t('wizard.name')}
-            <input className={field} value={form.name} onChange={(e) => update('name', e.target.value)} required />
+            <input
+              className={field}
+              value={form.name}
+              placeholder={t('wizard.namePlaceholder')}
+              onChange={(e) => {
+                clearField('name')
+                update('name', e.target.value)
+              }}
+            />
+            <FieldError error={fieldErrors.name} />
           </label>
           <label className="text-sm font-medium">
             {t('wizard.age')}
@@ -184,8 +215,12 @@ export function ScanPage() {
               min={18}
               max={70}
               value={form.age}
-              onChange={(e) => update('age', Number(e.target.value))}
+              onChange={(e) => {
+                clearField('age')
+                update('age', Number(e.target.value))
+              }}
             />
+            <FieldError error={fieldErrors.age} />
           </label>
           <label className="text-sm font-medium">
             {t('wizard.gender')}
@@ -218,8 +253,12 @@ export function ScanPage() {
               className={field}
               type="number"
               value={form.annualIncome}
-              onChange={(e) => update('annualIncome', Number(e.target.value))}
+              onChange={(e) => {
+                clearField('income')
+                update('annualIncome', Number(e.target.value))
+              }}
             />
+            <FieldError error={fieldErrors.income} />
           </label>
           <label className="text-sm font-medium">
             {t('wizard.experience')}
@@ -228,8 +267,12 @@ export function ScanPage() {
               type="number"
               min={0}
               value={form.experienceYears}
-              onChange={(e) => update('experienceYears', Number(e.target.value))}
+              onChange={(e) => {
+                clearField('experience')
+                update('experienceYears', Number(e.target.value))
+              }}
             />
+            <FieldError error={fieldErrors.experience} />
           </label>
         </div>
 
@@ -279,15 +322,17 @@ export function ScanPage() {
                   className={field}
                   placeholder={kn ? 'ಉದಾ: ಹಾಸನ, ಕರ್ನಾಟಕ' : 'e.g. Hassan, Karnataka'}
                   value={form.liveQuery ?? ''}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    clearField('livePlace')
                     setForm((f) => ({
                       ...f,
                       liveQuery: e.target.value,
                       liveLat: undefined,
                       liveLng: undefined,
                     }))
-                  }
+                  }}
                 />
+                <FieldError error={fieldErrors.livePlace} />
               </label>
               <button
                 type="button"
@@ -345,15 +390,19 @@ export function ScanPage() {
               min={1000}
               step={1000}
               max={NSFDC.maxMarginRupees}
-              value={form.availableMargin}
-              onChange={(e) => update('availableMargin', Number(e.target.value))}
+              value={form.availableMargin || ''}
+              onChange={(e) => {
+                clearField('margin')
+                update('availableMargin', Number(e.target.value))
+              }}
             />
+            <FieldError error={fieldErrors.margin} />
           </label>
         </div>
 
-        {(localErr || error) && (
+        {error && (
           <p className="rounded-xl bg-[#ffece8] px-3 py-2 text-sm text-danger" role="alert">
-            {localErr || (kn ? errorKn : error)}
+            {kn ? errorKn : error}
           </p>
         )}
 
@@ -367,5 +416,15 @@ export function ScanPage() {
         </button>
       </form>
     </div>
+  )
+}
+
+function FieldError({ error }: { error?: { key: string; values?: Record<string, string> } }) {
+  const { t } = useTranslation()
+  if (!error) return null
+  return (
+    <p className="mt-1 text-xs text-danger" role="alert">
+      {t(error.key, error.values)}
+    </p>
   )
 }

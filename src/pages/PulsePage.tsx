@@ -20,12 +20,13 @@ import { useApp } from '../state/useApp'
 import { BUSINESS_META } from '../data/villages'
 import { getUpcomingEvents } from '../data/festivals'
 import { VillageMap } from '../components/VillageMap'
+import { IncompleteSignalsBanner } from '../components/IncompleteSignalsBanner'
 import { format } from 'date-fns'
 
 export function PulsePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, location, weather, week, mandi, score, assessmentId } = useApp()
+  const { profile, location, weather, week, mandi, score, assessmentId, dataStatus } = useApp()
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -90,8 +91,16 @@ export function PulsePage() {
             {profile.name}
           </p>
         </div>
-        <LokScoreRing total={score.total} grade={score.grade} label={t('pulse.score')} />
+        <LokScoreRing
+          total={score.total}
+          grade={score.grade}
+          label={t('pulse.score')}
+          provisional={dataStatus === 'incomplete'}
+          provisionalLabel={t('pulse.provisional')}
+        />
       </div>
+
+      <IncompleteSignalsBanner />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="glass rounded-2xl p-5 lg:col-span-2">
@@ -263,7 +272,19 @@ export function PulsePage() {
   )
 }
 
-function LokScoreRing({ total, grade, label }: { total: number; grade: string; label: string }) {
+function LokScoreRing({
+  total,
+  grade,
+  label,
+  provisional,
+  provisionalLabel,
+}: {
+  total: number
+  grade: string
+  label: string
+  provisional?: boolean
+  provisionalLabel?: string
+}) {
   const r = 36
   const c = 2 * Math.PI * r
   const offset = c - (total / 100) * c
@@ -289,6 +310,9 @@ function LokScoreRing({ total, grade, label }: { total: number; grade: string; l
           {total}
           <span className="ml-1 text-base text-gold">/{grade}</span>
         </p>
+        {provisional && (
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-clay">{provisionalLabel}</p>
+        )}
       </div>
     </div>
   )

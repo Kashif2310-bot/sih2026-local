@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, FileDown, Lock, Shield, Sparkles } from 'lucide-react'
 import { useApp } from '../state/useApp'
 import { formatINR } from '../lib/finance'
+import { IncompleteSignalsBanner } from '../components/IncompleteSignalsBanner'
+import { canSanction, sanctionBlockReason } from '../lib/sanctionGate'
 
 export function SanctionPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, plan, score, approvalCase, escrowReleased, signAs, releaseEscrow, assessmentId } =
+  const { profile, plan, score, approvalCase, escrowReleased, signAs, releaseEscrow, assessmentId, dataStatus } =
     useApp()
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -16,6 +18,9 @@ export function SanctionPage() {
   if (!profile || !plan || !score || !approvalCase) return null
 
   const { quorum, allocation, audit, disbursement } = approvalCase
+  const blocked = !canSanction(dataStatus)
+  const blockReason = blocked ? t('sanction.incompleteBlock') : null
+  const englishBlock = blocked ? sanctionBlockReason(dataStatus) : null
 
   const onSign = async (id: string) => {
     setBusy(id)
@@ -23,7 +28,7 @@ export function SanctionPage() {
     try {
       await signAs(id)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Sign failed')
+      setErr(e instanceof Error ? e.message : t('sanction.signFailed'))
     } finally {
       setBusy(null)
     }
@@ -38,6 +43,14 @@ export function SanctionPage() {
           {t('sanction.fixtureIdentities')}
         </p>
       </div>
+
+      <IncompleteSignalsBanner />
+
+      {blocked && (
+        <p className="rounded-2xl border border-danger/30 bg-[#ffece8] px-4 py-3 text-sm font-semibold text-danger" role="alert">
+          {blockReason}
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass rounded-2xl p-5">
@@ -56,6 +69,11 @@ export function SanctionPage() {
               <dt className="text-ink/45">LokScore</dt>
               <dd className="font-medium">
                 {score.total} / {score.grade}
+                {dataStatus === 'incomplete' ? (
+                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-clay">
+                    {t('sanction.provisional')}
+                  </span>
+                ) : null}
               </dd>
             </div>
             <div>
@@ -123,12 +141,13 @@ export function SanctionPage() {
               ) : (
                 <button
                   type="button"
-                  disabled={!!busy}
+                  disabled={!!busy || blocked}
                   onClick={() => void onSign(r.reviewerId)}
+                  title={englishBlock ?? undefined}
                   aria-label={`${t('sanction.sign')} — ${kn ? r.displayNameKn : r.displayName}`}
                   className="mt-3 rounded-full bg-forest px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
                 >
-                  {busy === r.reviewerId ? '…' : t('sanction.sign')}
+                  {busy === r.reviewerId ? '…' : blocked ? t('sanction.incompleteBlock') : t('sanction.sign')}
                 </button>
               )}
             </div>

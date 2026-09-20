@@ -25,7 +25,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: withCase('finance'), label: t('nav.finance') },
     { to: withCase('sanction'), label: t('nav.sanction') },
     { to: withCase('export'), label: t('nav.export') },
-    { to: '/assistant', label: t('nav.assistant') },
+    { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant') },
   ]
 
   return (

@@ -83,6 +83,14 @@ export default function App() {
                 }
               />
               <Route path="/assistant" element={<AssistantPage />} />
+              <Route
+                path="/assistant/:id"
+                element={
+                  <AssessmentRoute>
+                    <AssistantPage />
+                  </AssessmentRoute>
+                }
+              />
             </Routes>
           </Suspense>
         </Shell>

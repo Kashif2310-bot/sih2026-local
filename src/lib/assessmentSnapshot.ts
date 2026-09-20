@@ -1,6 +1,7 @@
 import type { AssessmentCreate } from './api'
 import type { SchemePlan } from './finance'
 import { toPaise } from './finance'
+import { collectFailedSources, dataStatusFromFailures, type LiveSourceId } from './liveSignals'
 import type {
   EntrepreneurProfile,
   LokScoreBreakdown,
@@ -10,7 +11,9 @@ import type {
 import type { ResolvedLocation } from './resolveLocation'
 import type { WorkingCapitalPlan } from './workingCapital'
 
-export const APP_VERSION = '0.0.0'
+declare const __APP_VERSION__: string
+
+export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0+dev'
 export const LAST_ASSESSMENT_KEY = 'lokpulse:lastAssessmentId'
 export const SNAPSHOT_CACHE_PREFIX = 'lokpulse:assessment:'
 
@@ -27,6 +30,8 @@ export interface AssessmentSnapshot {
     applicationId: string
     frozenAt: number
   }
+  failedSources?: LiveSourceId[]
+  weatherSkipped?: boolean
 }
 
 export function isAssessmentSnapshot(value: unknown): value is AssessmentSnapshot {
@@ -51,14 +56,11 @@ export function nsfdcScheme(plan: SchemePlan): 'micro' | 'term' {
 export function snapshotDataStatus(
   location: ResolvedLocation,
   weather: WeatherSignal,
-  mandi: MandiSignal | null,
+  weatherSkipped = false,
+  failedSources?: LiveSourceId[],
 ): 'complete' | 'incomplete' {
-  const complete =
-    weather.source === 'live' &&
-    mandi != null &&
-    mandi.source === 'seeded' &&
-    location.competitorQueryOk
-  return complete ? 'complete' : 'incomplete'
+  const failed = failedSources ?? collectFailedSources(location, weather, weatherSkipped)
+  return dataStatusFromFailures(failed)
 }
 
 export function buildAssessmentCreate(
@@ -78,7 +80,12 @@ export function buildAssessmentCreate(
     scheme: nsfdcScheme(snapshot.plan),
     lokscore: snapshot.score.total,
     lokscore_grade: snapshot.score.grade,
-    data_status: snapshotDataStatus(snapshot.location, snapshot.weather, snapshot.mandi),
+    data_status: snapshotDataStatus(
+      snapshot.location,
+      snapshot.weather,
+      snapshot.weatherSkipped ?? false,
+      snapshot.failedSources,
+    ),
     inputs_json: { profile: snapshot.profile },
     outputs_json: snapshot as unknown as Record<string, unknown>,
     app_version: APP_VERSION,
