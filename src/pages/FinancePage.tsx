@@ -1,4 +1,4 @@
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight } from 'lucide-react'
 import { useApp } from '../state/useApp'
@@ -8,9 +8,9 @@ import { MORATORIUM_POLICY_LABEL } from '../lib/config'
 export function FinancePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, plan, score, workingCapital } = useApp()
+  const { profile, plan, score, workingCapital, assessmentId } = useApp()
 
-  if (!profile || !plan || !score) return <Navigate to="/scan" replace />
+  if (!profile || !plan || !score) return null
 
   const rejected = plan.schemeId === 'under_margin' || plan.schemeId === 'over_limit'
 
@@ -185,7 +185,7 @@ export function FinancePage() {
 
       {!rejected && (
         <Link
-          to="/sanction"
+          to={`/sanction/${assessmentId}`}
           className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
         >
           {t('finance.continue')} <ArrowRight className="h-4 w-4" />

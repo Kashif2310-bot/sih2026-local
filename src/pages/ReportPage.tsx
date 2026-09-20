@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, Users } from 'lucide-react'
 import { useApp } from '../state/useApp'
@@ -11,7 +11,7 @@ import { VillageMap } from '../components/VillageMap'
 export function ReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, location, weather, mandi, score, plan } = useApp()
+  const { profile, location, weather, mandi, score, plan, assessmentId } = useApp()
   const [radiusKm, setRadiusKm] = useState(location?.radiusKm ?? REACH_KM.default)
 
   // Competitors were fetched once at scan time within location.radiusKm. Filtering down
@@ -23,7 +23,7 @@ export function ReportPage() {
     )
   }, [location, radiusKm])
 
-  if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
+  if (!profile || !weather || !score || !location || !plan) return null
 
   const report = buildFeasibility({
     profile,
@@ -158,7 +158,7 @@ export function ReportPage() {
       </div>
 
       <Link
-        to="/finance"
+        to={`/finance/${assessmentId}`}
         className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
       >
         {t('report.continue')} <ArrowRight className="h-4 w-4" />

@@ -123,8 +123,8 @@ export function ScanPage() {
       setLocalErr(kn ? 'ಸ್ಥಳ ನಮೂದಿಸಿ ಅಥವಾ GPS ಬಳಸಿ' : 'Enter a place or use GPS')
       return
     }
-    const ok = await setProfileAndScan(form)
-    if (ok) navigate('/pulse')
+    const id = await setProfileAndScan(form)
+    if (id) navigate(`/pulse/${id}`)
   }
 
   const field =

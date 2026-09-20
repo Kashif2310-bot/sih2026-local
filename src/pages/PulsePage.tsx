@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   Area,
@@ -25,20 +25,13 @@ import { format } from 'date-fns'
 export function PulsePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, location, weather, week, mandi, score, loading } = useApp()
+  const { profile, location, weather, week, mandi, score, assessmentId } = useApp()
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
-  if (!profile && !loading) return <Navigate to="/scan" replace />
-  if (!profile || !weather || !score || !location) {
-    return (
-      <div className="glass rounded-2xl p-8 text-center text-ink/60">
-        {kn ? 'ಸ್ಕ್ಯಾನ್ ಚಾಲನೆಯಲ್ಲಿದೆ…' : 'Running hyperlocal scan…'}
-      </div>
-    )
-  }
+  if (!profile || !weather || !score || !location) return null
 
   const events = location.hasCuratedSignals ? getUpcomingEvents(location.id) : []
   const placeName = kn ? location.nameKn : location.name
@@ -261,7 +254,7 @@ export function PulsePage() {
       </div>
 
       <Link
-        to="/report"
+        to={`/report/${assessmentId}`}
         className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
       >
         {t('pulse.continue')} <ArrowRight className="h-4 w-4" />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, FileDown, Lock, Shield, Sparkles } from 'lucide-react'
 import { useApp } from '../state/useApp'
@@ -8,11 +8,12 @@ import { formatINR } from '../lib/finance'
 export function SanctionPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, plan, score, approvalCase, escrowReleased, signAs, releaseEscrow } = useApp()
+  const { profile, plan, score, approvalCase, escrowReleased, signAs, releaseEscrow, assessmentId } =
+    useApp()
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-  if (!profile || !plan || !score || !approvalCase) return <Navigate to="/scan" replace />
+  if (!profile || !plan || !score || !approvalCase) return null
 
   const { quorum, allocation, audit, disbursement } = approvalCase
 
@@ -194,7 +195,7 @@ export function SanctionPage() {
 
       <div className="flex flex-wrap items-center gap-4">
         <Link
-          to="/export"
+          to={`/export/${assessmentId}`}
           className="inline-flex items-center gap-2 rounded-full border border-forest/20 bg-white px-4 py-2 text-sm font-semibold text-forest"
         >
           <FileDown className="h-4 w-4" /> {t('nav.export')}

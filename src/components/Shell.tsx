@@ -2,23 +2,29 @@ import { NavLink, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Radar } from 'lucide-react'
 import clsx from 'clsx'
+import { readLastAssessmentId } from '../lib/assessmentSnapshot'
+import { useApp } from '../state/useApp'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
+  const { assessmentId } = useApp()
+  const caseId = assessmentId ?? readLastAssessmentId()
 
   const toggle = () => {
     void i18n.changeLanguage(kn ? 'en' : 'kn')
   }
 
+  const withCase = (page: string) => (caseId ? `/${page}/${caseId}` : `/${page}`)
+
   const links = [
     { to: '/', label: t('nav.home') },
     { to: '/scan', label: t('nav.scan') },
-    { to: '/pulse', label: t('nav.pulse') },
-    { to: '/report', label: t('nav.report') },
-    { to: '/finance', label: t('nav.finance') },
-    { to: '/sanction', label: t('nav.sanction') },
-    { to: '/export', label: t('nav.export') },
+    { to: withCase('pulse'), label: t('nav.pulse') },
+    { to: withCase('report'), label: t('nav.report') },
+    { to: withCase('finance'), label: t('nav.finance') },
+    { to: withCase('sanction'), label: t('nav.sanction') },
+    { to: withCase('export'), label: t('nav.export') },
     { to: '/assistant', label: t('nav.assistant') },
   ]
 

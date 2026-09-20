@@ -1,4 +1,11 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
+import { createAssessment } from '../lib/api'
+import {
+  buildAssessmentCreate,
+  cacheSnapshot,
+  writeLastAssessmentId,
+  type AssessmentSnapshot,
+} from '../lib/assessmentSnapshot'
 import { buildSchemePlan } from '../lib/finance'
 import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '../lib/lokScore'
 import { fetchMandiSignal } from '../lib/mandi'
@@ -45,8 +52,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [errorKn, setErrorKn] = useState<string | null>(null)
   const [approvalCase, setApprovalCase] = useState<AppState['approvalCase']>(null)
   const [escrowReleased, setEscrowReleased] = useState(false)
+  const [assessmentId, setAssessmentId] = useState<string | null>(null)
+  const [persisted, setPersisted] = useState(false)
   const serviceRef = useRef<ApprovalService | null>(null)
   const applicationIdRef = useRef<string | null>(null)
+  const assessmentIdRef = useRef<string | null>(null)
+  const readyRef = useRef(false)
 
   const setProfileAndScan = useCallback(async (p: EntrepreneurProfile) => {
     setLoading(true)
@@ -54,6 +65,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setErrorKn(null)
     setApprovalCase(null)
     setEscrowReleased(false)
+    setPersisted(false)
+    readyRef.current = false
     const radiusKm = p.radiusKm || REACH_KM.default
 
     try {
@@ -69,7 +82,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!live.ok) {
           setError(live.error)
           setErrorKn(live.errorKn)
-          return false
+          return null
         }
         resolved = live.location
       } else {
@@ -136,6 +149,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       applicationIdRef.current = applicationId
 
+      const snapshot: AssessmentSnapshot = {
+        profile: p,
+        location: resolved,
+        weather: w,
+        week: wk,
+        mandi: m,
+        plan: scheme,
+        workingCapital: wc,
+        score: lok,
+        approval: { applicationId, frozenAt },
+      }
+
+      let id: string = crypto.randomUUID()
+      let saved = false
+      try {
+        const row = await createAssessment(buildAssessmentCreate(snapshot))
+        id = row.id
+        saved = true
+      } catch {
+        saved = false
+      }
+      cacheSnapshot(id, snapshot)
+      writeLastAssessmentId(id, saved)
+      assessmentIdRef.current = id
+      readyRef.current = true
+
       setProfile(p)
       setLocation(resolved)
       setWeather(w)
@@ -145,14 +184,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setWorkingCapital(wc)
       setScore(lok)
       setApprovalCase(view)
-      return true
+      setAssessmentId(id)
+      setPersisted(saved)
+      return id
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
       setErrorKn('ಸ್ಕ್ಯಾನ್ ವಿಫಲವಾಗಿದೆ')
-      return false
+      return null
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const hydrateFromSnapshot = useCallback(
+    async (id: string, snapshot: AssessmentSnapshot, saved: boolean) => {
+      const approval = await loadApproval()
+      const svc = approval.service.createApprovalService()
+      serviceRef.current = svc
+      const view = svc.openApprovalCase({
+        applicationId: snapshot.approval.applicationId,
+        applicantRef: snapshot.profile.name,
+        villageId: snapshot.location.id,
+        schemeId: snapshot.plan.schemeId,
+        projectCost: snapshot.plan.projectCost,
+        loanAmount: snapshot.plan.loanAmount,
+        lokScore: snapshot.score,
+        frozenAt: snapshot.approval.frozenAt,
+      })
+      applicationIdRef.current = snapshot.approval.applicationId
+      assessmentIdRef.current = id
+      readyRef.current = true
+      setProfile(snapshot.profile)
+      setLocation(snapshot.location)
+      setWeather(snapshot.weather)
+      setWeek(snapshot.week)
+      setMandi(snapshot.mandi)
+      setPlan(snapshot.plan)
+      setWorkingCapital(snapshot.workingCapital)
+      setScore(snapshot.score)
+      setApprovalCase(view)
+      setEscrowReleased(false)
+      setAssessmentId(id)
+      setPersisted(saved)
+      setError(null)
+      setErrorKn(null)
+    },
+    [],
+  )
+
+  const hasAssessment = useCallback((id: string) => {
+    return readyRef.current && assessmentIdRef.current === id
   }, [])
 
   const signAs = useCallback(async (reviewerId: string) => {
@@ -185,10 +266,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScore(null)
     setApprovalCase(null)
     setEscrowReleased(false)
+    setAssessmentId(null)
+    setPersisted(false)
     setError(null)
     setErrorKn(null)
     serviceRef.current = null
     applicationIdRef.current = null
+    assessmentIdRef.current = null
+    readyRef.current = false
   }, [])
 
   const value: AppState = {
@@ -205,7 +290,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     errorKn,
     approvalCase,
     escrowReleased,
+    assessmentId,
+    persisted,
     setProfileAndScan,
+    hydrateFromSnapshot,
+    hasAssessment,
     signAs,
     releaseEscrow,
     reset,

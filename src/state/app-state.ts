@@ -1,5 +1,6 @@
 import { createContext } from 'react'
 import type { ApprovalCaseView } from '../lib/approval/views'
+import type { AssessmentSnapshot } from '../lib/assessmentSnapshot'
 import type { SchemePlan } from '../lib/finance'
 import type {
   EntrepreneurProfile,
@@ -25,7 +26,17 @@ export interface AppState {
   /** Read-only approval projection — no multisig internals reach the UI. */
   approvalCase: ApprovalCaseView | null
   escrowReleased: boolean
-  setProfileAndScan: (p: EntrepreneurProfile) => Promise<boolean>
+  /** Current case id (server UUID, or a client id when working offline). */
+  assessmentId: string | null
+  /** False when the last scan was not saved to the backend. */
+  persisted: boolean
+  setProfileAndScan: (p: EntrepreneurProfile) => Promise<string | null>
+  hydrateFromSnapshot: (
+    id: string,
+    snapshot: AssessmentSnapshot,
+    persisted: boolean,
+  ) => Promise<void>
+  hasAssessment: (id: string) => boolean
   signAs: (reviewerId: string) => Promise<void>
   releaseEscrow: () => void
   reset: () => void
