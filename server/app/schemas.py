@@ -63,3 +63,23 @@ class AssessmentOut(BaseModel):
     outputs_json: dict[str, Any]
     app_version: str
     created_at: datetime
+
+
+class PhoneBody(BaseModel):
+    phone: str
+
+
+class VerifyOtpBody(BaseModel):
+    phone: str
+    code: str
+
+
+class OtpIssued(BaseModel):
+    phone: str
+    code: str
+
+
+class AuthSession(BaseModel):
+    user: UserOut
+    token: str
+

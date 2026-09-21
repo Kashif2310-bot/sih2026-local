@@ -73,7 +73,17 @@ export interface AssessmentOut {
   created_at: string
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export interface OtpIssued {
+  phone: string
+  code: string
+}
+
+export interface AuthSessionOut {
+  user: UserOut
+  token: string
+}
+
+async function request<T>(path: string, init?: RequestInit, token?: string | null): Promise<T> {
   const url = `${apiBaseUrl()}${path}`
   let res: Response
   try {
@@ -83,6 +93,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: {
         Accept: 'application/json',
         ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init?.headers,
       },
     })
@@ -111,8 +122,8 @@ export function getUser(id: string): Promise<UserOut> {
   return request<UserOut>(`/users/${encodeURIComponent(id)}`)
 }
 
-export function listUserAssessments(userId: string): Promise<AssessmentOut[]> {
-  return request<AssessmentOut[]>(`/users/${encodeURIComponent(userId)}/assessments`)
+export function listUserAssessments(userId: string, token: string): Promise<AssessmentOut[]> {
+  return request<AssessmentOut[]>(`/users/${encodeURIComponent(userId)}/assessments`, undefined, token)
 }
 
 export function createAssessment(payload: AssessmentCreate): Promise<AssessmentOut> {
@@ -124,4 +135,26 @@ export function createAssessment(payload: AssessmentCreate): Promise<AssessmentO
 
 export function getAssessment(id: string): Promise<AssessmentOut> {
   return request<AssessmentOut>(`/assessments/${encodeURIComponent(id)}`)
+}
+
+export function claimAssessment(id: string, token: string): Promise<AssessmentOut> {
+  return request<AssessmentOut>(
+    `/assessments/${encodeURIComponent(id)}`,
+    { method: 'PATCH' },
+    token,
+  )
+}
+
+export function requestOtp(phone: string): Promise<OtpIssued> {
+  return request<OtpIssued>('/auth/request-otp', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
+export function verifyOtp(phone: string, code: string): Promise<AuthSessionOut> {
+  return request<AuthSessionOut>('/auth/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ phone, code }),
+  })
 }

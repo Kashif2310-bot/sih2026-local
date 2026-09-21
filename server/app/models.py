@@ -46,6 +46,7 @@ class User(Base):
 
     assessments: Mapped[list[Assessment]] = relationship(back_populates="user")
     loans: Mapped[list[Loan]] = relationship(back_populates="user")
+    tokens: Mapped[list["AuthToken"]] = relationship(back_populates="user")
 
 
 class Assessment(Base):
@@ -135,3 +136,14 @@ class Checkin(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
     loan: Mapped[Loan] = relationship(back_populates="checkins")
+
+
+class AuthToken(Base):
+    __tablename__ = "auth_tokens"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    user: Mapped[User] = relationship(back_populates="tokens")
+

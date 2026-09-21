@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_db
 from app.models import Assessment, User
+from app.routers.auth import require_user
 from app.schemas import AssessmentOut, UserCreate, UserOut
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -30,7 +31,13 @@ def get_user(user_id: str, db: Session = Depends(get_db)) -> User:
 
 
 @router.get("/{user_id}/assessments", response_model=list[AssessmentOut])
-def list_user_assessments(user_id: str, db: Session = Depends(get_db)) -> list[Assessment]:
+def list_user_assessments(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current: User = Depends(require_user),
+) -> list[Assessment]:
+    if current.id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="token does not match user")
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")

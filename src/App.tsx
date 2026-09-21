@@ -5,6 +5,7 @@ import { AssessmentRoute, LegacyAssessmentRedirect } from './components/Assessme
 import { Shell } from './components/Shell'
 import { LandingPage } from './pages/LandingPage'
 import { AppProvider } from './state/AppContext'
+import { AuthProvider } from './state/AuthContext'
 
 // Route-level code splitting: recharts (PulsePage) and react-leaflet
 // (PulsePage/ReportPage's VillageMap) are the heaviest dependencies and are
@@ -20,6 +21,10 @@ const ExportPage = lazy(() => import('./pages/ExportPage').then((m) => ({ defaul
 const AssistantPage = lazy(() =>
   import('./pages/AssistantPage').then((m) => ({ default: m.AssistantPage })),
 )
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })))
+const HistoryPage = lazy(() =>
+  import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
+)
 
 function RouteFallback() {
   // Must stay bilingual: the Suspense fallback is real UI a Kannada-mode
@@ -30,12 +35,15 @@ function RouteFallback() {
 
 export default function App() {
   return (
+    <AuthProvider>
     <AppProvider>
       <BrowserRouter>
         <Shell>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/history" element={<HistoryPage />} />
               <Route path="/scan" element={<ScanPage />} />
               <Route path="/pulse" element={<LegacyAssessmentRedirect page="pulse" />} />
               <Route
@@ -96,5 +104,6 @@ export default function App() {
         </Shell>
       </BrowserRouter>
     </AppProvider>
+    </AuthProvider>
   )
 }

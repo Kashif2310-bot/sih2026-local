@@ -118,18 +118,85 @@ def test_unknown_ids_404(client: TestClient) -> None:
     missing = "00000000-0000-0000-0000-000000000099"
     assert client.get(f"/users/{missing}").status_code == 404
     assert client.get(f"/assessments/{missing}").status_code == 404
-    assert client.get(f"/users/{missing}/assessments").status_code == 404
+    assert client.get(f"/users/{missing}/assessments").status_code == 401
+
+
+def _login(client: TestClient, phone: str = "9999900000") -> dict:
+    issued = client.post("/auth/request-otp", json={"phone": phone})
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["code"] == "123456"
+    verified = client.post("/auth/verify-otp", json={"phone": phone, "code": "123456"})
+    assert verified.status_code == 200, verified.text
+    return verified.json()
+
+
+def test_request_otp_returns_demo_code(client: TestClient) -> None:
+    res = client.post("/auth/request-otp", json={"phone": "9000000001"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["phone"] == "9000000001"
+    assert body["code"] == "123456"
+
+
+def test_verify_otp_wrong_code_rejected(client: TestClient) -> None:
+    res = client.post("/auth/verify-otp", json={"phone": "9000000002", "code": "000000"})
+    assert res.status_code == 401
+    assert "wrong" in res.json()["detail"].lower()
+
+
+def test_verify_otp_creates_user_and_token(client: TestClient) -> None:
+    session = _login(client, "9000000003")
+    assert session["token"]
+    assert session["user"]["phone"] == "9000000003"
+    again = client.post("/auth/verify-otp", json={"phone": "9000000003", "code": "123456"})
+    assert again.status_code == 200
+    assert again.json()["user"]["id"] == session["user"]["id"]
+
+
+def test_history_requires_token(client: TestClient) -> None:
+    session = _login(client, "9000000004")
+    user_id = session["user"]["id"]
+    listed = client.get(f"/users/{user_id}/assessments")
+    assert listed.status_code == 401
+    ok = client.get(
+        f"/users/{user_id}/assessments",
+        headers={"Authorization": f"Bearer {session['token']}"},
+    )
+    assert ok.status_code == 200
+    assert ok.json() == []
 
 
 def test_list_assessments_newest_first(client: TestClient) -> None:
-    user = client.post("/users", json={"name": "Order"}).json()
-    first = client.post("/assessments", json=_base_assessment(user_id=user["id"], app_version="first"))
+    session = _login(client, "9000000005")
+    user_id = session["user"]["id"]
+    headers = {"Authorization": f"Bearer {session['token']}"}
+    first = client.post("/assessments", json=_base_assessment(user_id=user_id, app_version="first"))
     assert first.status_code == 201, first.text
     time.sleep(0.05)
-    second = client.post("/assessments", json=_base_assessment(user_id=user["id"], app_version="second"))
+    second = client.post("/assessments", json=_base_assessment(user_id=user_id, app_version="second"))
     assert second.status_code == 201, second.text
-    listed = client.get(f"/users/{user['id']}/assessments")
+    listed = client.get(f"/users/{user_id}/assessments", headers=headers)
     assert listed.status_code == 200
     versions = [row["app_version"] for row in listed.json()]
     assert versions[0] == "second"
     assert versions[1] == "first"
+
+
+def test_claim_guest_assessment_after_login(client: TestClient) -> None:
+    created = client.post("/assessments", json=_base_assessment())
+    assert created.status_code == 201, created.text
+    assessment_id = created.json()["id"]
+    assert created.json()["user_id"] is None
+    session = _login(client, "9000000006")
+    claimed = client.patch(
+        f"/assessments/{assessment_id}",
+        headers={"Authorization": f"Bearer {session['token']}"},
+    )
+    assert claimed.status_code == 200, claimed.text
+    assert claimed.json()["user_id"] == session["user"]["id"]
+    listed = client.get(
+        f"/users/{session['user']['id']}/assessments",
+        headers={"Authorization": f"Bearer {session['token']}"},
+    )
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == assessment_id

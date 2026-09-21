@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { createAssessment } from '../lib/api'
+import { readAuth } from '../lib/authSession'
 import {
   buildAssessmentCreate,
   cacheSnapshot,
@@ -178,7 +179,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let id: string = crypto.randomUUID()
       let saved = false
       try {
-        const row = await createAssessment(buildAssessmentCreate(snapshot))
+        const row = await createAssessment(buildAssessmentCreate(snapshot, readAuth()?.user.id))
         id = row.id
         saved = true
       } catch {

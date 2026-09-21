@@ -65,9 +65,11 @@ export function snapshotDataStatus(
 
 export function buildAssessmentCreate(
   snapshot: AssessmentSnapshot,
+  userId?: string | null,
 ): AssessmentCreate {
   const marginPaise = toPaise(snapshot.profile.availableMargin)
   return {
+    user_id: userId ?? null,
     location_label: [snapshot.location.name, snapshot.location.district]
       .filter(Boolean)
       .join(', '),
