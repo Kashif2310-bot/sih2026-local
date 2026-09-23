@@ -5,8 +5,17 @@ import { createInitialProfile, defaultAssistantDeps, runAssistantTurn, type Acti
 import type { RankedScheme, UserProfile } from '../types'
 import { AssistantCtx, type AssistantState, type UIMessage } from './assistant-state'
 
-export function AssistantProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile>(() => createInitialProfile())
+export function AssistantProvider({
+  children,
+  initialProfile,
+  caseBound = false,
+}: {
+  children: ReactNode
+  initialProfile?: UserProfile
+  caseBound?: boolean
+}) {
+  const seed = () => initialProfile ?? createInitialProfile()
+  const [profile, setProfile] = useState<UserProfile>(seed)
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [ranked, setRanked] = useState<RankedScheme[]>([])
   const [missingFields, setMissingFields] = useState<MissingFieldInfo[]>([])
@@ -86,7 +95,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const selectScheme = useCallback((id: string | null) => setSelectedSchemeId(id), [])
 
   const reset = useCallback(() => {
-    setProfile(createInitialProfile())
+    setProfile(seed())
     setMessages([])
     setRanked([])
     setMissingFields([])
@@ -95,7 +104,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setSelectedSchemeId(null)
     setHasStarted(false)
     pendingTextRef.current = null
-  }, [])
+  }, [initialProfile])
 
   const value: AssistantState = {
     profile,
@@ -107,6 +116,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     error,
     selectedSchemeId,
     hasStarted,
+    caseBound,
     sendMessage,
     retryLast,
     selectScheme,

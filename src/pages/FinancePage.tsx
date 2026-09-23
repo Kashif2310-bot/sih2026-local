@@ -1,18 +1,36 @@
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight } from 'lucide-react'
 import { useApp } from '../state/useApp'
-import { formatINR } from '../lib/finance'
-import { MORATORIUM_POLICY_LABEL } from '../lib/config'
+import { formatINR, fromPaise, toPaise } from '../lib/finance'
+import { loanCapTransparency, schemeFromPlanId } from '../lib/loanCap'
+import { NSFDC, MORATORIUM_POLICY_LABEL } from '../lib/config'
 
 export function FinancePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, plan, score, workingCapital } = useApp()
+  const { profile, plan, score, workingCapital, assessmentId } = useApp()
 
-  if (!profile || !plan || !score) return <Navigate to="/scan" replace />
+  if (!profile || !plan || !score) return null
 
   const rejected = plan.schemeId === 'under_margin' || plan.schemeId === 'over_limit'
+  const schemeKind = schemeFromPlanId(plan.schemeId)
+  const capInfo =
+    !rejected && schemeKind
+      ? loanCapTransparency({
+          projectCostPaise: toPaise(plan.projectCost),
+          enteredMarginPaise: toPaise(profile.availableMargin),
+          scheme: schemeKind,
+        })
+      : null
+  const loanLabel =
+    capInfo?.capped
+      ? t('finance.loanCapped', {
+          cap: (schemeKind === 'micro' ? NSFDC.microLoanCapRupees : NSFDC.termLoanCapRupees).toLocaleString(
+            'en-IN',
+          ),
+        })
+      : t('finance.loan')
 
   return (
     <div className="space-y-6">
@@ -34,13 +52,23 @@ export function FinancePage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label={t('finance.project')} value={formatINR(plan.projectCost)} />
-        <Stat label={t('finance.loan')} value={formatINR(plan.loanAmount)} />
+        <Stat label={loanLabel} value={formatINR(plan.loanAmount)} />
         <Stat
           label={t('finance.scheme')}
           value={kn ? plan.schemeNameKn : plan.schemeName}
           small
         />
       </div>
+
+      {capInfo?.capped && (
+        <p className="rounded-xl border border-gold/40 bg-gold/15 px-4 py-3 text-sm font-medium text-ink" role="status">
+          {t('finance.capApplies', {
+            needed: Math.round(fromPaise(capInfo.neededMarginPaise)).toLocaleString('en-IN'),
+            extra: Math.round(fromPaise(capInfo.extraMarginPaise)).toLocaleString('en-IN'),
+            entered: Math.round(fromPaise(toPaise(profile.availableMargin))).toLocaleString('en-IN'),
+          })}
+        </p>
+      )}
 
       {!rejected && (
         <div className="glass grid gap-4 rounded-2xl p-5 sm:grid-cols-4">
@@ -185,7 +213,7 @@ export function FinancePage() {
 
       {!rejected && (
         <Link
-          to="/sanction"
+          to={`/sanction/${assessmentId}`}
           className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
         >
           {t('finance.continue')} <ArrowRight className="h-4 w-4" />

@@ -29,3 +29,8 @@ playwright-report
 *.njsproj
 *.sln
 *.sw?
+
+# Backend
+server/.venv/
+*.db
+__pycache__/

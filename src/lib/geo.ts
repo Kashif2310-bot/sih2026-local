@@ -1,5 +1,6 @@
 import type { BusinessCategory } from '../data/villages'
 import { NOMINATIM_TIMEOUT_MS, OVERPASS_TIMEOUT_MS, REACH_KM } from './config'
+import { retryOnceIf } from './retry'
 
 export interface GeocodeHit {
   displayName: string
@@ -47,6 +48,10 @@ function categoryOverpassFilter(category: BusinessCategory): string {
 export async function geocodeLocation(query: string): Promise<GeocodeHit | null> {
   const q = query.trim()
   if (!q) return null
+  return retryOnceIf(() => geocodeLocationOnce(q), (hit) => hit == null)
+}
+
+async function geocodeLocationOnce(q: string): Promise<GeocodeHit | null> {
   const url =
     `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=in&q=` +
     encodeURIComponent(q)
@@ -85,6 +90,10 @@ export async function geocodeLocation(query: string): Promise<GeocodeHit | null>
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeHit | null> {
+  return retryOnceIf(() => reverseGeocodeOnce(lat, lng), (hit) => hit == null)
+}
+
+async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeHit | null> {
   const url =
     `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`
   const ctrl = new AbortController()
@@ -163,6 +172,15 @@ async function queryOverpassEndpoint(
 }
 
 export async function fetchCompetitorsNearby(input: {
+  lat: number
+  lng: number
+  category: BusinessCategory
+  radiusKm?: number
+}): Promise<{ ok: boolean; pois: CompetitorPoi[]; error?: string }> {
+  return retryOnceIf(() => fetchCompetitorsNearbyOnce(input), (r) => !r.ok)
+}
+
+async function fetchCompetitorsNearbyOnce(input: {
   lat: number
   lng: number
   category: BusinessCategory

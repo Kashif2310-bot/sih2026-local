@@ -1,7 +1,6 @@
-import { Navigate } from 'react-router-dom'
+import { useApp } from '../state/useApp'
 import { useTranslation } from 'react-i18next'
 import { Printer } from 'lucide-react'
-import { useApp } from '../state/useApp'
 import { buildFeasibility } from '../lib/feasibility'
 import { formatINR } from '../lib/finance'
 import { getDocumentChecklist } from '../lib/documentChecklist'
@@ -13,7 +12,7 @@ export function ExportPage() {
   const kn = i18n.language === 'kn'
   const { profile, location, weather, mandi, score, plan, workingCapital } = useApp()
 
-  if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
+  if (!profile || !weather || !score || !location || !plan) return null
 
   const report = buildFeasibility({
     profile,

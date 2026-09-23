@@ -23,6 +23,7 @@ export interface AssistantState {
   error: string | null
   selectedSchemeId: string | null
   hasStarted: boolean
+  caseBound: boolean
   sendMessage: (text: string) => Promise<void>
   retryLast: () => Promise<void>
   selectScheme: (id: string | null) => void

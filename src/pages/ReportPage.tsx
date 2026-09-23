@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, Users } from 'lucide-react'
 import { useApp } from '../state/useApp'
@@ -7,11 +7,13 @@ import { buildFeasibility } from '../lib/feasibility'
 import { REACH_KM } from '../lib/config'
 import { distanceKm } from '../lib/geo'
 import { VillageMap } from '../components/VillageMap'
+import { IncompleteSignalsBanner } from '../components/IncompleteSignalsBanner'
+import { BUSINESS_CATEGORIES, BUSINESS_META } from '../data/villages'
 
 export function ReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { profile, location, weather, mandi, score, plan } = useApp()
+  const { profile, location, weather, mandi, score, plan, assessmentId, dataStatus } = useApp()
   const [radiusKm, setRadiusKm] = useState(location?.radiusKm ?? REACH_KM.default)
 
   // Competitors were fetched once at scan time within location.radiusKm. Filtering down
@@ -23,7 +25,7 @@ export function ReportPage() {
     )
   }, [location, radiusKm])
 
-  if (!profile || !weather || !score || !location || !plan) return <Navigate to="/scan" replace />
+  if (!profile || !weather || !score || !location || !plan) return null
 
   const report = buildFeasibility({
     profile,
@@ -46,8 +48,29 @@ export function ReportPage() {
         <h1 className="font-display text-3xl font-bold text-forest">{t('report.title')}</h1>
         <p className="mt-1 text-sm text-ink/60">
           {kn ? location.nameKn : location.name} · LokScore {score.total} ({score.grade})
+          {dataStatus === 'incomplete' ? ` · ${t('pulse.provisional')}` : ''}
         </p>
       </div>
+
+      <IncompleteSignalsBanner />
+
+      <Block title={t('report.categories')}>
+        <p className="mb-3 text-xs text-ink/55">{t('report.categoriesNote')}</p>
+        <div className="flex flex-wrap gap-2">
+          {BUSINESS_CATEGORIES.map((k) => (
+            <span
+              key={k}
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                k === profile.category
+                  ? 'bg-forest text-white'
+                  : 'border border-forest/15 bg-white text-ink/70'
+              }`}
+            >
+              {kn ? BUSINESS_META[k].labelKn : BUSINESS_META[k].label}
+            </span>
+          ))}
+        </div>
+      </Block>
 
       <Block title={t('report.reachMap')}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -158,7 +181,7 @@ export function ReportPage() {
       </div>
 
       <Link
-        to="/finance"
+        to={`/finance/${assessmentId}`}
         className="inline-flex items-center gap-2 rounded-full bg-forest px-5 py-3 text-sm font-bold text-white"
       >
         {t('report.continue')} <ArrowRight className="h-4 w-4" />

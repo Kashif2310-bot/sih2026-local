@@ -35,6 +35,8 @@ export interface ResolvedLocation {
   competitorQueryOk: boolean
   competitorError?: string
   radiusKm: number
+  /** False when Nominatim geocoding/reverse-geocoding was attempted and failed. */
+  geocodeOk?: boolean
   /** True when festivals/mandi curated packs apply */
   hasCuratedSignals: boolean
 }
@@ -64,6 +66,7 @@ export function curatedLocationFromVillage(v: Village, radiusKm: number): Resolv
     provenanceLabelKn: `${v.nameKn} ಗೆ ಕ್ಯುರೇಟೆಡ್ ಸ್ಥಳೀಯ ಡೇಟಾ`,
     competitors: [],
     competitorQueryOk: true,
+    geocodeOk: true,
     radiusKm,
     hasCuratedSignals: true,
   }
@@ -117,10 +120,12 @@ export async function resolveLiveLocation(input: {
 }): Promise<{ ok: true; location: ResolvedLocation } | { ok: false; error: string; errorKn: string }> {
   const radiusKm = input.radiusKm ?? REACH_KM.default
   let hit: GeocodeHit | null = null
+  let geocodeOk = true
 
   if (input.lat != null && input.lng != null) {
     hit = await reverseGeocode(input.lat, input.lng)
     if (!hit) {
+      geocodeOk = false
       hit = {
         displayName: `${input.lat.toFixed(4)}, ${input.lng.toFixed(4)}`,
         lat: input.lat,
@@ -201,6 +206,7 @@ export async function resolveLiveLocation(input: {
     competitors: live.pois,
     competitorQueryOk: live.ok,
     competitorError: live.error,
+    geocodeOk,
     radiusKm,
     hasCuratedSignals: false,
   }

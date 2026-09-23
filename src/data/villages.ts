@@ -160,7 +160,7 @@ export const BUSINESS_META: Record<
   dairy: { label: 'Dairy', labelKn: 'ಹೈನು ಉದ್ಯಮ', unit: 'litres/day', mandiCommodity: 'Milk' },
   retail: { label: 'Kirana / Retail', labelKn: 'ಕಿರಾಣಿ / ಚಿಲ್ಲರೆ', unit: 'SKU mix' },
   food: { label: 'Food / Tiffin', labelKn: 'ಆಹಾರ / ತಿಫಿನ್', unit: 'covers/day' },
-  textiles: { label: 'Textiles', labelKn: 'ವಸ್ತ್ರೋದ್ಯಮ', unit: 'pieces/month' },
+  textiles: { label: 'Textiles / Tailoring', labelKn: 'ವಸ್ತ್ರೋದ್ಯಮ / ಟೈಲರಿಂಗ್', unit: 'pieces/month' },
   poultry: { label: 'Poultry', labelKn: 'ಕೋಳಿ ಸಾಕಾಣಿಕೆ', unit: 'birds' },
   agri_processing: {
     label: 'Agri Processing',
@@ -169,3 +169,6 @@ export const BUSINESS_META: Record<
     mandiCommodity: 'Ragi',
   },
 }
+
+export const BUSINESS_CATEGORIES = Object.keys(BUSINESS_META) as BusinessCategory[]
+

@@ -2,24 +2,34 @@ import { NavLink, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Radar } from 'lucide-react'
 import clsx from 'clsx'
+import { readLastAssessmentId } from '../lib/assessmentSnapshot'
+import { useAuth } from '../state/AuthContext'
+import { useApp } from '../state/useApp'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
+  const { assessmentId } = useApp()
+  const { user, logout } = useAuth()
+  const caseId = assessmentId ?? readLastAssessmentId()
+  const who = user?.name || user?.phone || null
 
   const toggle = () => {
     void i18n.changeLanguage(kn ? 'en' : 'kn')
   }
 
+  const withCase = (page: string) => (caseId ? `/${page}/${caseId}` : `/${page}`)
+
   const links = [
     { to: '/', label: t('nav.home') },
     { to: '/scan', label: t('nav.scan') },
-    { to: '/pulse', label: t('nav.pulse') },
-    { to: '/report', label: t('nav.report') },
-    { to: '/finance', label: t('nav.finance') },
-    { to: '/sanction', label: t('nav.sanction') },
-    { to: '/export', label: t('nav.export') },
-    { to: '/assistant', label: t('nav.assistant') },
+    { to: '/history', label: t('nav.history') },
+    { to: withCase('pulse'), label: t('nav.pulse') },
+    { to: withCase('report'), label: t('nav.report') },
+    { to: withCase('finance'), label: t('nav.finance') },
+    { to: withCase('sanction'), label: t('nav.sanction') },
+    { to: withCase('export'), label: t('nav.export') },
+    { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant') },
   ]
 
   return (
@@ -54,13 +64,40 @@ export function Shell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          <button
-            type="button"
-            onClick={toggle}
-            className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
-          >
-            {t('lang')}
-          </button>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <span
+                  className="hidden max-w-[10rem] truncate text-xs font-semibold text-ink/70 sm:inline"
+                  title={who ?? undefined}
+                  data-testid="header-user"
+                >
+                  {t('auth.loggedInAs', { who: who ?? user.id })}
+                </span>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+                >
+                  {t('nav.logout')}
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+              >
+                {t('nav.login')}
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={toggle}
+              className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+            >
+              {t('lang')}
+            </button>
+          </div>
         </div>
         <div className="flex gap-1 overflow-x-auto px-4 pb-2 md:hidden">
           {links.map((l) => (

@@ -1,5 +1,6 @@
 import type { WeatherSignal } from './lokScore'
 import { LIVE_CALL_TIMEOUT_MS } from './config'
+import { retryOnce } from './retry'
 
 /** Fetch with an abort timeout so a stalled connection fails fast instead of
  * hanging the UI indefinitely — critical for a live screen-share demo. */
@@ -27,6 +28,10 @@ const WMO: Record<number, { en: string; kn: string }> = {
 }
 
 export async function fetchWeather(lat: number, lng: number): Promise<WeatherSignal> {
+  return retryOnce(() => fetchWeatherOnce(lat, lng))
+}
+
+async function fetchWeatherOnce(lat: number, lng: number): Promise<WeatherSignal> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
     `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max` +
@@ -50,6 +55,10 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherSig
 }
 
 export async function fetchWeekTemps(lat: number, lng: number) {
+  return retryOnce(() => fetchWeekTempsOnce(lat, lng))
+}
+
+async function fetchWeekTempsOnce(lat: number, lng: number) {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +

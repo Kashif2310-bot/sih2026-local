@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Loader2, RotateCcw, Send } from 'lucide-react'
+import { profileFromAssessment } from '../assistant/fromAssessment'
 import { AssistantProvider } from '../assistant/state/AssistantContext'
 import { useAssistant } from '../assistant/state/useAssistant'
 import { ActionPlanPanel } from '../components/assistant/ActionPlanPanel'
@@ -9,16 +11,38 @@ import { ProfileSidebar } from '../components/assistant/ProfileSidebar'
 import { SchemeCard } from '../components/assistant/SchemeCard'
 import { SchemeDetailModal } from '../components/assistant/SchemeDetailModal'
 import { StarterQuestions } from '../components/assistant/StarterQuestions'
+import { BUSINESS_META } from '../data/villages'
+import { useApp } from '../state/useApp'
 
 export function AssistantPage() {
+  const { id } = useParams<{ id?: string }>()
+  const { profile, location, plan, score } = useApp()
+  const caseBound = Boolean(id && profile && location && plan && score)
+  const initialProfile =
+    caseBound && profile && location && plan && score
+      ? profileFromAssessment({ profile, location, plan, score })
+      : undefined
+
   return (
-    <AssistantProvider>
-      <AssistantPageInner />
+    <AssistantProvider key={id ?? 'empty'} initialProfile={initialProfile} caseBound={caseBound}>
+      <AssistantPageInner
+        placeName={location ? location.name : ''}
+        categoryLabel={profile ? BUSINESS_META[profile.category].label : ''}
+        applicantName={profile?.name ?? ''}
+      />
     </AssistantProvider>
   )
 }
 
-function AssistantPageInner() {
+function AssistantPageInner({
+  placeName,
+  categoryLabel,
+  applicantName,
+}: {
+  placeName: string
+  categoryLabel: string
+  applicantName: string
+}) {
   const { t } = useTranslation()
   const {
     profile,
@@ -30,6 +54,7 @@ function AssistantPageInner() {
     error,
     selectedSchemeId,
     hasStarted,
+    caseBound,
     sendMessage,
     retryLast,
     selectScheme,
@@ -74,6 +99,17 @@ function AssistantPageInner() {
       <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#6b5300]">
         {t('assistant.knowledgeBaseNote')}
       </p>
+      {caseBound ? (
+        <p className="rounded-xl border border-forest/20 bg-mist px-3.5 py-2.5 text-sm text-forest">
+          {t('assistant.caseBanner', {
+            name: applicantName,
+            place: placeName,
+            category: categoryLabel,
+          })}
+        </p>
+      ) : (
+        <p className="text-xs text-ink/55">{t('assistant.emptyVisit')}</p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)_340px]">
         <div className="order-2 lg:order-1">
@@ -83,7 +119,15 @@ function AssistantPageInner() {
         <div className="glass order-1 flex h-[70vh] min-h-[420px] flex-col rounded-2xl p-4 lg:order-2">
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
             {messages.length === 0 ? (
-              <StarterQuestions onPick={(text) => void sendMessage(text)} disabled={loading} />
+              caseBound ? (
+                <p className="text-sm text-ink/60">{t('assistant.caseBanner', {
+                  name: applicantName,
+                  place: placeName,
+                  category: categoryLabel,
+                })}</p>
+              ) : (
+                <StarterQuestions onPick={(text) => void sendMessage(text)} disabled={loading} />
+              )
             ) : (
               messages.map((m) => <ChatMessageBubble key={m.id} message={m} />)
             )}

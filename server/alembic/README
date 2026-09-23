@@ -1,0 +1,1 @@
+Alembic migrations for the LokPulse API. `env.py` reads DATABASE_URL from app.config and uses render_as_batch=True.
