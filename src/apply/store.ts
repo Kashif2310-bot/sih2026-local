@@ -1,6 +1,7 @@
 import type { UserProfile } from '../assistant/types'
 import type { ConversationPayload } from './application'
 import { publishTrackedApplicationToPlatform } from './projectToPlatform'
+import { syncTrackedApplication } from '../platform/remotePersistence'
 import type { TrackedApplication } from './types'
 
 const APPS_KEY = 'lokpulse.applications'
@@ -32,6 +33,15 @@ export function saveTrackedApplication(app: TrackedApplication): void {
     // Private browsing — caller still holds the in-memory result.
   }
   publishTrackedApplicationToPlatform(app)
+
+  // Best-effort mirror to Supabase. Deliberately not awaited and deliberately
+  // last: this function is called from synchronous UI paths, and the local
+  // write above is what the citizen's next screen reads. A slow or failing
+  // network must not delay, block, or break the apply flow — so the promise
+  // is fire-and-forget and syncTrackedApplication never rejects.
+  // See src/platform/remotePersistence.ts for why this is a direct
+  // RLS-enforced client write rather than a privileged endpoint.
+  void syncTrackedApplication(app)
 }
 
 export function getTrackedApplication(trackingId: string): TrackedApplication | undefined {
