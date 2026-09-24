@@ -59,6 +59,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { isTrustedGovUrl } from '../_shared/trustedDomains.ts'
+import { getMissingDataGovInConfigNames } from './missingConfig.ts'
 
 const DATA_GOV_IN_BASE_URL = 'https://api.data.gov.in'
 const REQUEST_TIMEOUT_MS = 6_000
@@ -175,11 +176,14 @@ Deno.serve(async (req: Request) => {
 
   if (!apiKey || !resourceId) {
     await logRetrieval('not_configured', 0)
+    // NAMES only, never values — see missingConfig.ts for why this exists.
+    const missing = getMissingDataGovInConfigNames(apiKey, resourceId)
     return jsonResponse(
       {
         error: 'not_configured',
         message:
           'DATA_GOV_IN_API_KEY and/or DATA_GOV_IN_RESOURCE_ID are not set as Supabase secrets. See README.md for setup — this is the expected default until a team member registers a free data.gov.in API key.',
+        missing,
       },
       503,
     )
