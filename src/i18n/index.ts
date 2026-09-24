@@ -580,6 +580,14 @@ export const translationResources = {
           speak: 'Read this back',
           exampleDairy: 'Try: dairy in Mandya with one lakh rupees margin',
           pickedUp: 'We picked this up',
+          error: {
+            network: 'Voice recognition needs an internet connection. Check your connection and try again, or type instead.',
+            notAllowed: 'Microphone access was blocked. Allow it in your browser settings, or type instead.',
+            serviceNotAllowed: 'Voice recognition is not available in this browser. Please type instead.',
+            noSpeech: 'We did not hear anything. Try again, closer to the microphone.',
+            noResponse: 'Voice recognition did not respond in this browser. Please type instead.',
+            generic: 'Voice recognition stopped unexpectedly. Please try again, or type instead.',
+          },
         },
         profile: {
           intro: 'Confirm or edit what we picked up, then we will run your hyperlocal scan.',
@@ -1461,6 +1469,14 @@ export const translationResources = {
           speak: 'ಇದನ್ನು ಓದಿ',
           exampleDairy: 'ಪ್ರಯತ್ನಿಸಿ: ಮಂಡ್ಯದಲ್ಲಿ ಒಂದು ಲಕ್ಷ ರೂಪಾಯಿ ಮಾರ್ಜಿನ್‌ನೊಂದಿಗೆ ಹೈನುಗಾರಿಕೆ',
           pickedUp: 'ನಾವು ಇದನ್ನು ಗುರುತಿಸಿದ್ದೇವೆ',
+          error: {
+            network: 'ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆಗೆ ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕ ಬೇಕು. ನಿಮ್ಮ ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ, ಅಥವಾ ಬದಲಿಗೆ ಟೈಪ್ ಮಾಡಿ.',
+            notAllowed: 'ಮೈಕ್ರೋಫೋನ್ ಪ್ರವೇಶವನ್ನು ನಿರ್ಬಂಧಿಸಲಾಗಿದೆ. ನಿಮ್ಮ ಬ್ರೌಸರ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಅನುಮತಿಸಿ, ಅಥವಾ ಬದಲಿಗೆ ಟೈಪ್ ಮಾಡಿ.',
+            serviceNotAllowed: 'ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಟೈಪ್ ಮಾಡಿ.',
+            noSpeech: 'ನಮಗೆ ಏನೂ ಕೇಳಿಸಲಿಲ್ಲ. ಮೈಕ್ರೋಫೋನ್‌ಗೆ ಹತ್ತಿರವಾಗಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+            noResponse: 'ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಪ್ರತಿಕ್ರಿಯಿಸಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಟೈಪ್ ಮಾಡಿ.',
+            generic: 'ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ಅನಿರೀಕ್ಷಿತವಾಗಿ ನಿಂತಿತು. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ, ಅಥವಾ ಬದಲಿಗೆ ಟೈಪ್ ಮಾಡಿ.',
+          },
         },
         profile: {
           intro: 'ನಾವು ಆಯ್ದುಕೊಂಡದ್ದನ್ನು ಖಚಿತಪಡಿಸಿ ಅಥವಾ ತಿದ್ದಿ, ನಂತರ ನಾವು ನಿಮ್ಮ ಹೈಪರ್‌ಲೋಕಲ್ ಸ್ಕ್ಯಾನ್ ರನ್ ಮಾಡುತ್ತೇವೆ.',

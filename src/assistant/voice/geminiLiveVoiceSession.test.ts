@@ -164,6 +164,46 @@ describe('GeminiLiveVoiceSession — reconnect after a recoverable error', () =>
     expect(session.status).toBe('listening')
     expect(created).toBe(2)
   })
+
+  it('mints a genuinely fresh token/target for every connect() — never reuses one across a reconnect', async () => {
+    // The Edge Function's token is single-use with a ~60s new-session
+    // window (see gemini-live-token/index.ts), so reusing a captured target
+    // across a reconnect would fail against the real server even though
+    // nothing here would catch that with a resolver that always returns the
+    // same static value, as the OTHER reconnect test above does. This
+    // resolver instead returns a NEW, distinguishable token each call, so a
+    // caching bug (e.g. a resolver invoked once and its promise reused)
+    // would be caught here by the transport receiving the same url twice.
+    let mintCount = 0
+    const resolveConnection = vi.fn(async (): Promise<GeminiLiveConnectionTarget> => {
+      mintCount += 1
+      return { url: `wss://fake.test/gemini-live?access_token=token-${mintCount}` }
+    })
+    const failure = new Error('temporary')
+    const transport1 = new FakeGeminiLiveTransport({ failConnectWith: failure })
+    const transport2 = new FakeGeminiLiveTransport()
+    let created = 0
+    const transports = [transport1, transport2]
+    const deps: GeminiLiveVoiceSessionDeps = {
+      createTransport: () => transports[created++],
+      resolveConnection,
+      isConfigured: () => true,
+    }
+    const session = new GeminiLiveVoiceSession(baseConfig(), deps)
+
+    await expect(session.connect()).rejects.toThrow()
+    expect(resolveConnection).toHaveBeenCalledTimes(1)
+
+    const p = session.connect()
+    await untilSetupSent(transport2)
+    transport2.simulateServerMessage({ setupComplete: {} })
+    await p
+
+    expect(resolveConnection).toHaveBeenCalledTimes(2)
+    expect(transport1.connectTargets[0].url).toBe('wss://fake.test/gemini-live?access_token=token-1')
+    expect(transport2.connectTargets[0].url).toBe('wss://fake.test/gemini-live?access_token=token-2')
+    expect(transport1.connectTargets[0].url).not.toBe(transport2.connectTargets[0].url)
+  })
 })
 
 describe('GeminiLiveVoiceSession — 3. user transcript partial/final translation', () => {
