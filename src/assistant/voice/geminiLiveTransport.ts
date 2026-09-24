@@ -65,18 +65,55 @@ export interface GeminiLiveTransport {
 }
 
 /**
+ * Decodes whatever a WebSocket MessageEvent's `data` actually is into the
+ * UTF-8 text this protocol's JSON lives in.
+ *
+ * This exists because of a real, previously-shipped bug: this transport
+ * used to accept only `typeof data === 'string'` and treat anything else as
+ * an error. In production, Gemini Live sends its JSON control/content
+ * messages (including `setupComplete` itself) as BINARY WebSocket frames,
+ * not text frames — confirmed empirically both in Node (global `WebSocket`,
+ * `event.data instanceof Blob`) and in a real Chrome browser, where the
+ * error surfaced as "Received a non-text WebSocket frame..." followed by a
+ * connect() timeout, since `setupComplete` itself was silently dropped.
+ * Every browser (and Node's global WebSocket) delivers a binary frame as
+ * `Blob` by default, or `ArrayBuffer` if `binaryType` is set that way — both
+ * are handled here so this transport works regardless of that setting.
+ */
+async function decodeMessageData(data: unknown): Promise<string> {
+  if (typeof data === 'string') return data
+  if (data instanceof Blob) return await data.text()
+  if (data instanceof ArrayBuffer) return new TextDecoder().decode(data)
+  // Not a documented WebSocket MessageEvent.data type (spec only allows
+  // string/Blob/ArrayBuffer, chosen by binaryType) — but decoding it is
+  // just as well-defined as ArrayBuffer, so it is handled rather than
+  // treated as an unrecoverable error on principle alone.
+  if (ArrayBuffer.isView(data)) {
+    return new TextDecoder().decode(data.buffer as ArrayBuffer, { stream: false })
+  }
+  throw new Error(`Unsupported WebSocket message data type: ${Object.prototype.toString.call(data)}`)
+}
+
+/**
  * The REAL transport — a native browser WebSocket carrying Gemini's JSON
- * text-frame protocol. Every message observed in Google's Live API
- * reference is JSON text with audio embedded as base64 inside it (never a
- * separate binary WebSocket frame) — this implementation does not handle
- * binary frames, and treats one arriving as a provider_error, since nothing
- * in the reference this was built against describes that case.
+ * protocol. See decodeMessageData() above for why this accepts binary
+ * frames (Blob/ArrayBuffer) as well as text frames, not just text.
  */
 export class WebSocketGeminiLiveTransport implements GeminiLiveTransport {
   private socket: WebSocket | null = null
   private readonly messageHandlers = new Set<(message: GeminiLiveServerMessage) => void>()
   private readonly errorHandlers = new Set<(error: VoiceSessionError) => void>()
   private readonly closeHandlers = new Set<(info: GeminiLiveTransportCloseInfo) => void>()
+  /**
+   * Every incoming frame is chained onto this promise rather than decoded
+   * independently, so that frame order is preserved even though decoding a
+   * Blob is asynchronous. Without this, a large audio-chunk frame could
+   * still be mid-decode when a later, smaller frame (e.g. a turn-boundary
+   * event) finishes decoding first, delivering messages to the adapter out
+   * of the order Gemini actually sent them — which the turn/interruption
+   * state machine in geminiLiveVoiceSession.ts depends on being correct.
+   */
+  private messageChain: Promise<void> = Promise.resolve()
 
   connect(target: GeminiLiveConnectionTarget): Promise<void> {
     if (typeof WebSocket === 'undefined') {
@@ -104,24 +141,9 @@ export class WebSocketGeminiLiveTransport implements GeminiLiveTransport {
       socket.addEventListener('error', handleOpenFailure, { once: true })
 
       socket.addEventListener('message', (event: MessageEvent) => {
-        if (typeof event.data !== 'string') {
-          this.dispatchError({ code: 'provider_error', message: 'Received a non-text WebSocket frame; this transport only handles Gemini\'s JSON text-frame protocol.' })
-          return
-        }
-        let raw: unknown
-        try {
-          raw = JSON.parse(event.data)
-        } catch (cause) {
-          this.dispatchError({ code: 'provider_error', message: 'Received malformed JSON from Gemini Live.', cause })
-          return
-        }
-        const parsed = parseServerMessage(raw)
-        // An unrecognized-but-valid message is silently dropped, never
-        // treated as an error — forward compatibility with server message
-        // types this adapter doesn't know about yet, same "don't let one
-        // unrecognized record break everything else" discipline as
-        // liveRetrieval.ts's validateLiveEvidenceItems.
-        if (parsed) this.dispatchMessage(parsed)
+        // Enqueued synchronously, in the exact order the socket delivered
+        // frames — see messageChain's doc comment for why this matters.
+        this.messageChain = this.messageChain.then(() => this.handleRawMessage(event.data))
       })
 
       socket.addEventListener('error', () => {
@@ -159,6 +181,49 @@ export class WebSocketGeminiLiveTransport implements GeminiLiveTransport {
   onClose(handler: (info: GeminiLiveTransportCloseInfo) => void): () => void {
     this.closeHandlers.add(handler)
     return () => this.closeHandlers.delete(handler)
+  }
+
+  /**
+   * Decodes, parses, and dispatches exactly one frame. Always runs from
+   * within messageChain, so this never overlaps with the previous or next
+   * frame's handling — that ordering guarantee is messageChain's job, not
+   * this method's.
+   *
+   * A frame that cannot be decoded or parsed surfaces a clear, immediate
+   * error (never a silent drop) but does not throw — one bad frame must not
+   * break messageChain for every frame after it, and connect() is left to
+   * time out on its own if the specific frame that was lost was
+   * setupComplete, which is a clearer failure than this method guessing
+   * that it was.
+   */
+  private async handleRawMessage(data: unknown): Promise<void> {
+    let text: string
+    try {
+      text = await decodeMessageData(data)
+    } catch (cause) {
+      this.dispatchError({
+        code: 'provider_error',
+        message: 'Received a WebSocket frame that could not be decoded to text.',
+        cause,
+      })
+      return
+    }
+
+    let raw: unknown
+    try {
+      raw = JSON.parse(text)
+    } catch (cause) {
+      this.dispatchError({ code: 'provider_error', message: 'Received malformed JSON from Gemini Live.', cause })
+      return
+    }
+
+    const parsed = parseServerMessage(raw)
+    // An unrecognized-but-valid message is silently dropped, never treated
+    // as an error — forward compatibility with server message types this
+    // adapter doesn't know about yet, same "don't let one unrecognized
+    // record break everything else" discipline as liveRetrieval.ts's
+    // validateLiveEvidenceItems.
+    if (parsed) this.dispatchMessage(parsed)
   }
 
   private dispatchMessage(message: GeminiLiveServerMessage): void {
