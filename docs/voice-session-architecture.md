@@ -205,17 +205,40 @@ No stale event can leak: every emission inside the model-turn-output branch is g
 **Not live (this phase, by design):** no backend (relay/proxy or token-minting endpoint) is deployed; `GEMINI_LIVE_PROXY_URL` is unset; no real WebSocket to `generativelanguage.googleapis.com` has ever been opened by this code; no microphone capture or audio playback exists yet (see below).
 **Test-only, never reachable from production code:** `FakeGeminiLiveTransport`.
 
-### Remaining work before a voice UI can use this
+### Native-audio voice (implemented)
 
-1. **Backend decision** — pick relay/proxy vs. ephemeral-token (see "Authentication boundary"); build and deploy it; set `VITE_GEMINI_LIVE_PROXY_URL` (or supply a custom `GeminiLiveConnectionResolver` for the token pattern).
-2. **Microphone capture + resampling** — browser mic audio is neither 16-bit PCM nor 16kHz by default; something must capture and resample it into conforming `VoiceAudioChunk`s before calling `sendAudioChunk()`. Not built in this phase.
-3. **Audio playback** — `model_audio_chunk` events carry raw 24kHz PCM16; something must queue and play it (and stop immediately on `interrupted`). Not built in this phase.
-4. **The pipeline seam** (below) — wiring a finalized transcript into the real deterministic pipeline instead of nothing.
-5. **A real connection test** — everything above is protocol-grounded but unverified end-to-end; the first real connection should specifically confirm the transcription streaming semantics and interruption-confirmation timing noted as "not independently verified" above.
+The remaining work listed in earlier phases is now built. The live path is:
 
-## The pipeline seam (not implemented yet)
+```
+MicrophoneCapture (AudioWorklet, 16kHz PCM16)
+    -> GeminiLiveVoiceSession.sendAudioChunk  -> Gemini Live (native audio)
+Gemini Live -> model_audio_chunk -> AudioOutputPlayer (24kHz, gapless, interruptible)
+Gemini Live -> toolCall          -> VoiceConversationRuntime -> voiceTools.ts
+                                 -> VoiceAssistantController (the existing deterministic pipeline)
+                                 -> toolResponse
+```
 
-`VoiceTurnPipelineHandler`, defined at the bottom of `types.ts`, fixes the *shape* of the function a future change will write to bridge one finalized voice turn into the **existing** deterministic text pipeline — so this phase's work can be built against a stable signature without implementing the pipeline itself yet:
+- **Authentication** — pattern (b), ephemeral tokens. `supabase/functions/gemini-live-token/` mints a short-lived, model-constrained token from a server-side `GEMINI_API_KEY`; `geminiEphemeralTokenResolver.ts` fetches it and connects the browser **directly** to Google (audio is never relayed through our backend). No long-lived key is reachable from the browser.
+- **Microphone** — `audio/microphoneCapture.ts` (AudioWorklet, not the deprecated ScriptProcessorNode) with `audio/pcm.ts` doing the Float32 -> PCM16 conversion and 48kHz -> 16kHz resampling as pure, unit-tested functions.
+- **Playback** — `audio/audioOutputPlayer.ts` schedules chunks back-to-back on the AudioContext clock; `audio/playbackScheduler.ts` holds the pure scheduling and **generation-counter** logic that stops an interrupted reply's tail from playing after the next reply starts.
+- **Turn-taking** — server-side VAD (`realtimeInputConfig.automaticActivityDetection`), not a hand-rolled silence detector. The session runs in `audioInputMode: 'continuous'`, where a microphone frame arriving during `model_speaking` is **not** a local barge-in (with an open mic that would fire on the model's own first syllable) — Gemini's `interrupted` signal is authoritative.
+
+#### Who authors the reply
+
+`VoiceConversationRuntime` now takes a `replyAuthority`:
+
+- `'controller'` (default, unchanged) — the deterministic pipeline writes the reply and the session speaks it via `deliverAssistantReply()`. Still requires `replySource: 'external'`. **No provider audio.**
+- `'provider'` (what the live voice UI uses) — Gemini generates and speaks its own native audio. This is the only way to get real conversational voice; a controller-authored string cannot be spoken by Gemini, only displayed.
+
+The safety boundary moves rather than disappearing. In provider mode Gemini has **no scheme knowledge to draw on** and must call a tool for every fact (`conversation/voiceTools.ts`), and each tool is answered from the same deterministic pipeline the text assistant uses. Finalized transcripts are still ingested via `VoiceAssistantController.ingestUserUtterance()` so profile, evidence, ranking and the report stay in step — that method is the existing turn pipeline with the reply-generation step omitted, not a second engine.
+
+#### Still to verify against a real connection
+
+Everything above is protocol-grounded (re-verified against Google's reference on 2026-09-23) but the first real connection should confirm: the transcription streaming semantics and the interruption-confirmation timing noted as "not independently verified" above, and that `gemini-3.8-live` is the right model for this deployment.
+
+## The pipeline seam (implemented)
+
+`VoiceTurnPipelineHandler`, defined at the bottom of `types.ts`, fixed the *shape* of this bridge before it existed. It is now implemented by `VoiceAssistantController` (`handleUserTranscript` for the controller-authored path, `ingestUserUtterance` for the native-audio path), which runs exactly these steps:
 
 ```
 audio → transcript (VoiceUserTranscriptFinalEvent)

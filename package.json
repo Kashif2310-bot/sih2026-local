@@ -19,6 +19,7 @@
     "supabase:status": "supabase status",
     "supabase:env": "node scripts/write-env-local.mjs",
     "supabase:verify": "supabase db query --file scripts/verify-supabase.sql",
+    "supabase:probe": "node scripts/probe-hosted-schema.mjs",
     "supabase:provision": "node scripts/provision-local.mjs"
   },
   "dependencies": {
