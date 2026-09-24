@@ -46,15 +46,20 @@ describe('VoiceAssistantController — 1. multi-fact extraction', () => {
 
   it('tolerates a message where only some facts are recognizable, without crashing or inventing the rest', async () => {
     const controller = newController()
-    // Close to the literal product-brief example — "I am 28" alone does not
-    // match the existing extractor's age pattern (it needs "X years old" or
-    // the literal word "age"), so age is honestly left unknown rather than
-    // guessed. This is an existing, unmodified profileExtraction.ts
-    // limitation, not something this layer compensates for.
+    // Close to the literal product-brief example. "I am 28" (no "years old"
+    // and no literal word "age") is now recognized by profileExtraction.ts's
+    // narrow bare-self-identification pattern ("I'm"/"I am" directly before
+    // a number) — added after this exact phrasing was found to silently
+    // drop a citizen's stated age. What this test still genuinely proves:
+    // the loan amount is truly unstated ("I don't know how much...") and
+    // must stay unrecognized rather than invented — that's the "only some
+    // facts are recognizable" case this test is actually about.
     const result = await controller.handleUserTranscript(
       "I am 28, from a village near Mysore, and my father already has five cows. I want to expand the dairy but I don't know how much loan I can get.",
     )
-    expect(result.state.userProfile.age).toBeUndefined()
+    expect(result.state.userProfile.age).toBe(28)
+    expect(result.state.userProfile.financingRequired).toBeUndefined()
+    expect(result.state.userProfile.investmentRequired).toBeUndefined()
     expect(result.state.userProfile.areaType).toBe('rural') // "village" keyword
     expect(result.state.userProfile.businessSector).toBe('dairy')
     expect(result.state.userProfile.businessStage).toBe('existing_expansion') // "expand"

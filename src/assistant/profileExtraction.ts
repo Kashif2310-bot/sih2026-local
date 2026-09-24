@@ -16,6 +16,105 @@ export interface ExtractionResult {
   updatedFields: Array<keyof UserProfile>
 }
 
+// ---------------------------------------------------------------------------
+// Spelled-out number normalization — feeds ONLY findAge/findMoneyMentions.
+//
+// Speech-to-text output routinely spells numbers as words ("twenty four",
+// "one lakh") that the digit-only findAge/findMoneyMentions patterns below
+// never matched. This section converts recognized number words to digits in
+// a WORKING COPY of the text, used only as the input to those two
+// functions — never returned, never stored, and never passed to
+// findGender/findState/findSocialCategory/findBusinessSector/etc., which
+// all still see the citizen's original words untouched. This is why an
+// ordinary word like "one" elsewhere in a sentence can't create a spurious
+// match: findAge still requires "<number> years old" / "age <number>", and
+// findMoneyMentions still requires a currency symbol or a lakh/crore/
+// thousand unit — a bare converted digit with neither is still discarded by
+// those functions exactly as a bare digit always was.
+// ---------------------------------------------------------------------------
+
+const ONES_AND_TEENS: Record<string, number> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+}
+
+const TENS: Record<string, number> = {
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+}
+
+const NUMBER_WORD_ALTERNATION = Object.keys({ ...ONES_AND_TEENS, ...TENS }).join('|')
+
+function numberWordValue(word: string): number | undefined {
+  const key = word.toLowerCase()
+  return ONES_AND_TEENS[key] ?? TENS[key]
+}
+
+/**
+ * Converts recognized spelled-out numbers to digits, in this order:
+ *   1. "<number> and a half <unit>" -> "<number+0.5> <unit>" — a single,
+ *      explicit idiom (never general fraction math), and only recognized
+ *      immediately before a currency unit word so it can't fire elsewhere
+ *      (e.g. "an hour and a half" is untouched — no lakh/crore/thousand
+ *      follows it).
+ *   2. Compound "twenty four" / "twenty-four" -> "24".
+ *   3. Any remaining bare number word ("forty", "seven") -> its digit.
+ * Each pass only matches whole words (`\b...\b`), so it can never alter part
+ * of an unrelated word, and digits produced by an earlier pass are immune to
+ * later passes (they no longer look like the word alternation).
+ */
+function normalizeNumberWordsForMatching(text: string): string {
+  let out = text
+
+  out = out.replace(
+    new RegExp(`\\b(${NUMBER_WORD_ALTERNATION}|\\d+(?:\\.\\d+)?)\\s+and\\s+a\\s+half\\s+(?=(?:lakh|lac|crore|thousand)\\b)`, 'gi'),
+    (whole, numberPart: string) => {
+      const base = /^\d/.test(numberPart) ? Number(numberPart) : numberWordValue(numberPart)
+      return base === undefined ? whole : `${base + 0.5} `
+    },
+  )
+
+  out = out.replace(
+    /\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]+(one|two|three|four|five|six|seven|eight|nine)\b/gi,
+    (whole, tensWord: string, onesWord: string) => {
+      const tens = numberWordValue(tensWord)
+      const ones = numberWordValue(onesWord)
+      return tens === undefined || ones === undefined ? whole : String(tens + ones)
+    },
+  )
+
+  out = out.replace(new RegExp(`\\b(${NUMBER_WORD_ALTERNATION})\\b`, 'gi'), (whole) => {
+    const value = numberWordValue(whole)
+    return value === undefined ? whole : String(value)
+  })
+
+  return out
+}
+
 /**
  * When a message names more than one state — most commonly a correction
  * like "Actually I'm in Kerala, not Karnataka" — picking by longest name
@@ -41,6 +140,19 @@ function findState(text: string): string | undefined {
   return candidates[0].name
 }
 
+/**
+ * Disqualifies a bare "I'm/I am <number>" match (see findAge's third
+ * pattern) when the next couple of words explain that the number is
+ * something other than an age — a distance, a duration, a headcount, or an
+ * amount of money. Checked in a short window right after the number, not
+ * the rest of the message, so a genuine age statement earlier in a longer
+ * sentence about other numbers is unaffected. "years old" itself is not
+ * listed here: pattern 1 above already matches and returns before pattern 3
+ * is ever reached, so pattern 3 only runs when "years old" is absent.
+ */
+const AGE_FALSE_POSITIVE_FOLLOWUP =
+  /^[\s,-]{0,3}(?:lakh|lac|crore|thousand|rupees?|rs\.?|km|kilomet(?:re|er)s?|months?|days?|hours?|cows?|buffalo(?:e)?s?|acres?|members?|employees?|percent|years?\s+(?:of\s+experience\b|into\b|in\b))/i
+
 function findAge(text: string): number | undefined {
   const m = text.match(/(\d{1,3})\s*-?\s*years?\s*-?\s*old/i)
   if (m) {
@@ -51,6 +163,20 @@ function findAge(text: string): number | undefined {
   if (m2) {
     const n = Number(m2[1])
     if (n > 0 && n < 120) return n
+  }
+  // Bare self-identification — "I'm 24, a woman, ..." / "I am 24" — with
+  // neither "years old" nor "age" as an anchor. Found while testing "I'm
+  // twenty four, a woman, from the SC community": normalizing the spelled
+  // number alone isn't enough, since the sentence never says "years old" at
+  // all. Deliberately narrow (only "I'm"/"I am" directly before the number),
+  // a tighter 18-100 plausibility range than patterns 1/2 above (which keep
+  // their existing 0-120 range unchanged), and rejected outright if what
+  // follows explains the number away as something other than an age.
+  const m3 = text.match(/\bi\s*(?:'m|am)\s+(\d{1,3})\b/i)
+  if (m3 && m3.index !== undefined) {
+    const n = Number(m3[1])
+    const following = text.slice(m3.index + m3[0].length, m3.index + m3[0].length + 30)
+    if (n >= 18 && n <= 100 && !AGE_FALSE_POSITIVE_FOLLOWUP.test(following)) return n
   }
   return undefined
 }
@@ -74,7 +200,26 @@ function findSocialCategory(text: string): UserProfile['socialCategory'] | undef
   if (/scheduled\s+caste/i.test(text) || /(^|[\s,.;()])SC([\s,.;()]|$)/.test(text)) return 'sc'
   if (/scheduled\s+tribe/i.test(text) || /(^|[\s,.;()])ST([\s,.;()]|$)/.test(text)) return 'st'
   if (/other\s+backward\s+class/i.test(text) || /(^|[\s,.;()])OBC([\s,.;()]|$)/.test(text)) return 'obc'
-  if (/general\s+categor(y|ies)/i.test(text)) return 'general'
+  // Either word order — "general category" and "category general" are both
+  // natural phrasings.
+  if (/general\s+categor(y|ies)/i.test(text) || /categor(y|ies)\s+(?:is\s+)?general\b/i.test(text)) return 'general'
+
+  // Speech-to-text rarely preserves acronym casing, and sometimes spells a
+  // short acronym out letter-by-letter ("s c", "S C"). Collapsing a run of
+  // single letters into one token, and then accepting lowercase sc/st/obc,
+  // is done ONLY when immediately paired with a disambiguating word
+  // (category/caste/community/class) — exactly the context "1st"/"St."
+  // never appear in, so those guards stay intact. Without a neighboring
+  // disambiguator the phrasing is genuinely ambiguous and is left
+  // undefined, same as today.
+  const collapsed = text.replace(
+    /\b((?:[a-zA-Z]\s+){1,2}[a-zA-Z])\b(?=\s+(?:categor|caste|communit|class))/g,
+    (run) => run.replace(/\s+/g, ''),
+  )
+  if (/\bsc\b\s+(?:categor|caste|communit|class)/i.test(collapsed)) return 'sc'
+  if (/\bst\b\s+(?:categor|caste|communit|class)/i.test(collapsed)) return 'st'
+  if (/\bobc\b\s+(?:categor|caste|communit|class)/i.test(collapsed)) return 'obc'
+
   return undefined
 }
 
@@ -130,6 +275,7 @@ function findExistingLoans(text: string): string | undefined {
 interface MoneyMention {
   value: number
   index: number
+  endIndex: number
 }
 
 function findMoneyMentions(text: string): MoneyMention[] {
@@ -137,7 +283,7 @@ function findMoneyMentions(text: string): MoneyMention[] {
   const re = /(₹|rs\.?|inr)?\s*([\d][\d,]*(?:\.\d+)?)\s*(lakh|lac|crore|thousand|k)?/gi
   let match: RegExpExecArray | null
   while ((match = re.exec(text))) {
-    const [, currencySymbol, numRaw, unit] = match
+    const [whole, currencySymbol, numRaw, unit] = match
     if (!currencySymbol && !unit) continue // bare number with no currency/unit — too ambiguous (could be age, count, etc.)
     const num = Number(numRaw.replace(/,/g, ''))
     if (!Number.isFinite(num) || num <= 0) continue
@@ -146,12 +292,16 @@ function findMoneyMentions(text: string): MoneyMention[] {
     if (u === 'lakh' || u === 'lac') value = num * 100_000
     else if (u === 'crore') value = num * 10_000_000
     else if (u === 'thousand' || u === 'k') value = num * 1_000
-    results.push({ value, index: match.index })
+    results.push({ value, index: match.index, endIndex: match.index + whole.length })
   }
   return results
 }
 
-const OWN_CONTRIBUTION_KEYWORDS = ['own contribution', 'own savings', 'margin money', 'self contribution']
+// 'margin' alone (not just the fuller "margin money") is included because
+// that is how citizens actually say it — "one lakh rupees margin" — and in
+// this app's domain (government scheme financing) it unambiguously means
+// the borrower's own contribution, not any other sense of the word.
+const OWN_CONTRIBUTION_KEYWORDS = ['own contribution', 'own savings', 'margin money', 'margin', 'self contribution']
 const INCOME_KEYWORDS = ['income', 'earn', 'earning', 'salary']
 const FINANCING_KEYWORDS = ['need', 'loan of', 'financing', 'expand', 'want a loan', 'require a loan']
 const INVESTMENT_KEYWORDS = ['requiring', 'investment', 'invest', 'project cost', 'setup cost', 'set up', 'cost of', 'capital of']
@@ -169,20 +319,33 @@ function contextBefore(text: string, index: number, window = 55): string {
   return text.slice(Math.max(0, index - window), index).toLowerCase()
 }
 
+function contextAfter(text: string, endIndex: number, window = 30): string {
+  return text.slice(endIndex, endIndex + window).toLowerCase()
+}
+
 /**
- * When two different context keywords both appear in the window before a
- * money mention (e.g. "I earn ₹6 lakh annually and need ₹8 lakh"), the
- * closer one — not the first category checked — is the one that actually
- * governs that amount. So this picks the keyword with the highest index
- * (closest to the amount) across all categories, not the first category
- * that matches anywhere in the window.
+ * A category keyword can sit on either side of the amount — "margin money
+ * of ₹1 lakh" (before) or "₹1 lakh margin" (after), both natural phrasings
+ * — so both directions are searched and the keyword actually CLOSEST to the
+ * amount wins, regardless of which side it's on. This still reproduces the
+ * original backward-only behavior exactly when nothing appears after the
+ * amount (e.g. "I earn ₹6 lakh annually and need ₹8 lakh" keeps preferring
+ * the closer backward keyword for each amount, unchanged), since `after`
+ * simply contributes no candidates in that case.
  */
-function nearestMoneyCategory(ctx: string): MoneyCategory | undefined {
-  let best: { category: MoneyCategory; index: number } | undefined
+function nearestMoneyCategory(before: string, after: string): MoneyCategory | undefined {
+  let best: { category: MoneyCategory; distance: number } | undefined
   for (const [category, keywords] of MONEY_CATEGORY_KEYWORDS) {
     for (const kw of keywords) {
-      const idx = ctx.lastIndexOf(kw)
-      if (idx !== -1 && (!best || idx > best.index)) best = { category, index: idx }
+      const beforeIdx = before.lastIndexOf(kw)
+      if (beforeIdx !== -1) {
+        const distance = before.length - (beforeIdx + kw.length)
+        if (!best || distance < best.distance) best = { category, distance }
+      }
+      const afterIdx = after.indexOf(kw)
+      if (afterIdx !== -1) {
+        if (!best || afterIdx < best.distance) best = { category, distance: afterIdx }
+      }
     }
   }
   return best?.category
@@ -194,7 +357,7 @@ function classifyMoney(
 ): Pick<UserProfile, 'annualIncome' | 'investmentRequired' | 'financingRequired' | 'ownContribution'> {
   const out: Pick<UserProfile, 'annualIncome' | 'investmentRequired' | 'financingRequired' | 'ownContribution'> = {}
   for (const mention of mentions) {
-    const category = nearestMoneyCategory(contextBefore(text, mention.index))
+    const category = nearestMoneyCategory(contextBefore(text, mention.index), contextAfter(text, mention.endIndex))
     if (category) out[category] = mention.value
   }
   return out
@@ -207,8 +370,12 @@ function classifyMoney(
  */
 export function extractProfileFromMessage(text: string): Partial<UserProfile> {
   const extracted: Partial<UserProfile> = {}
+  // Working copy only — never returned, never stored. See this function's
+  // doc comment above normalizeNumberWordsForMatching for why only age/money
+  // matching uses it, and every other field below still matches on `text`.
+  const forNumberMatching = normalizeNumberWordsForMatching(text)
 
-  const age = findAge(text)
+  const age = findAge(forNumberMatching)
   if (age !== undefined) extracted.age = age
 
   const gender = findGender(text)
@@ -242,7 +409,7 @@ export function extractProfileFromMessage(text: string): Partial<UserProfile> {
   const existingLoans = findExistingLoans(text)
   if (existingLoans) extracted.existingLoans = existingLoans
 
-  const money = classifyMoney(text, findMoneyMentions(text))
+  const money = classifyMoney(forNumberMatching, findMoneyMentions(forNumberMatching))
   Object.assign(extracted, money)
 
   return extracted
