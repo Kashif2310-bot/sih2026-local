@@ -27,6 +27,11 @@ export type {
   VoiceTurnPipelineHandler,
   VoiceTurnRole,
   VoiceTurnStartedEvent,
+  VoiceAudioInputMode,
+  VoiceToolCall,
+  VoiceToolDeclaration,
+  VoiceToolResult,
+  VoiceToolSchema,
   VoiceUserTranscriptFinalEvent,
   VoiceUserTranscriptPartialEvent,
 } from './types'
@@ -44,6 +49,17 @@ export {
 } from './geminiLiveVoiceSession'
 export type { GeminiLiveConnectionResolver, GeminiLiveConnectionTarget, GeminiLiveTransport } from './geminiLiveTransport'
 export { GEMINI_LIVE_MODEL, GEMINI_LIVE_PROXY_URL, isGeminiLiveConfigured } from './geminiLiveConfig'
+export {
+  createEphemeralTokenConnectionResolver,
+  isEphemeralTokenBackendConfigured,
+  GEMINI_LIVE_TOKEN_FUNCTION,
+} from './geminiEphemeralTokenResolver'
+export { VOICE_SYSTEM_INSTRUCTION, VOICE_SYSTEM_INSTRUCTION_VERSION } from './voiceSystemInstruction'
+export { BrowserAudioBridge, isBrowserVoiceAudioSupported } from './audio/browserAudioBridge'
+export { MicrophoneCapture, isMicrophoneCaptureSupported, classifyMicrophoneError } from './audio/microphoneCapture'
+export type { MicrophoneCaptureState, MicrophoneError, MicrophoneErrorCode } from './audio/microphoneCapture'
+export { AudioOutputPlayer, isAudioPlaybackSupported } from './audio/audioOutputPlayer'
+export { PlaybackScheduler, type PlaybackState } from './audio/playbackScheduler'
 export {
   GEMINI_LIVE_INPUT_AUDIO_MIME_TYPE,
   GEMINI_LIVE_INPUT_SAMPLE_RATE_HZ,

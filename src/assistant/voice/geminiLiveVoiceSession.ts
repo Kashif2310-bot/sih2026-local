@@ -19,12 +19,14 @@ import {
   buildAudioStreamEndMessage,
   buildSetupMessage,
   buildTextTurnMessage,
+  buildToolResponseMessage,
   base64ToArrayBuffer,
   arrayBufferToBase64,
   languageCodeFor,
   GEMINI_LIVE_INPUT_SAMPLE_RATE_HZ,
   GEMINI_LIVE_OUTPUT_SAMPLE_RATE_HZ,
 } from './geminiLiveProtocol'
+import { toGeminiToolDeclarations, toGeminiFunctionResponse } from './geminiLiveToolMapping'
 import {
   WebSocketGeminiLiveTransport,
   type GeminiLiveConnectionResolver,
@@ -36,6 +38,7 @@ import {
   GEMINI_LIVE_INTERRUPT_SETTLE_TIMEOUT_MS,
   GEMINI_LIVE_MODEL,
   GEMINI_LIVE_SETUP_TIMEOUT_MS,
+  GEMINI_LIVE_REALTIME_INPUT_CONFIG,
   defaultGeminiLiveConnectionResolver,
   isGeminiLiveConfigured,
 } from './geminiLiveConfig'
@@ -51,6 +54,9 @@ import type {
   VoiceSessionErrorCode,
   VoiceSessionFactory,
   VoiceSessionStatus,
+  VoiceAudioInputMode,
+  VoiceToolDeclaration,
+  VoiceToolResult,
 } from './types'
 
 const ACTIVE_STATUSES: ReadonlySet<VoiceSessionStatus> = new Set([
@@ -110,6 +116,14 @@ export class GeminiLiveVoiceSession implements VoiceSession {
   private readonly setupTimeoutMs: number
   private readonly interruptSettleTimeoutMs: number
 
+  private readonly audioInputMode: VoiceAudioInputMode
+  private readonly tools: VoiceToolDeclaration[]
+  private readonly systemInstruction: string | undefined
+  /** Updated from every sessionResumptionUpdate; read back by a reconnecting caller. */
+  private resumptionHandle: string | null
+  /** Ids the server has asked for but that have not been answered or cancelled yet — guards against answering a withdrawn call. */
+  private readonly outstandingToolCallIds = new Set<string>()
+
   private currentUserTurnId: string | null = null
   /** Persists past currentUserTurnId being cleared, so a late-arriving server transcription can still be correlated to the turn it belongs to. */
   private lastUserTurnId: string | null = null
@@ -126,6 +140,10 @@ export class GeminiLiveVoiceSession implements VoiceSession {
     this.setupTimeoutMs = deps.setupTimeoutMs ?? GEMINI_LIVE_SETUP_TIMEOUT_MS
     this.interruptSettleTimeoutMs = deps.interruptSettleTimeoutMs ?? GEMINI_LIVE_INTERRUPT_SETTLE_TIMEOUT_MS
     this.replySource = config.replySource ?? 'provider'
+    this.audioInputMode = config.audioInputMode ?? 'push_to_talk'
+    this.tools = config.tools ?? []
+    this.systemInstruction = config.systemInstruction
+    this.resumptionHandle = config.resumptionHandle ?? null
   }
 
   get status(): VoiceSessionStatus {
@@ -158,6 +176,14 @@ export class GeminiLiveVoiceSession implements VoiceSession {
         buildSetupMessage({
           model: this.model,
           languageCode: languageCodeFor(this.context.language.primary),
+          systemInstructionText: this.systemInstruction,
+          tools: toGeminiToolDeclarations(this.tools),
+          realtimeInputConfig: GEMINI_LIVE_REALTIME_INPUT_CONFIG,
+          // Server-side VAD (above) is what makes natural turn-taking and
+          // barge-in work without a hand-rolled silence detector; resumption
+          // handles are what make a mid-conversation reconnect keep context.
+          requestSessionResumption: true,
+          sessionResumptionHandle: this.resumptionHandle ?? undefined,
         }),
       )
       await this.waitForSetupComplete()
@@ -176,6 +202,7 @@ export class GeminiLiveVoiceSession implements VoiceSession {
     this.setupWaiter = null
     this.currentUserTurnId = null
     this.currentModelTurnId = null
+    this.outstandingToolCallIds.clear()
     this.teardownTransport()
     this.emit({ type: 'diagnostic', message: `session closed: ${reason}` })
     this.setStatus('closed')
@@ -187,6 +214,16 @@ export class GeminiLiveVoiceSession implements VoiceSession {
   sendAudioChunk(chunk: VoiceAudioChunk): void {
     this.requireOpen()
     this.requireExpectedAudioFormat(chunk)
+
+    if (this.audioInputMode === 'continuous') {
+      // Open mic: every status except the pre-connect ones requireOpen()
+      // already rejected is a valid moment to be streaming, including while
+      // the model speaks — that is precisely what makes barge-in possible.
+      // No turn is opened here and no interruption is triggered; the
+      // provider's VAD owns both decisions. See VoiceAudioInputMode.
+      this.transport!.send(buildAudioChunkMessage(arrayBufferToBase64(chunk.data)))
+      return
+    }
 
     if (this._status === 'model_speaking') this.beginInterruption('user_barge_in')
     if (!AUDIO_ACCEPTING_STATUSES.has(this._status)) {
@@ -281,6 +318,27 @@ export class GeminiLiveVoiceSession implements VoiceSession {
     this.setStatus('listening')
   }
 
+  /**
+   * Answers a tool_call. Each result is only sent if its id is still
+   * outstanding — a result for a call the server already cancelled (or one
+   * the host invented) is dropped, because answering a withdrawn call
+   * corrupts the model's turn bookkeeping. Sending is best-effort by
+   * design: this is called from an async tool handler that may resolve
+   * after the session moved on, so a closed/failed session must not throw
+   * out of it.
+   */
+  sendToolResponse(results: VoiceToolResult[]): void {
+    if (this.closed || !this.transport) return
+    const deliverable = results.filter((r) => this.outstandingToolCallIds.has(r.id))
+    if (deliverable.length === 0) return
+    for (const r of deliverable) this.outstandingToolCallIds.delete(r.id)
+    this.transport.send(buildToolResponseMessage(deliverable.map(toGeminiFunctionResponse)))
+  }
+
+  getResumptionHandle(): string | null {
+    return this.resumptionHandle
+  }
+
   subscribe(listener: (event: VoiceEvent) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
@@ -303,6 +361,46 @@ export class GeminiLiveVoiceSession implements VoiceSession {
       return
     }
 
+    if ('sessionResumptionUpdate' in message) {
+      const { newHandle, resumable } = message.sessionResumptionUpdate
+      // `resumable: false` explicitly means this conversation cannot be
+      // resumed — clear any stale handle rather than keeping one that would
+      // fail on the next connect.
+      if (resumable === false) this.resumptionHandle = null
+      else if (newHandle) this.resumptionHandle = newHandle
+      return
+    }
+
+    if ('goAway' in message) {
+      // Advance warning that the server is about to close. Surfaced as a
+      // recoverable error so the host can reconnect deliberately (with the
+      // resumption handle above) instead of being surprised by the close.
+      this.emit({
+        type: 'error',
+        error: {
+          code: 'network_lost',
+          message: `Gemini Live is about to end this connection${message.goAway.timeLeft ? ` (in ${message.goAway.timeLeft})` : '.'}`,
+        },
+        recoverable: true,
+      })
+      return
+    }
+
+    if ('toolCall' in message) {
+      const calls = message.toolCall.functionCalls
+      if (calls.length === 0) return
+      for (const c of calls) this.outstandingToolCallIds.add(c.id)
+      this.emit({ type: 'tool_call', calls })
+      return
+    }
+
+    if ('toolCallCancellation' in message) {
+      const ids = message.toolCallCancellation.ids
+      for (const id of ids) this.outstandingToolCallIds.delete(id)
+      if (ids.length > 0) this.emit({ type: 'tool_call_cancelled', ids })
+      return
+    }
+
     const sc = message.serverContent
 
     if (this.suppressServerContentUntilBoundary) {
@@ -317,7 +415,13 @@ export class GeminiLiveVoiceSession implements VoiceSession {
       return
     }
 
-    // The citizen's own speech, transcribed server-side — never fabricated locally.
+    // The citizen's own speech, transcribed server-side — never fabricated
+    // locally. In continuous mode nothing has opened a user turn yet (the
+    // mic streams without framing), so the FIRST transcription for a turn
+    // is what proves the citizen actually spoke and is therefore what opens
+    // it — see VoiceAudioInputMode.
+    if (sc.interimInputTranscription || sc.inputTranscription) this.ensureUserTurnForTranscription()
+
     if (sc.interimInputTranscription && this.lastUserTurnId) {
       this.emit({ type: 'user_transcript_partial', turnId: this.lastUserTurnId, text: sc.interimInputTranscription.text })
     }
@@ -328,6 +432,7 @@ export class GeminiLiveVoiceSession implements VoiceSession {
         text: sc.inputTranscription.text,
         languageHint: this.context.language.primary,
       })
+      this.closeUserTurnAfterTranscription()
     }
 
     if (this.replySource === 'external') {
@@ -513,6 +618,29 @@ export class GeminiLiveVoiceSession implements VoiceSession {
     if (previous === next) return
     this._status = next
     this.emit({ type: 'status', status: next, previousStatus: previous })
+  }
+
+  /**
+   * Continuous mode only: opens a user turn the moment the provider first
+   * reports the citizen speaking, so a transcript always has a turn to
+   * belong to. Push-to-talk mode already framed the turn in
+   * sendAudioChunk() and is left completely untouched here.
+   */
+  private ensureUserTurnForTranscription(): void {
+    if (this.audioInputMode !== 'continuous') return
+    if (this.currentUserTurnId) return
+    if (this._status !== 'listening' && this._status !== 'interrupted') return
+    this.currentUserTurnId = this.beginTurn('user')
+  }
+
+  /** Continuous mode only: the provider finalized the citizen's utterance, so the open user turn is done and we are now awaiting the model. */
+  private closeUserTurnAfterTranscription(): void {
+    if (this.audioInputMode !== 'continuous') return
+    const turnId = this.currentUserTurnId
+    if (!turnId) return
+    this.currentUserTurnId = null
+    this.emit({ type: 'turn_ended', turnId, role: 'user', reason: 'completed' })
+    if (this._status === 'user_speaking') this.setStatus('processing')
   }
 
   private beginTurn(role: 'user' | 'model'): string {

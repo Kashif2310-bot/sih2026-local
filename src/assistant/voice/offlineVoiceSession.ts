@@ -223,6 +223,22 @@ export class OfflineVoiceSession implements VoiceSession {
     resolve(text)
   }
 
+  /**
+   * A no-op by contract: this session never emits a 'tool_call' event
+   * (there is no model here to request one), so there is never an
+   * outstanding call to answer. Present so the offline session remains a
+   * complete, drop-in VoiceSession — a consumer wired for tools must work
+   * against it unchanged.
+   */
+  sendToolResponse(): void {
+    // intentionally empty — see doc comment
+  }
+
+  /** Always null — the offline session has no provider and therefore no resumable server-side conversation. */
+  getResumptionHandle(): string | null {
+    return null
+  }
+
   subscribe(listener: (event: VoiceEvent) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)

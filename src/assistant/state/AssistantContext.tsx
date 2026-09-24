@@ -16,6 +16,9 @@ import type { MissingFieldInfo } from '../missingFields'
 import { createInitialProfile, defaultAssistantDeps, runAssistantTurn, type ActionPlanStep } from '../orchestrator'
 import type { ContextualEvidenceItem, RankedScheme, UserProfile } from '../types'
 import { geminiLiveVoiceSessionFactory } from '../voice'
+import { BrowserAudioBridge, isBrowserVoiceAudioSupported } from '../voice/audio/browserAudioBridge'
+import { VOICE_SYSTEM_INSTRUCTION } from '../voice/voiceSystemInstruction'
+import { VOICE_TOOL_DECLARATIONS } from '../conversation/voiceTools'
 import type { VoiceSessionFactory } from '../voice/types'
 import { AssistantCtx, type AssistantState, type UIMessage } from './assistant-state'
 import { mapVoiceTurnResult } from './voiceTurnMapping'
@@ -72,6 +75,9 @@ export function AssistantProvider({
 
   const voiceRuntimeRef = useRef<VoiceConversationRuntime | null>(null)
   const voiceUnsubscribeRef = useRef<(() => void) | null>(null)
+  /** True while startVoice() is mid-flight. React StrictMode double-invokes effects and a user can double-click; without this, two sessions and two microphones are opened. */
+  const voiceStartingRef = useRef(false)
+  const voiceControllerUnsubscribeRef = useRef<(() => void) | null>(null)
 
   // Cheap, non-hanging support check (see VoiceSessionFactory.isSupported
   // contract) — with no Gemini relay configured (the default), this
@@ -97,6 +103,7 @@ export function AssistantProvider({
     return () => {
       // Unmount safety net — never leave a live session/socket behind.
       voiceUnsubscribeRef.current?.()
+      voiceControllerUnsubscribeRef.current?.()
       void voiceRuntimeRef.current?.dispose()
     }
   }, [])
@@ -231,11 +238,39 @@ export function AssistantProvider({
     setHasStarted(true)
   }, [])
 
+  /**
+   * Appends one native-audio transcript to the SAME message list typed
+   * turns use. `fromVoice` marks the modality; nothing else differs,
+   * because nothing else should — this is one conversation.
+   */
+  const appendVoiceTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
+    setMessages((prev) => [...prev, { id: genId(), role, text, timestamp: Date.now(), fromVoice: true }])
+    setHasStarted(true)
+  }, [])
+
+  /**
+   * Projects the controller's current ConversationState into the UI state.
+   * Used on the native-audio path, where analysis advances through tool
+   * calls and ingested utterances rather than through a single
+   * turn_completed result. Reads the same fields mapVoiceTurnResult maps —
+   * never a second analysis engine.
+   */
+  const syncFromController = useCallback((controller: VoiceAssistantController) => {
+    const state = controller.getState()
+    setProfile(state.userProfile)
+    setApplicantProfile(state.applicantProfile)
+    setRanked(state.ranked)
+    setMissingFields(state.missingFields)
+    setSourceStatus(state.sourceStatus)
+  }, [])
+
   const startVoice = useCallback(async () => {
-    if (voiceRuntimeRef.current) return // already active — idempotent
+    if (voiceRuntimeRef.current || voiceStartingRef.current) return // already active or mid-start — idempotent under StrictMode
+    voiceStartingRef.current = true
     setVoiceError(null)
     if (!voiceAvailable) {
       setVoiceError('Voice is not configured for this deployment — continue with text below.')
+      voiceStartingRef.current = false
       return
     }
     try {
@@ -245,12 +280,50 @@ export function AssistantProvider({
         return
       }
       const controller = new VoiceAssistantController({}, createInitialConversationState(applicantProfile, profile))
+
+      // The controller already announces a rebuilt report every turn — reuse
+      // that rather than recomputing one here, which would be a second
+      // analysis engine drifting from the first.
+      voiceControllerUnsubscribeRef.current = controller.subscribe((event) => {
+        if (event.type === 'report_ready') {
+          reportCursorRef.current = { reportId: event.report.reportId, version: event.report.version }
+          setReport(event.report)
+          setActionPlan(event.report.recommendedNextSteps)
+          setContextualEvidence(event.report.governmentContextualEvidence ?? [])
+        }
+      })
+
+      // Native-audio mode: Gemini generates and speaks its own reply, which
+      // is the only way to get a real conversational voice experience (the
+      // alternative — controller text spoken by a separate TTS — is the
+      // transcribe/generate/synthesize pipeline this product explicitly is
+      // not). The safety boundary moves from "we author every word" to "the
+      // model has no facts of its own and must call a tool", which is what
+      // VOICE_TOOL_DECLARATIONS and VOICE_SYSTEM_INSTRUCTION enforce.
+      const audioSupported = isBrowserVoiceAudioSupported()
       const session = voiceSessionFactory.create({
         language: { primary: 'auto', allowCodeSwitching: true },
         applicantProfile,
-        replySource: 'external',
+        replySource: 'provider',
+        audioInputMode: audioSupported ? 'continuous' : 'push_to_talk',
+        tools: VOICE_TOOL_DECLARATIONS,
+        systemInstruction: VOICE_SYSTEM_INSTRUCTION,
       })
-      const runtime = new VoiceConversationRuntime({ session, controller })
+
+      const audio = audioSupported
+        ? new BrowserAudioBridge({
+            onMicrophoneError: (error) => setVoiceError(error.message),
+            onPlaybackError: (error) => setVoiceError(error.message),
+          })
+        : undefined
+
+      const runtime = new VoiceConversationRuntime({
+        session,
+        controller,
+        replyAuthority: 'provider',
+        audio,
+        toolDeps: { controller },
+      })
       voiceUnsubscribeRef.current = runtime.subscribe((event: RuntimeEvent) => {
         switch (event.type) {
           case 'audio_state_changed':
@@ -259,8 +332,22 @@ export function AssistantProvider({
           case 'turn_completed':
             mergeVoiceTurn(event.result)
             return
+          case 'transcript':
+            // Native-audio turns produce transcripts rather than a
+            // controller-authored reply. They join the SAME message list
+            // typed turns use — one conversation, two modalities.
+            appendVoiceTranscript(event.role, event.text)
+            return
+          case 'state_changed':
+            // A tool wrote to conversation state (or an utterance was
+            // ingested) — project it into the UI exactly as a text turn
+            // would, so profile/schemes/report panels stay live.
+            syncFromController(controller)
+            return
           case 'error':
             setVoiceError(event.error.message)
+            return
+          case 'tool_call':
             return
           case 'closed':
             setVoiceActive(false)
@@ -274,15 +361,27 @@ export function AssistantProvider({
     } catch (e) {
       voiceUnsubscribeRef.current?.()
       voiceUnsubscribeRef.current = null
+      voiceControllerUnsubscribeRef.current?.()
+      voiceControllerUnsubscribeRef.current = null
+      const failed = voiceRuntimeRef.current
       voiceRuntimeRef.current = null
+      // A runtime that got as far as being constructed may already hold a
+      // live microphone/socket even though start() threw — dispose it, or
+      // the recording indicator stays lit after a failed start.
+      if (failed) void failed.dispose()
       setVoiceError(e instanceof Error ? e.message : 'Voice could not start — continue with text below.')
+    } finally {
+      voiceStartingRef.current = false
     }
-  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, mergeVoiceTurn])
+  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, mergeVoiceTurn, appendVoiceTranscript, syncFromController])
 
   const stopVoice = useCallback(async () => {
+    voiceStartingRef.current = false
     const runtime = voiceRuntimeRef.current
     voiceUnsubscribeRef.current?.()
     voiceUnsubscribeRef.current = null
+    voiceControllerUnsubscribeRef.current?.()
+    voiceControllerUnsubscribeRef.current = null
     voiceRuntimeRef.current = null
     if (runtime) await runtime.dispose()
     setVoiceActive(false)
@@ -294,9 +393,12 @@ export function AssistantProvider({
   }, [])
 
   const reset = useCallback(() => {
+    voiceStartingRef.current = false
     voiceUnsubscribeRef.current?.()
+    voiceControllerUnsubscribeRef.current?.()
     void voiceRuntimeRef.current?.dispose()
     voiceUnsubscribeRef.current = null
+    voiceControllerUnsubscribeRef.current = null
     voiceRuntimeRef.current = null
 
     setProfile(seed())

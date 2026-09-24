@@ -9,7 +9,42 @@ import {
   languageCodeFor,
   parseServerMessage,
   GEMINI_LIVE_INPUT_AUDIO_MIME_TYPE,
+  GEMINI_LIVE_WEBSOCKET_ENDPOINT,
 } from './geminiLiveProtocol'
+import { buildGeminiLiveTokenUrl } from './geminiEphemeralTokenResolver'
+
+/**
+ * Regression test for a real, previously-shipped bug: this endpoint pointed
+ * at the plain `BidiGenerateContent` RPC (the full-API-key method), and
+ * every real connection attempt with a genuine minted token failed with
+ * close code 1008 "Method doesn't allow unregistered callers" — because an
+ * ephemeral/constrained token must be presented to the separately-named
+ * `BidiGenerateContentConstrained` method instead (confirmed against
+ * Google's own reference at https://ai.google.dev/api/live, and empirically
+ * verified 2026-09-25 against a live connection). Unlike a test that merely
+ * compares the built URL against this same constant (which would pass no
+ * matter what the constant's value is), this pins the literal RPC method
+ * name so a regression back to plain `BidiGenerateContent` fails loudly.
+ */
+describe('GEMINI_LIVE_WEBSOCKET_ENDPOINT', () => {
+  it('targets the Constrained method required for ephemeral-token auth, not plain BidiGenerateContent', () => {
+    expect(GEMINI_LIVE_WEBSOCKET_ENDPOINT.endsWith('.GenerativeService.BidiGenerateContentConstrained')).toBe(true)
+    // The literal, unqualified method name must not appear anywhere in the
+    // endpoint on its own — only as the suffix of the qualified Constrained
+    // name checked above.
+    expect(GEMINI_LIVE_WEBSOCKET_ENDPOINT).not.toMatch(/\.BidiGenerateContent$/)
+  })
+
+  it('uses the v1beta API version', () => {
+    expect(GEMINI_LIVE_WEBSOCKET_ENDPOINT).toContain('.v1beta.')
+  })
+
+  it('places the ephemeral token in the access_token query parameter, never key', () => {
+    const url = buildGeminiLiveTokenUrl('a-real-looking-token-value')
+    expect(url).toContain('access_token=a-real-looking-token-value')
+    expect(url).not.toMatch(/[?&]key=/)
+  })
+})
 
 describe('languageCodeFor', () => {
   it('maps en -> en-US and kn -> kn-IN', () => {

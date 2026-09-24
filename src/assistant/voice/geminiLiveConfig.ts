@@ -40,8 +40,9 @@
  * ============================================================================
  */
 
-import { GEMINI_LIVE_DEFAULT_MODEL } from './geminiLiveProtocol'
+import { GEMINI_LIVE_DEFAULT_MODEL, type GeminiLiveRealtimeInputConfig } from './geminiLiveProtocol'
 import type { GeminiLiveConnectionResolver } from './geminiLiveTransport'
+import { createEphemeralTokenConnectionResolver, isEphemeralTokenBackendConfigured } from './geminiEphemeralTokenResolver'
 
 /** Unset by default — see the SECURITY note above. Set only to a relay/proxy URL you control, never to a URL with a raw API key embedded. */
 export const GEMINI_LIVE_PROXY_URL: string | undefined = import.meta.env.VITE_GEMINI_LIVE_PROXY_URL || undefined
@@ -62,23 +63,54 @@ export const GEMINI_LIVE_SETUP_TIMEOUT_MS = 8_000
  */
 export const GEMINI_LIVE_INTERRUPT_SETTLE_TIMEOUT_MS = 1_500
 
-/** Cheap, synchronous, side-effect-free — mirrors AIProvider.isAvailable()'s "must never hang" contract. Used for VoiceSessionFactory.isSupported(). */
-export function isGeminiLiveConfigured(): boolean {
-  return Boolean(GEMINI_LIVE_PROXY_URL)
+/**
+ * Server-side voice-activity detection configuration. Leaving
+ * `automaticActivityDetection` enabled (the default — `disabled` is
+ * deliberately NOT set) is what gives natural turn-taking and barge-in
+ * without a hand-rolled client silence detector: Gemini decides where the
+ * citizen's utterance starts and ends, and tells us when its own speech was
+ * interrupted. The padding/silence values below are Google's documented
+ * knobs, set conservatively for a conversation where a citizen may pause
+ * mid-sentence to think — an aggressive endpointer cuts rural, non-fluent,
+ * or code-switched speech off mid-thought, which is exactly the user this
+ * product serves.
+ */
+export const GEMINI_LIVE_REALTIME_INPUT_CONFIG: GeminiLiveRealtimeInputConfig = {
+  automaticActivityDetection: {
+    prefixPaddingMs: 300,
+    silenceDurationMs: 900,
+  },
 }
 
 /**
- * Default connection resolver for pattern (a) above: just the configured
- * static proxy URL. A project wiring up pattern (b) instead supplies its
- * own resolver (an async function that calls a token-minting endpoint) to
- * GeminiLiveVoiceSessionDeps rather than using this one — see
- * geminiLiveVoiceSession.ts.
+ * Cheap, synchronous, side-effect-free — mirrors AIProvider.isAvailable()'s
+ * "must never hang" contract. Used for VoiceSessionFactory.isSupported().
+ * True when EITHER supported backend pattern is configured: an explicit
+ * relay/proxy URL, or the Supabase-backed ephemeral-token minting function
+ * (the preferred path — see the security note above).
+ */
+export function isGeminiLiveConfigured(): boolean {
+  return Boolean(GEMINI_LIVE_PROXY_URL) || isEphemeralTokenBackendConfigured()
+}
+
+/**
+ * The default resolver, covering both supported patterns in priority order:
+ *
+ *   1. An explicitly configured relay/proxy URL (pattern (a)) — if a
+ *      developer has deliberately stood one up, honour it.
+ *   2. Otherwise the ephemeral-token backend (pattern (b), Google's own
+ *      recommendation for browser clients): call the Supabase Edge Function
+ *      to mint a short-lived token, then connect DIRECTLY to Google's
+ *      endpoint with it. Audio never round-trips through our backend, which
+ *      is what keeps latency conversational.
+ *
+ * Both branches are lazy: nothing here runs until connect() time, so
+ * isSupported() stays synchronous and network-free.
  */
 export const defaultGeminiLiveConnectionResolver: GeminiLiveConnectionResolver = async () => {
-  if (!GEMINI_LIVE_PROXY_URL) {
-    throw new Error(
-      'Gemini Live is not configured — VITE_GEMINI_LIVE_PROXY_URL is unset. See docs/voice-session-architecture.md for the two supported backend patterns.',
-    )
-  }
-  return { url: GEMINI_LIVE_PROXY_URL }
+  if (GEMINI_LIVE_PROXY_URL) return { url: GEMINI_LIVE_PROXY_URL }
+  if (isEphemeralTokenBackendConfigured()) return createEphemeralTokenConnectionResolver()()
+  throw new Error(
+    'Gemini Live is not configured — set VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY and deploy the gemini-live-token Edge Function, or set VITE_GEMINI_LIVE_PROXY_URL. See docs/voice-session-architecture.md.',
+  )
 }

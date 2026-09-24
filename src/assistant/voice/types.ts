@@ -178,6 +178,64 @@ export interface VoiceInterruptedEvent extends VoiceEventBase {
   reason: 'user_barge_in' | 'client_cancelled'
 }
 
+// ---------------------------------------------------------------------------
+// Tool calling
+// ---------------------------------------------------------------------------
+
+/**
+ * One function the provider is allowed to ask the host to run. Deliberately
+ * provider-independent: the schema dialect here is a small, explicit subset
+ * (see VoiceToolSchema) that each adapter translates into its own provider's
+ * shape — Gemini's UPPERCASE-typed function declarations never leak up here.
+ */
+export type VoiceToolSchemaType = 'object' | 'string' | 'number' | 'integer' | 'boolean' | 'array'
+
+export interface VoiceToolSchema {
+  type: VoiceToolSchemaType
+  description?: string
+  enum?: string[]
+  properties?: Record<string, VoiceToolSchema>
+  required?: string[]
+  items?: VoiceToolSchema
+}
+
+export interface VoiceToolDeclaration {
+  name: string
+  description: string
+  parameters?: VoiceToolSchema
+  /** True to let the conversation continue while this tool runs, instead of the model waiting silently. */
+  nonBlocking?: boolean
+}
+
+/** The provider asking for a tool to be run. `args` is UNVALIDATED model output — the host must validate before acting on it. */
+export interface VoiceToolCall {
+  id: string
+  name: string
+  args: Record<string, unknown>
+}
+
+/** How a non-blocking tool's result should land relative to whatever the model is currently saying. */
+export type VoiceToolScheduling = 'interrupt' | 'when_idle' | 'silent'
+
+export interface VoiceToolResult {
+  /** Must echo the id of the VoiceToolCall this answers. */
+  id: string
+  name: string
+  response: Record<string, unknown>
+  scheduling?: VoiceToolScheduling
+}
+
+export interface VoiceToolCallEvent extends VoiceEventBase {
+  type: 'tool_call'
+  calls: VoiceToolCall[]
+}
+
+/** The provider withdrew tool calls it had already requested — e.g. the citizen interrupted before they finished. */
+export interface VoiceToolCallCancelledEvent extends VoiceEventBase {
+  type: 'tool_call_cancelled'
+  ids: string[]
+}
+
 export interface VoiceErrorEvent extends VoiceEventBase {
   type: 'error'
   error: VoiceSessionError
@@ -203,6 +261,8 @@ export type VoiceEvent =
   | VoiceTurnStartedEvent
   | VoiceTurnEndedEvent
   | VoiceInterruptedEvent
+  | VoiceToolCallEvent
+  | VoiceToolCallCancelledEvent
   | VoiceErrorEvent
   | VoiceDiagnosticEvent
 
@@ -288,7 +348,41 @@ export interface VoiceSessionConfig extends VoiceSessionContext {
   externalSessionId?: string
   /** See VoiceReplySource. Omit (or 'provider') to preserve every prior phase's existing autonomous-reply behavior exactly. */
   replySource?: VoiceReplySource
+  /**
+   * Functions the provider may call. This is how a provider-authored reply
+   * stays grounded in real application data without the provider ever
+   * becoming an independent source of government facts: it must ask the
+   * host, and the host answers from the existing deterministic pipeline.
+   * See conversation/voiceTools.ts.
+   */
+  tools?: VoiceToolDeclaration[]
+  /** Conversation-level behavioral instruction for the provider. Never contains scheme facts — see voiceSystemInstruction.ts. */
+  systemInstruction?: string
+  /** A provider-issued handle from a previous session, to resume that conversation rather than starting cold. */
+  resumptionHandle?: string
+  /** See VoiceAudioInputMode. Omit to preserve the original push-to-talk semantics exactly. */
+  audioInputMode?: VoiceAudioInputMode
 }
+
+/**
+ * How microphone audio reaches the provider — this changes turn-taking
+ * structure, so it is fixed at construction rather than living in the
+ * mutable VoiceSessionContext.
+ *
+ *   'push_to_talk' (default, unchanged from every prior phase) — the host
+ *       explicitly frames each user turn: the first audio chunk opens a user
+ *       turn, endUserTurn() closes it, and a chunk arriving while the model
+ *       is speaking is treated as a local barge-in.
+ *   'continuous'  — the microphone streams without pause and the PROVIDER's
+ *       own voice-activity detection decides where turns begin and end. A
+ *       chunk arriving during 'model_speaking' is therefore NOT a local
+ *       barge-in (with an open mic that would fire on the model's own first
+ *       syllable); the provider's interruption signal is authoritative
+ *       instead. User turns open lazily when the provider first reports a
+ *       transcription, so a turn only exists once the citizen genuinely
+ *       said something. Required for real full-duplex conversation.
+ */
+export type VoiceAudioInputMode = 'push_to_talk' | 'continuous'
 
 // ---------------------------------------------------------------------------
 // The VoiceSession contract
@@ -369,6 +463,21 @@ export interface VoiceSession {
    * autonomous model turn.
    */
   deliverAssistantReply(text: string): void
+
+  /**
+   * Answers a 'tool_call' event. Results must echo the ids from that event;
+   * a result for an unknown/already-cancelled id is dropped rather than
+   * sent, since answering a call the provider has withdrawn corrupts its
+   * turn state. A no-op on a provider that never emits tool calls.
+   */
+  sendToolResponse(results: VoiceToolResult[]): void
+
+  /**
+   * The most recent provider-issued session-resumption handle, or null if
+   * the provider hasn't issued one (or doesn't support resumption). Read at
+   * reconnect time — see VoiceSessionConfig.resumptionHandle.
+   */
+  getResumptionHandle(): string | null
 
   /** Registers a listener for every event this session emits, in order. Returns an unsubscribe function. A listener registered after connect() does not receive events emitted before it subscribed — subscribe before calling connect(). */
   subscribe(listener: (event: VoiceEvent) => void): () => void

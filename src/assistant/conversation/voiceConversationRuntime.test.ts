@@ -4,7 +4,15 @@ import type { LiveRetriever } from '../liveRetrieval'
 import { OfflineVoiceSession } from '../voice/offlineVoiceSession'
 import { GeminiLiveVoiceSession, type GeminiLiveVoiceSessionDeps } from '../voice/geminiLiveVoiceSession'
 import { FakeGeminiLiveTransport } from '../voice/testing/fakeGeminiLiveTransport'
-import type { VoiceEvent, VoiceEventInput, VoiceSession, VoiceSessionError, VoiceSessionStatus } from '../voice/types'
+import type {
+  VoiceEvent,
+  VoiceEventInput,
+  VoiceSession,
+  VoiceSessionError,
+  VoiceSessionStatus,
+  VoiceToolCall,
+  VoiceToolResult,
+} from '../voice/types'
 import { VoiceAssistantController } from './voiceAssistantController'
 import type { VoiceAssistantTurnResult } from './voiceAssistantController'
 import { VoiceConversationRuntime, type ConversationTurnHandler, type RuntimeEvent } from './voiceConversationRuntime'
@@ -82,6 +90,21 @@ class FakeVoiceSession implements VoiceSession {
     if (this.deliverError) throw this.deliverError
     this.deliveredReplies.push(text)
     this.setStatus('listening')
+  }
+
+  sentToolResults: VoiceToolResult[][] = []
+
+  sendToolResponse(results: VoiceToolResult[]): void {
+    this.sentToolResults.push(results)
+  }
+
+  getResumptionHandle(): string | null {
+    return null
+  }
+
+  /** Test hook — lets a test script a provider tool call without a real provider. */
+  emitToolCall(calls: VoiceToolCall[]): void {
+    this.emit({ type: 'tool_call', calls })
   }
 
   subscribe(listener: (event: VoiceEvent) => void): () => void {

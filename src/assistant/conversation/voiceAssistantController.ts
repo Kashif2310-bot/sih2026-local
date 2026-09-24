@@ -42,8 +42,8 @@ import {
 } from '../orchestrator'
 import { defaultProviderChain } from '../ai'
 import type { AIProvider, AIRequestContext, ChatTurn, ProviderId } from '../ai/types'
-import type { RetrievalSourceStatus, UserProfile } from '../types'
-import { createEmptyApplicantProfile, withRawNote } from '../../shared/applicantProfile'
+import type { ContextualEvidenceItem, RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
+import { createEmptyApplicantProfile, withRawNote, type ApplicantProfile } from '../../shared/applicantProfile'
 import { mergeExtractedFactsIntoApplicantProfile } from './applicantProfileBridge'
 import {
   checkEvidenceInvalidation,
@@ -61,7 +61,6 @@ import {
 import { assessReadiness, type ReadinessAssessment } from './readiness'
 import { buildPersonalizedReport, type PersonalizedReport } from './report'
 import { createInitialConversationState, type AskedQuestionRecord, type ConversationState } from './types'
-import type { ContextualEvidenceItem } from '../types'
 import type { SourceCoverageAccounting } from '../evidence/types'
 
 /** Tracks the last emitted report so refreshes bump version without mutating history. */
@@ -92,6 +91,44 @@ export interface VoiceAssistantTurnResult {
   /** Official government evidence retrieved this turn that could not be tied to one specific scheme — same value already folded into `report.governmentContextualEvidence`; exposed here too since a caller may want it before/without rebuilding from the report. */
   contextualEvidence: ContextualEvidenceItem[]
   /** Honest source/record coverage accounting for this turn's live-evidence attempt (or the last one, on a turn that didn't refetch), or null if none has been attempted yet. */
+  evidenceCoverage: SourceCoverageAccounting | null
+}
+
+/**
+ * Everything one turn's deterministic pipeline produces, before anything
+ * generative happens. Internal to this file — the two public entry points
+ * (handleUserTranscript / ingestUserUtterance) both consume it and neither
+ * exposes it.
+ */
+interface DeterministicTurn {
+  nextUserProfile: UserProfile
+  updatedFields: Array<keyof UserProfile>
+  applicantProfile: ApplicantProfile
+  missingFields: MissingFieldInfo[]
+  ranked: RankedScheme[]
+  sourceStatus: RetrievalSourceStatus | null
+  lastEvidenceFetchSnapshot: ConversationState['lastEvidenceFetchSnapshot']
+  contextualEvidence: ContextualEvidenceItem[]
+  evidenceCoverage: SourceCoverageAccounting | null
+  readiness: ReadinessAssessment
+  questionDecision: NextQuestionDecision
+  questionsAsked: AskedQuestionRecord[]
+  pendingQuestionField: keyof UserProfile | null
+  phase: ConversationState['phase']
+}
+
+/**
+ * What ingestUserUtterance returns: the same analysis a full turn produces,
+ * minus the reply fields — deliberately a narrower type than
+ * VoiceAssistantTurnResult rather than one padded with an empty replyText
+ * and a made-up providerId, which would misreport who spoke.
+ */
+export interface VoiceFactIngestResult {
+  state: ConversationState
+  question: NextQuestionDecision
+  readiness: ReadinessAssessment
+  report: PersonalizedReport
+  contextualEvidence: ContextualEvidenceItem[]
   evidenceCoverage: SourceCoverageAccounting | null
 }
 
@@ -139,6 +176,31 @@ export class VoiceAssistantController {
     this.state = initialState ?? createInitialConversationState(createEmptyApplicantProfile(), createInitialProfile())
   }
 
+  /**
+   * Serializes every state-mutating turn.
+   *
+   * A turn reads `this.state`, awaits async work (live evidence, the AI
+   * provider), then writes the result back. Two turns overlapping therefore
+   * both read the SAME base state and the second one's write silently
+   * discards whatever the first learned. That is not hypothetical here: the
+   * native-audio path can receive a batch of tool calls that each record a
+   * detail, and a finalized transcript can land while one is still running.
+   * Queueing costs nothing on the common path (the queue is already
+   * resolved) and removes the whole class of lost updates.
+   */
+  private mutationQueue: Promise<unknown> = Promise.resolve()
+
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    // Chained through both settle paths so one failed turn cannot wedge the
+    // queue for the rest of the conversation.
+    const run = this.mutationQueue.then(work, work)
+    this.mutationQueue = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
+
   getState(): ConversationState {
     return this.state
   }
@@ -154,10 +216,103 @@ export class VoiceAssistantController {
     this.emit({ type: 'state_updated', state: this.state })
   }
 
-  async handleUserTranscript(transcript: string, turnId?: string): Promise<VoiceAssistantTurnResult> {
+  /**
+   * Runs the deterministic pipeline for one utterance WITHOUT generating a
+   * reply — profile extraction, evidence, ranking, readiness, question
+   * selection and the report, exactly as handleUserTranscript does, minus
+   * step 8.
+   *
+   * This exists for the native-audio voice path, where the provider speaks
+   * its own reply and asking a second model to write one would be wasted
+   * work and a second voice in the conversation. The provider still never
+   * becomes a source of government facts: it must call a tool to learn
+   * anything, and those tools are answered from the state this method
+   * computes. See conversation/voiceTools.ts.
+   *
+   * Deliberately shares every step with handleUserTranscript rather than
+   * re-implementing them — the two differ only in who writes the words.
+   */
+  async ingestUserUtterance(transcript: string, turnId?: string): Promise<VoiceFactIngestResult> {
+    return this.enqueue(() => this.runIngestUserUtterance(transcript, turnId))
+  }
+
+  private async runIngestUserUtterance(transcript: string, turnId?: string): Promise<VoiceFactIngestResult> {
     const trimmed = transcript.trim()
     const now = new Date().toISOString()
     const effectiveTurnId = turnId ?? `voice-turn-${(this.turnCounter += 1)}`
+    const computed = await this.computeDeterministicTurn(trimmed, now)
+    const committed = this.commitTurn(computed, trimmed, effectiveTurnId, now, null)
+    return {
+      state: committed.state,
+      question: computed.questionDecision,
+      readiness: computed.readiness,
+      report: committed.report,
+      contextualEvidence: computed.contextualEvidence,
+      evidenceCoverage: computed.evidenceCoverage,
+    }
+  }
+
+  async handleUserTranscript(transcript: string, turnId?: string): Promise<VoiceAssistantTurnResult> {
+    return this.enqueue(() => this.runHandleUserTranscript(transcript, turnId))
+  }
+
+  private async runHandleUserTranscript(transcript: string, turnId?: string): Promise<VoiceAssistantTurnResult> {
+    const trimmed = transcript.trim()
+    const now = new Date().toISOString()
+    const effectiveTurnId = turnId ?? `voice-turn-${(this.turnCounter += 1)}`
+    const base = this.state
+
+    const computed = await this.computeDeterministicTurn(trimmed, now)
+
+    // 8. Reply text via the EXISTING guarded pipeline (promptBuilder +
+    // responseGuard, inside generateWithFallback) — narrowed to AT MOST the
+    // one question this engine selected, so a real AIProvider naturally
+    // phrases exactly that one question in context rather than picking
+    // among several candidates itself. No eligibility/scheme fact is ever
+    // supplied to the model beyond what `ranked` already contains.
+    const history: ChatTurn[] = base.turns.slice(-6).map((t) => ({ role: t.role, text: t.text }))
+    const narrowedMissingFields: MissingFieldInfo[] =
+      computed.questionDecision.shouldAsk && computed.questionDecision.question
+        ? [
+            {
+              field: computed.questionDecision.question.fields[0],
+              priority: 1,
+              question: computed.questionDecision.question.prompt,
+            },
+          ]
+        : []
+    const context: AIRequestContext = {
+      profile: computed.nextUserProfile,
+      message: trimmed,
+      history,
+      missingFields: narrowedMissingFields,
+      ranked: computed.ranked,
+      newlyUpdatedFields: computed.updatedFields,
+    }
+    const reply = await generateWithFallback(context, this.deps.providers)
+
+    const committed = this.commitTurn(computed, trimmed, effectiveTurnId, now, reply.text)
+
+    return {
+      state: committed.state,
+      question: computed.questionDecision,
+      readiness: computed.readiness,
+      report: committed.report,
+      replyText: reply.text,
+      isFallback: reply.isFallback,
+      usedProvider: reply.usedProvider,
+      contextualEvidence: computed.contextualEvidence,
+      evidenceCoverage: computed.evidenceCoverage,
+    }
+  }
+
+  /**
+   * Steps 1-7 of a turn: everything deterministic, nothing generative.
+   * Extracted verbatim from handleUserTranscript so the voice path can run
+   * exactly the same logic without also paying for a written reply — there
+   * is one pipeline here, not two.
+   */
+  private async computeDeterministicTurn(trimmed: string, now: string): Promise<DeterministicTurn> {
     const base = this.state
 
     // 1. Deterministic multi-fact extraction — reused, unmodified. Handles
@@ -255,79 +410,103 @@ export class VoiceAssistantController {
       deepAnalysisRequested: base.deepAnalysisRequested,
     })
 
-    // 8. Reply text via the EXISTING guarded pipeline (promptBuilder +
-    // responseGuard, inside generateWithFallback) — narrowed to AT MOST the
-    // one question this engine selected, so a real AIProvider naturally
-    // phrases exactly that one question in context rather than picking
-    // among several candidates itself. No eligibility/scheme fact is ever
-    // supplied to the model beyond what `ranked` already contains.
-    const history: ChatTurn[] = base.turns.slice(-6).map((t) => ({ role: t.role, text: t.text }))
-    const narrowedMissingFields: MissingFieldInfo[] =
-      questionDecision.shouldAsk && questionDecision.question
-        ? [{ field: questionDecision.question.fields[0], priority: 1, question: questionDecision.question.prompt }]
-        : []
-    const context: AIRequestContext = {
-      profile: nextUserProfile,
-      message: trimmed,
-      history,
-      missingFields: narrowedMissingFields,
+    return {
+      nextUserProfile,
+      updatedFields,
+      applicantProfile,
+      missingFields,
       ranked,
-      newlyUpdatedFields: updatedFields,
+      sourceStatus,
+      lastEvidenceFetchSnapshot,
+      contextualEvidence,
+      evidenceCoverage,
+      readiness,
+      questionDecision,
+      questionsAsked,
+      pendingQuestionField,
+      phase,
     }
-    const reply = await generateWithFallback(context, this.deps.providers)
+  }
+
+  /**
+   * Step 9 plus state commit. `assistantText` is null when the reply was
+   * spoken by a native-audio provider rather than written here — in that
+   * case no assistant turn is appended, because inventing an empty one
+   * would corrupt the conversation history that later turns feed to the
+   * text pipeline as context.
+   */
+  private commitTurn(
+    computed: DeterministicTurn,
+    trimmed: string,
+    turnId: string,
+    now: string,
+    assistantText: string | null,
+  ): { state: ConversationState; report: PersonalizedReport } {
+    const base = this.state
 
     // 9. Incremental personalized analysis: a structured report is always
     // built from deterministic evidence (exploratory → application_ready).
     // Never gated on "every field known". Fresh snapshot each turn — prior
     // emitted reports are never mutated in place (version bumps via cursor).
-    const actionPlan: ActionPlanStep[] = buildActionPlan(ranked)
+    const actionPlan: ActionPlanStep[] = buildActionPlan(computed.ranked)
     const report = buildPersonalizedReport({
-      applicantProfile,
-      userProfile: nextUserProfile,
-      ranked,
+      applicantProfile: computed.applicantProfile,
+      userProfile: computed.nextUserProfile,
+      ranked: computed.ranked,
       actionPlan,
-      readiness,
-      sourceStatus,
-      contextualEvidence,
-      evidenceCoverage,
+      readiness: computed.readiness,
+      sourceStatus: computed.sourceStatus,
+      contextualEvidence: computed.contextualEvidence,
+      evidenceCoverage: computed.evidenceCoverage,
       now,
       previous: this.lastReportCursor,
-      userUncertainFields: detectUserUncertainFields(trimmed, updatedFields),
+      userUncertainFields: detectUserUncertainFields(trimmed, computed.updatedFields),
     })
     this.lastReportCursor = { reportId: report.reportId, version: report.version }
     this.emit({ type: 'report_ready', report })
 
     const nextState: ConversationState = {
-      userProfile: nextUserProfile,
-      applicantProfile,
-      phase,
+      userProfile: computed.nextUserProfile,
+      applicantProfile: computed.applicantProfile,
+      phase: computed.phase,
       turns: [
         ...base.turns,
-        { turnId: effectiveTurnId, role: 'user', text: trimmed, at: now },
-        { turnId: effectiveTurnId, role: 'assistant', text: reply.text, at: new Date().toISOString() },
+        { turnId, role: 'user', text: trimmed, at: now },
+        ...(assistantText === null
+          ? []
+          : [{ turnId, role: 'assistant' as const, text: assistantText, at: new Date().toISOString() }]),
       ],
-      missingFields,
-      questionsAsked,
-      pendingQuestionField,
-      ranked,
-      sourceStatus,
-      lastEvidenceFetchSnapshot,
+      missingFields: computed.missingFields,
+      questionsAsked: computed.questionsAsked,
+      pendingQuestionField: computed.pendingQuestionField,
+      ranked: computed.ranked,
+      sourceStatus: computed.sourceStatus,
+      lastEvidenceFetchSnapshot: computed.lastEvidenceFetchSnapshot,
       deepAnalysisRequested: base.deepAnalysisRequested,
     }
     this.state = nextState
     this.emit({ type: 'state_updated', state: nextState })
 
-    return {
-      state: nextState,
-      question: questionDecision,
-      readiness,
-      report,
-      replyText: reply.text,
-      isFallback: reply.isFallback,
-      usedProvider: reply.usedProvider,
-      contextualEvidence,
-      evidenceCoverage,
+    return { state: nextState, report }
+  }
+
+  /**
+   * Records an assistant utterance that a native-audio provider spoke, so
+   * the shared conversation history stays complete even though this
+   * controller did not author the words. Purely additive — no pipeline step
+   * runs, because the assistant speaking teaches us nothing new about the
+   * citizen.
+   */
+  recordAssistantUtterance(text: string, turnId: string): ConversationState {
+    const trimmed = text.trim()
+    if (!trimmed) return this.state
+    const nextState: ConversationState = {
+      ...this.state,
+      turns: [...this.state.turns, { turnId, role: 'assistant', text: trimmed, at: new Date().toISOString() }],
     }
+    this.state = nextState
+    this.emit({ type: 'state_updated', state: nextState })
+    return nextState
   }
 
   private emit(event: ConversationEvent): void {

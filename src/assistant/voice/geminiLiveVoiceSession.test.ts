@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createGeminiLiveVoiceSessionFactory, GeminiLiveVoiceSession } from './geminiLiveVoiceSession'
 import { arrayBufferToBase64 } from './geminiLiveProtocol'
 import { FakeGeminiLiveTransport } from './testing/fakeGeminiLiveTransport'
@@ -515,8 +515,24 @@ describe('GeminiLiveVoiceSession — 15. no credentials exposed through client-f
   })
 
   it('the default connection resolver throws a clear, non-crashing error when unconfigured', async () => {
-    const { defaultGeminiLiveConnectionResolver } = await import('./geminiLiveConfig')
-    await expect(defaultGeminiLiveConnectionResolver()).rejects.toThrow(/not configured/)
+    // Hermetic on purpose. "Unconfigured" is now a real branch rather than an
+    // accident of the machine: with a Supabase project present (a developer's
+    // .env.local, or CI with the hosted project wired up) the resolver
+    // correctly takes the ephemeral-token path instead, so relying on the
+    // ambient environment here would silently stop testing what this name
+    // claims. The assertion itself is unchanged.
+    vi.resetModules()
+    vi.doMock('../supabase/client', () => ({
+      isSupabaseConfigured: () => false,
+      getSupabaseClient: () => null,
+    }))
+    try {
+      const { defaultGeminiLiveConnectionResolver } = await import('./geminiLiveConfig')
+      await expect(defaultGeminiLiveConnectionResolver()).rejects.toThrow(/not configured/)
+    } finally {
+      vi.doUnmock('../supabase/client')
+      vi.resetModules()
+    }
   })
 })
 
