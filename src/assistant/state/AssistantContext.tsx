@@ -22,6 +22,7 @@ import { VOICE_TOOL_DECLARATIONS } from '../conversation/voiceTools'
 import type { VoiceSessionFactory } from '../voice/types'
 import { AssistantCtx, type AssistantState, type UIMessage } from './assistant-state'
 import { mapVoiceTurnResult } from './voiceTurnMapping'
+import { syncApplicantProfile } from '../../platform/remoteProfilePersistence'
 
 export interface AssistantProviderProps {
   children: ReactNode
@@ -129,6 +130,12 @@ export function AssistantProvider({
         )
         setProfile(result.profile)
         setApplicantProfile(result.applicantProfile)
+        // Fire-and-forget, exactly like apply/store.ts's syncTrackedApplication:
+        // never awaited, never blocks the UI, and a failure here cannot affect
+        // the conversation, which already has everything it needs from the
+        // state just set above. See remoteProfilePersistence.ts for why this
+        // is a client-side RLS-enforced write, not a privileged endpoint.
+        void syncApplicantProfile(result.applicantProfile)
         setRanked(result.ranked)
         setMissingFields(result.missingFields)
         setActionPlan(result.actionPlan)
@@ -226,6 +233,7 @@ export function AssistantProvider({
     const mapped = mapVoiceTurnResult(result, genId)
     setProfile(mapped.profile)
     setApplicantProfile(mapped.applicantProfile)
+    void syncApplicantProfile(mapped.applicantProfile)
     setRanked(mapped.ranked)
     setMissingFields(mapped.missingFields)
     setActionPlan(mapped.actionPlan)
@@ -259,6 +267,7 @@ export function AssistantProvider({
     const state = controller.getState()
     setProfile(state.userProfile)
     setApplicantProfile(state.applicantProfile)
+    void syncApplicantProfile(state.applicantProfile)
     setRanked(state.ranked)
     setMissingFields(state.missingFields)
     setSourceStatus(state.sourceStatus)
