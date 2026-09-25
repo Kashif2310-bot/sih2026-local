@@ -18,13 +18,33 @@ describe.skipIf(!enabled)('Supabase integration (Option A)', () => {
   let client: LokPulseSupabaseClient
   let backend: BackendServices
 
+  /**
+   * Every applicant_profiles row this file creates, so afterAll removes
+   * exactly those. No auth users are created in this Option A happy-path
+   * (rows are written straight through the service-role client), so unlike
+   * ownership.integration.test.ts there is no auth.admin.deleteUser step.
+   */
+  const createdProfileIds: string[] = []
+  /** Every LP-APP application id this file creates — applications, application_events, and approval_cases all key on this. */
+  const createdApplicationIds: string[] = []
+
   beforeAll(() => {
     client = createServiceRoleClient()
     backend = createBackendServices({ mode: 'supabase', client })
   })
 
-  afterAll(() => {
-    // no auth users created in Option A happy-path
+  afterAll(async () => {
+    // Children before parent — explicit per-table deletes rather than
+    // relying on an assumed ON DELETE CASCADE, matching the convention in
+    // ownership.integration.test.ts and sharedProfileOwnership.integration.test.ts.
+    if (createdApplicationIds.length > 0) {
+      await client.from('approval_cases').delete().in('application_id', createdApplicationIds)
+      await client.from('application_events').delete().in('application_id', createdApplicationIds)
+      await client.from('applications').delete().in('application_id', createdApplicationIds)
+    }
+    if (createdProfileIds.length > 0) {
+      await client.from('applicant_profiles').delete().in('id', createdProfileIds)
+    }
   })
 
   it('scheme catalog SoT is schemes.ts; cache may optionally mirror NSFDC ids', async () => {
@@ -58,8 +78,10 @@ describe.skipIf(!enabled)('Supabase integration (Option A)', () => {
       }),
     )
     expect(profile.data.name).toBe('Integration We')
+    if (profile.applicantId) createdProfileIds.push(profile.applicantId)
 
     const applicationId = newApplicationId()
+    createdApplicationIds.push(applicationId)
     const now = new Date().toISOString()
     const app: TrackedApplication = {
       applicationId,
