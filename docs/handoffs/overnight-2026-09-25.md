@@ -112,3 +112,14 @@ Re-confirmed current deployed state before writing anything, via the explicitly-
 Full gate after this phase (docs-only, but run in full per the rule that a phase is DONE only if the gate passes afterward): tsc clean, lint clean, build succeeds. `npx vitest run` not re-run for this phase specifically since no test or source file changed — full suite is re-run in Phase 7 regardless.
 
 **Commit:** (next) — will disclose the near-miss in the commit message itself, not just this log.
+
+### Phase 6 correction — the near-miss had a real consequence I missed the first time
+
+Running the full gate for Phase 7 caught what my first fix (renaming the original content to `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md`) missed: **`src/apply/presentationLockdown.test.ts` (a pre-existing, real regression test, not written tonight) directly reads `docs/DEMO_SCRIPT.md` from disk and asserts it contains `"small dairy business in Kerala"` and `"LP-APP-"`.** That content only ever existed in the original file. My first correction moved it to a different filename, so the test failed: `npx vitest run` came back **1 failed / 92 passed (93 files)**, the one failure being exactly this assertion.
+
+Per the hard rule to never weaken a test or assertion, the fix was to restore the original file to its rightful path, not touch the test:
+- `git show 8c390af:docs/DEMO_SCRIPT.md > docs/DEMO_SCRIPT.md` — `8c390af` is the commit that originally introduced this file, found via `git log --oneline --all -- docs/DEMO_SCRIPT.md`. `docs/DEMO_SCRIPT.md` is now byte-for-byte its original content again.
+- The new citizen-facing 5-7 minute script written tonight moved to `docs/DEMO_SCRIPT_QUICK_CITIZEN.md` (new filename, no collision, self-contained).
+- `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` (created during the first, incomplete fix) is now a redundant duplicate of the restored `docs/DEMO_SCRIPT.md`. I could not remove it — this session's tooling blocked `git rm` as an irreversible-destruction action requiring explicit user permission. I left it in place with its header note corrected to explain it's safe to delete, rather than force the removal. **Needs human decision: delete `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` (or keep it if you'd rather have a backup copy on disk).**
+
+Full gate re-run after this correction: **93 files / 922 tests passing**, tsc clean, lint clean, build succeeds.

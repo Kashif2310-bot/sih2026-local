@@ -1,96 +1,85 @@
-# Demo Script — LokPulse / Ishaara (5-7 minutes)
+# LokPulse demo script
 
-Every claim in this script is backed by a row in `docs/HONESTY_LEDGER.md`. If an evaluator asks something not covered here, see `docs/PRESENTER_QA.md` first — do not improvise a claim that isn't in either document.
+Use this as the live presentation path. Speak in product language: prepared, routed, reviewed, tracked. Do not lead with what the prototype cannot do.
 
-## Pre-demo checklist (do this before anyone walks in)
+## Tested scenario
 
-- [ ] **Chrome or Edge**, not Firefox/Safari/Opera GX — voice and speech-to-text depend on browser-native APIs only Chrome-family browsers implement reliably.
-- [ ] Running on **localhost** (`npm run dev`), not a deployed URL — confirm the terminal shows the dev server up.
-- [ ] **VPN off.** A VPN can break the WebSocket connection to Gemini or add enough latency to make voice feel broken when it isn't.
-- [ ] **Microphone permission**: open the assistant page once beforehand and grant mic access, so the permission prompt doesn't interrupt the live demo.
-- [ ] **Hard refresh** (Ctrl+Shift+R) right before presenting, so you're not showing stale state from a previous rehearsal.
-- [ ] Know your **backup plan** (below) before you start, not after something fails.
+> I am 26 years old and want to start a small dairy business in Kerala. I need financial assistance.
 
-**Backup plan if voice fails live:** say the line from the ledger — "voice genuinely connects to Gemini; I've verified the protocol handshake works, but if the room's network is unfriendly to WebSockets right now, here's the same interaction by typing" — then continue on the text assistant. Do not re-try voice more than once in front of the room.
+## Script
 
-**Backup plan if live-source retrieval is asked about:** it will show "not_configured" honestly if clicked — that IS the correct, intended behavior. Don't panic-explain it as broken; say the line from the ledger about not having a working dataset key yet.
+1. **Landing**  
+   Open the home page. Show LokPulse as application intelligence plus workflow routing.
 
----
+2. **Enter Assistant**  
+   Use the header Assistant action. Keep the conversation in text.
 
-## 1. Opening (30s)
+3. **Natural conversation**  
+   Paste the Kerala dairy sentence and send.
 
-**Say:** "LokPulse helps a citizen find and apply for government livelihood schemes — in their own words, typed or spoken, in English or Kannada."
+4. **Extract context**  
+   Point to age 26, Kerala, dairy, and a new/small business. Income, category, and gender stay unknown unless the citizen said them.
 
-**Do:** Open `/assistant`.
+5. **Show relevant scheme**  
+   Open the top scheme match. Explain it as relevant to the stated situation, not as a government approval.
 
-**Expect:** The AI Government Scheme Assistant page loads with an empty profile panel and example prompts.
+6. **Show evidence**  
+   Use the source/evidence status on the reply. It reflects what was actually queried.
 
----
+7. **Open Personalized Analysis**  
+   Click **View full analysis**.
 
-## 2. Text assistant — scheme matching (90s)
+8. **Explain opportunity / readiness**  
+   Walk citizen snapshot, business context, opportunity, financial path, documents, application readiness, and next steps. Proposed business should still read **small dairy business**, with sector kept as **dairy**.
 
-**Do:** Click one of the example prompts, or type: *"I am 24, from rural Karnataka, SC category, income ₹2 lakh, want to start a poultry business needing ₹3 lakh."*
+9. **Start Application**  
+   Use **Start application** from the analysis (or scheme detail). This continues the same citizen packet — it does not send the person away to fill a government form themselves.
 
-**Expect:** The profile sidebar fills in (age, area, state, category, sector, investment). Ranked schemes appear on the right with match scores and a source badge reading "Verified scheme knowledge base."
+10. **Show automatic carry-over**  
+    Confirm age, Kerala, dairy, and the richer proposed business are already in the application fields.
 
-**Say:** "This matching is deterministic — same input, same output, every time. No language model is guessing eligibility; it's rule-based extraction against a curated, hand-verified scheme dataset."
+11. **Create LP-APP-***  
+    Complete required fields and document declarations. Consent and route the application. The canonical identity is `LP-APP-*`. `LP-GUIDED-*` is a channel tracking id, not a second application id.
 
-**If it fails:** refresh once. If it still fails, this is a real bug — do not fake it; move to the next section and mention you'll follow up.
+12. **Complete required application information**  
+    Fill only genuine gaps. Empty values stay **Not provided**. Review labels are human-readable (Applicant full name, Area type, Loan amount requested).
 
----
+13. **Show packet prepared**  
+    Tracking should lead with **Application package · Prepared successfully**.
 
-## 3. Voice — native audio conversation (90s)
+14. **Show routing context**  
+    For dairy, routing should surface **Animal Husbandry & Dairying** from runtime routing.
 
-**Do:** Click **"Talk instead of typing."** Wait for the status pill to show **"Listening…"**. Speak a short sentence, e.g. *"I am thirty five, general category."*
+15. **Show next owner / review workflow**  
+    Next owner is **Jordan · Approval Service**. Status comes from runtime (Ready for review / Reviewer assigned).
 
-**Expect:** The assistant replies out loud (native audio, not typed-then-read-aloud), and the transcript appears in the chat alongside your own words.
+16. **Open tracking**  
+    Stay inside LokPulse. Official scheme information is a secondary link, not the primary CTA.
 
-**Say:** "This is genuine two-way audio with Gemini's Live API — the model hears you and speaks back directly. The browser never holds our Gemini key; it gets a short-lived, single-use token from our backend first."
+17. **Open Admin**  
+    Sign in and open the same `LP-APP-*`. Confirm applicant, scheme, **small dairy business**, routing, documents, status, and audit.
 
-**If it hangs on "Listening…" or errors:** use the backup line above and continue on text. Do not claim it "usually works" — say what you've verified: the connection and handshake are real (protocol-level, tested tonight), a live spoken exchange with an audience microphone is the one thing not personally verified end-to-end in this environment.
+18. **Open Jordan approval workflow**  
+    Jordan ApprovalService is the sole approval authority. Allocate / sign in the same session.
 
----
+19. **Show audit / integrity**  
+    Label the two hashes separately:  
+    - Application packet snapshot — SHA-256 (`sha256:…`)  
+    - Approval record digest — Keccak (`0x…`)  
+    They are different objects. Tamper detection stays in place.
 
-## 4. Apply flow — voice-to-form (90s)
+20. **Return to tracking**  
+    The citizen tracking page still shows the same `LP-APP-*`, routing, next owner, and workflow.
 
-**Do:** Navigate to `/apply`. On the voice step, click **"Start speaking"** and say the example line shown on screen, or click the example chip: *"I want to start a dairy business in Mandya with one lakh rupees margin."*
+## If asked about external government filing
 
-**Expect:** The transcript box fills in; "We picked this up" shows extracted hints (sector: dairy, own contribution: ₹1,00,000).
+LokPulse prepares and routes the application workflow, while the external government filing channel is separate from this prototype's current connected submission integrations.
 
-**Say:** "Notice this uses the browser's own speech engine, separate from the Gemini voice assistant — and every extracted field is shown to you, editable, before anything is submitted."
+Do not volunteer that line. It is for Q&A only.
 
-**Do:** Continue to the profile step. Point out the editable fields are pre-filled from what was said, but every one is a plain, editable text input.
+## Do not say unless asked a technical question
 
-**If speech recognition doesn't respond:** it will now show a clear message within ~7 seconds (fixed tonight) instead of hanging forever — narrate that as the intended honest-failure behavior, then type the example instead.
-
----
-
-## 5. Submission and persistence (60s)
-
-**Do:** Complete the remaining apply steps (documents/consent can be minimal for the demo) and submit. Then **hard refresh the page** and navigate back to the tracking page for that application.
-
-**Expect:** The application is still there after the refresh.
-
-**Say:** "Your application is saved locally the instant you submit — that's instantaneous and never depends on the network. It's also synced to our database under your own protected identity: we've directly tested that a different citizen's session cannot read or modify your application."
-
----
-
-## 6. Closing honesty note (30-45s)
-
-**Say:** "A few things worth being upfront about: live government statistics from data.gov.in are wired up end-to-end but we haven't found a working dataset key yet, so that path is honestly disabled, not faked. And several backend capabilities — approval workflows, admin review queues, notifications — are built and tested but not yet exposed to this citizen-facing app; they're ready for the next phase."
-
-**Do:** Stop here. Don't over-promise on anything not in the ledger.
-
----
-
-## Timing summary
-
-| Section | Time |
-|---|---|
-| Opening | 0:30 |
-| Text assistant | 1:30 |
-| Voice | 1:30 |
-| Apply flow | 1:30 |
-| Persistence | 1:00 |
-| Closing honesty | 0:45 |
-| **Total** | **~6:45** |
+- the app cannot do X
+- this is just a demo
+- now you have to go to the government website
+- voice doesn't work
