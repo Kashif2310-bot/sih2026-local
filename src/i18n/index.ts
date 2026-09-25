@@ -428,6 +428,9 @@ export const translationResources = {
           errorState: 'Voice error',
           closed: 'Voice ended',
           fromVoiceTag: 'Voice',
+          languageSelectorLabel: 'Voice language',
+          languageEnglish: 'English',
+          languageKannada: 'Kannada',
         },
       },
       apply: {
@@ -1317,6 +1320,9 @@ export const translationResources = {
           errorState: 'ಧ್ವನಿ ದೋಷ',
           closed: 'ಧ್ವನಿ ಕೊನೆಗೊಂಡಿದೆ',
           fromVoiceTag: 'ಧ್ವನಿ',
+          languageSelectorLabel: 'ಧ್ವನಿ ಭಾಷೆ',
+          languageEnglish: 'ಇಂಗ್ಲಿಷ್',
+          languageKannada: 'ಕನ್ನಡ',
         },
       },
       apply: {

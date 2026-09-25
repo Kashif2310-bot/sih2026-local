@@ -6,6 +6,7 @@ import type { SourceCoverageAccounting } from '../evidence/types'
 import type { MissingFieldInfo } from '../missingFields'
 import type { ActionPlanStep } from '../orchestrator'
 import type { AssistantAudioState } from '../conversation/voiceConversationRuntime'
+import type { VoiceLanguageSelection } from '../voice/voiceLanguageSelection'
 import type { ContextualEvidenceItem, RankedScheme, RetrievalSourceStatus, UserProfile } from '../types'
 
 export interface UIMessage {
@@ -59,6 +60,9 @@ export interface AssistantState {
   startVoice: () => Promise<void>
   stopVoice: () => Promise<void>
   interruptVoice: () => void
+  /** The citizen's explicit language choice for the NEXT startVoice() call — read once at connect time, so changing it while a session is already active has no effect until the next start. */
+  voiceLanguage: VoiceLanguageSelection
+  setVoiceLanguage: (language: VoiceLanguageSelection) => void
 }
 
 export const AssistantCtx = createContext<AssistantState | null>(null)

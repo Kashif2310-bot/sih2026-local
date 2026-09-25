@@ -17,8 +17,12 @@ import { createInitialProfile, defaultAssistantDeps, runAssistantTurn, type Acti
 import type { ContextualEvidenceItem, RankedScheme, UserProfile } from '../types'
 import { geminiLiveVoiceSessionFactory } from '../voice'
 import { BrowserAudioBridge, isBrowserVoiceAudioSupported } from '../voice/audio/browserAudioBridge'
-import { VOICE_SYSTEM_INSTRUCTION } from '../voice/voiceSystemInstruction'
 import { VOICE_TOOL_DECLARATIONS } from '../conversation/voiceTools'
+import {
+  resolveVoiceSessionLanguage,
+  resolveVoiceSystemInstruction,
+  type VoiceLanguageSelection,
+} from '../voice/voiceLanguageSelection'
 import type { VoiceSessionFactory } from '../voice/types'
 import { AssistantCtx, type AssistantState, type UIMessage } from './assistant-state'
 import { mapVoiceTurnResult } from './voiceTurnMapping'
@@ -63,6 +67,7 @@ export function AssistantProvider({
   const [voiceAudioState, setVoiceAudioState] = useState<AssistantAudioState>('idle')
   const [voiceActive, setVoiceActive] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [voiceLanguage, setVoiceLanguage] = useState<VoiceLanguageSelection>('en')
 
   const pendingTextRef = useRef<string | null>(null)
   const idCounterRef = useRef(0)
@@ -311,12 +316,12 @@ export function AssistantProvider({
       // VOICE_TOOL_DECLARATIONS and VOICE_SYSTEM_INSTRUCTION enforce.
       const audioSupported = isBrowserVoiceAudioSupported()
       const session = voiceSessionFactory.create({
-        language: { primary: 'auto', allowCodeSwitching: true },
+        language: resolveVoiceSessionLanguage(voiceLanguage),
         applicantProfile,
         replySource: 'provider',
         audioInputMode: audioSupported ? 'continuous' : 'push_to_talk',
         tools: VOICE_TOOL_DECLARATIONS,
-        systemInstruction: VOICE_SYSTEM_INSTRUCTION,
+        systemInstruction: resolveVoiceSystemInstruction(voiceLanguage),
       })
 
       const audio = audioSupported
@@ -382,7 +387,7 @@ export function AssistantProvider({
     } finally {
       voiceStartingRef.current = false
     }
-  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, mergeVoiceTurn, appendVoiceTranscript, syncFromController])
+  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, voiceLanguage, mergeVoiceTurn, appendVoiceTranscript, syncFromController])
 
   const stopVoice = useCallback(async () => {
     voiceStartingRef.current = false
@@ -457,6 +462,8 @@ export function AssistantProvider({
     startVoice,
     stopVoice,
     interruptVoice,
+    voiceLanguage,
+    setVoiceLanguage,
   }
 
   return <AssistantCtx.Provider value={value}>{children}</AssistantCtx.Provider>

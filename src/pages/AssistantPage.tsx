@@ -56,6 +56,36 @@ function voiceAudioStateKey(state: AssistantAudioState): string {
   }
 }
 
+function VoiceLanguageSelector() {
+  const { t } = useTranslation()
+  const { voiceLanguage, setVoiceLanguage, voiceActive } = useAssistant()
+
+  return (
+    <div
+      role="group"
+      aria-label={t('assistant.voice.languageSelectorLabel')}
+      className="inline-flex items-center gap-0.5 rounded-full border border-forest/20 bg-white p-0.5 text-xs"
+    >
+      {(['en', 'kn'] as const).map((lang) => (
+        <button
+          key={lang}
+          type="button"
+          aria-pressed={voiceLanguage === lang}
+          disabled={voiceActive}
+          onClick={() => setVoiceLanguage(lang)}
+          className={
+            voiceLanguage === lang
+              ? 'rounded-full bg-forest px-2.5 py-1 font-semibold text-white'
+              : 'rounded-full px-2.5 py-1 font-semibold text-forest disabled:opacity-50'
+          }
+        >
+          {t(lang === 'en' ? 'assistant.voice.languageEnglish' : 'assistant.voice.languageKannada')}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function VoiceControls() {
   const { t } = useTranslation()
   const {
@@ -76,6 +106,7 @@ function VoiceControls() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <VoiceLanguageSelector />
       {!voiceActive ? (
         <button
           type="button"
@@ -119,7 +150,7 @@ function VoiceControls() {
   )
 }
 
-function AssistantPageInner({
+export function AssistantPageInner({
   placeName,
   categoryLabel,
   applicantName,
