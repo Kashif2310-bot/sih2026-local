@@ -1,20 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import {
-  requestOtp as apiRequestOtp,
-  verifyOtp as apiVerifyOtp,
-  type UserOut,
-} from '../lib/api'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { requestOtp as apiRequestOtp, verifyOtp as apiVerifyOtp } from '../lib/api'
 import { clearAuth, readAuth, writeAuth, type StoredAuth } from '../lib/authSession'
-
-interface AuthState {
-  user: UserOut | null
-  token: string | null
-  requestOtp: (phone: string) => Promise<string>
-  verifyOtp: (phone: string, code: string) => Promise<StoredAuth>
-  logout: () => void
-}
-
-const AuthCtx = createContext<AuthState | null>(null)
+import { AuthCtx, type AuthState } from './auth-state'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<StoredAuth | null>(() => readAuth())
@@ -48,10 +35,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthCtx)
-  if (!ctx) throw new Error('useAuth outside provider')
-  return ctx
 }

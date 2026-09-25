@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { listUserAssessments, type AssessmentOut } from '../lib/api'
 import { fromPaise } from '../lib/finance'
-import { useAuth } from '../state/AuthContext'
+import { useAuth } from '../state/useAuth'
 
 function newestFirst(rows: AssessmentOut[]): AssessmentOut[] {
   return [...rows].sort((a, b) => {
@@ -20,11 +20,17 @@ export function HistoryPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!user || !token) {
-      setRows(null)
-      return
-    }
+    // No setRows(null) here: the render below already returns the
+    // logged-out prompt unconditionally when `!user || !token`, without
+    // ever reading `rows`, so this effect only needs to skip the fetch.
+    if (!user || !token) return
     let cancelled = false
+    // Intentional: clears a stale error from a previous failed attempt the
+    // instant a new fetch starts (triggered by user/token actually
+    // changing), rather than leaving old error text visible during the new
+    // request. Not derivable at render time — it depends on the outcome of
+    // the previous async attempt, which only the effect knows about.
+    // eslint-disable-next-line react/set-state-in-effect
     setError(null)
     void listUserAssessments(user.id, token)
       .then((list) => {

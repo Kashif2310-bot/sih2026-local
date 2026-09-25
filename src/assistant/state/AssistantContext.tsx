@@ -415,7 +415,10 @@ export function AssistantProvider({
     voiceControllerUnsubscribeRef.current = null
     voiceRuntimeRef.current = null
 
-    setProfile(seed())
+    // Same expression seed() computes, inlined so exhaustive-deps sees the
+    // real dependency (initialProfile) instead of a non-memoized closure
+    // (seed) that would otherwise have to be recreated every render.
+    setProfile(initialProfile ?? createInitialProfile())
     setApplicantProfile(createEmptyApplicantProfile())
     setMessages([])
     setRanked([])

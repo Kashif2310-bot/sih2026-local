@@ -27,7 +27,7 @@ function mulberry32(seed: number) {
   }
 }
 
-function typedPlaceLocation(place: (typeof TYPED_PLACES)[number], category: BusinessCategory): ResolvedLocation {
+function typedPlaceLocation(place: (typeof TYPED_PLACES)[number], _category: BusinessCategory): ResolvedLocation {
   const empty = {
     dairy: 0.5,
     retail: 0.5,

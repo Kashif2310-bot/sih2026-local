@@ -28,19 +28,28 @@ export function AssessmentRoute({ children }: { children: ReactNode }) {
   const [gate, setGate] = useState<'loading' | 'ready' | 'error' | 'not-found'>(() =>
     id && hasAssessment(id) ? 'ready' : 'loading',
   )
+  // Derived, not stored: whenever the currently-known id is already loaded
+  // (a ref-backed check, not reactive state), the citizen should see it as
+  // ready immediately, without waiting on an effect to catch up and without
+  // a synchronous setState inside that effect. `gate` itself only tracks the
+  // states that genuinely come from async work (loading/error/not-found).
+  const displayGate = id && hasAssessment(id) ? 'ready' : gate
   const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    if (!id) {
-      setGate('not-found')
-      return
-    }
-    if (hasAssessment(id)) {
-      setGate('ready')
-      return
-    }
+    // No setGate('not-found') here: the render below already treats `!id`
+    // as not-found unconditionally (`!id || displayGate === 'not-found'`),
+    // so this effect only needs to skip its own async work for that case.
+    if (!id) return
+    // Already loaded — displayGate already shows 'ready'; just skip re-fetching.
+    if (hasAssessment(id)) return
 
     let cancelled = false
+    // Intentional: resets from a previous 'error' (retry) or a previous
+    // 'ready' for a different id back to 'loading' before the new fetch
+    // starts below. Not derivable at render time — "a fetch is now in
+    // flight" is exactly the kind of fact only this effect knows.
+    // eslint-disable-next-line react/set-state-in-effect
     setGate('loading')
 
     void (async () => {
@@ -75,7 +84,7 @@ export function AssessmentRoute({ children }: { children: ReactNode }) {
     }
   }, [id, retryKey, hasAssessment, hydrateFromSnapshot])
 
-  if (!id || gate === 'not-found') {
+  if (!id || displayGate === 'not-found') {
     return (
       <div className="glass mx-auto max-w-lg rounded-2xl p-8 text-center">
         <AlertCircle className="mx-auto h-8 w-8 text-clay" />
@@ -97,7 +106,7 @@ export function AssessmentRoute({ children }: { children: ReactNode }) {
     )
   }
 
-  if (gate === 'loading') {
+  if (displayGate === 'loading') {
     return (
       <div className="space-y-4" aria-busy="true" aria-live="polite">
         <div className="flex items-center gap-2 text-sm text-ink/55">
@@ -115,7 +124,7 @@ export function AssessmentRoute({ children }: { children: ReactNode }) {
     )
   }
 
-  if (gate === 'error') {
+  if (displayGate === 'error') {
     return (
       <div className="glass mx-auto max-w-lg rounded-2xl p-8 text-center">
         <AlertCircle className="mx-auto h-8 w-8 text-danger" />

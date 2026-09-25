@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ApiError, claimAssessment } from '../lib/api'
 import { readLastAssessmentId } from '../lib/assessmentSnapshot'
-import { useAuth } from '../state/AuthContext'
+import { useAuth } from '../state/useAuth'
 import { useApp } from '../state/useApp'
 
 export function LoginPage() {
