@@ -123,3 +123,101 @@ Per the hard rule to never weaken a test or assertion, the fix was to restore th
 - `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` (created during the first, incomplete fix) is now a redundant duplicate of the restored `docs/DEMO_SCRIPT.md`. I could not remove it — this session's tooling blocked `git rm` as an irreversible-destruction action requiring explicit user permission. I left it in place with its header note corrected to explain it's safe to delete, rather than force the removal. **Needs human decision: delete `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` (or keep it if you'd rather have a backup copy on disk).**
 
 Full gate re-run after this correction: **93 files / 922 tests passing**, tsc clean, lint clean, build succeeds.
+
+## Phase 7 — final verification and closing report
+
+Full gate re-run from a clean tree: `npx vitest run` -> **93 files / 922 tests, all passing**. `npx tsc -b` clean. `npm run lint` clean. `npm run build` succeeds (only a pre-existing chunk-size warning, unrelated to tonight). `npm run supabase:probe` -> all 16 known Option-A tables reachable (HTTP 200). `npx vitest run src/backend` (named explicitly by this phase) -> **21 files / 127 tests, all passing**.
+
+**Leftover-row/user verification**, done with the same temporary-diagnostic-then-delete pattern used in Phase 5 (file created, run, then deleted — no trace left in the tree): queried `applicant_profiles` and `applications` directly and cross-referenced every row's `owner_user_id` against the current live `auth.admin.listUsers()` result. Result: **0 rows in either table are owned by a still-existing auth user** — every one of the 29/29 rows present belongs to an anonymous auth user already deleted by some earlier `afterAll`. The 6 anonymous auth users that do still exist were all created on 2026-09-24 (before tonight's session) and own zero rows in either table. This confirms tonight's own tests (the new `sharedProfileOwnership.integration.test.ts` plus every other integration test re-run tonight) cleaned up completely; the residual rows/users are pre-existing legacy artifacts from before tonight, already flagged in an earlier session and not something introduced or worsened tonight.
+
+### 1. Phases completed / skipped / reverted
+
+- **Phase 0** (preflight) — done. Branch created from `demo/backend-integration`; six original migrations confirmed byte-identical to `feature/ishaara-gemini-live`.
+- **Phase 1** (Gemini Live Blob/ArrayBuffer decode) — done; was already implemented earlier tonight before the "overnight" instruction arrived, and was verified/formalized with tests and a real-server check rather than re-done from scratch.
+- **Phase 2** (age-extraction hardening) — done in full, all required test phrasings covered.
+- **Phase 3** (audio review + token freshness + /apply speech recognition fix) — done. Audio capture/playback review found no real defects to fix. Token-freshness test added. Opera-GX-style hang fixed with a response timeout and clear per-error messages.
+- **Phase 4** (editable profile fields) — **STOPPED deliberately**, per its own explicit escape hatch. Investigated fully; wrote a concrete, numbered implementation proposal into this log instead of building it unattended. Nothing was reverted — no code was touched for this phase.
+- **Phase 5** (shared applicant profile persistence) — done, with one deliberate, disclosed deviation: implemented remote-sync only (no new local-storage layer), because no local persistence for this data existed before tonight and inventing one was judged to be a product decision outside this phase's mandate. No new migration, no new Edge Function.
+- **Phase 6** (honesty ledger / demo script / presenter Q&A) — done, but with a self-caused-and-self-corrected near-miss (see above) — nothing was reverted from the codebase; a doc file was corrected.
+- **Phase 7** (this phase) — done; see the rest of this section.
+
+No phase was reverted for gate failure. The only "revert-like" action tonight was the two-step correction of the `docs/DEMO_SCRIPT.md` overwrite in Phase 6, which is a doc-content fix, not a phase rollback.
+
+### 2. Exact files changed (branch total, `demo/backend-integration..overnight/2026-09-25`)
+
+- `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` — new, 89 lines (now redundant, see "Needs your decision")
+- `docs/DEMO_SCRIPT_QUICK_CITIZEN.md` — new, 96 lines (the actual new demo script)
+- `docs/HONESTY_LEDGER.md` — new, 89 lines
+- `docs/PRESENTER_QA.md` — new, 63 lines
+- `docs/handoffs/overnight-2026-09-25.md` — new, this file
+- `src/assistant/conversation/voiceAssistantController.test.ts` — +17/-x
+- `src/assistant/profileExtraction.test.ts` — +194 lines
+- `src/assistant/profileExtraction.ts` — +201/-x
+- `src/assistant/state/AssistantContext.tsx` — +9 lines
+- `src/assistant/voice/geminiLiveTransport.test.ts` — new, 240 lines
+- `src/assistant/voice/geminiLiveTransport.ts` — +111/-x
+- `src/assistant/voice/geminiLiveVoiceSession.test.ts` — +40 lines
+- `src/backend/supabase/sharedProfileOwnership.integration.test.ts` — new, 138 lines
+- `src/i18n/index.ts` — +16 lines
+- `src/pages/apply/VoicePage.test.tsx` — new, 182 lines
+- `src/pages/apply/VoicePage.tsx` — +85/-x
+- `src/platform/remoteProfilePersistence.ts` — new, 94 lines
+
+Total: 17 files changed, 1739 insertions, 50 deletions, across the whole branch.
+
+Note: `docs/DEMO_SCRIPT.md` does **not** appear in this diff — it was touched mid-branch (accidentally overwritten, then restored) and its final content on this branch is byte-identical to where the branch started, so the diff against the branch's start point is empty for that file. See the Phase 6 correction above for the full story; nothing was lost.
+
+### 3. Commits (this branch only, oldest first)
+
+1. `f1f61ca` — fix(voice): decode Blob/ArrayBuffer WebSocket frames from Gemini Live
+2. `bf9cc22` — fix(profile-extraction): harden bare I'm/I am number age pattern
+3. `0dfbe0f` — feat(voice): fix /apply speech recognition hanging on "Listening..."; prove token freshness
+4. `aea36f9` — docs(overnight): log Phases 0-4; Phase 4 stopped with a written proposal
+5. `047b87b` — feat(persistence): browser->Supabase shared ApplicantProfile sync (anon identity)
+6. `7c73468` — docs(overnight): honesty ledger, demo script, presenter Q&A
+7. `9c96e52` — fix(docs): restore original DEMO_SCRIPT.md, move new script to its own file
+
+### 4. Test counts, before and after
+
+| | Files | Tests |
+|---|---|---|
+| Baseline (Phase 0, start of branch) | 91 | 893 |
+| Final (Phase 7, end of branch) | 93 | 922 |
+
+Net: **+2 files, +29 tests**, zero regressions, zero skipped/pending tests introduced.
+
+### 5. Needs your decision
+
+- **Phase 4 design proposal** (editable/correctable profile fields on `/assistant`) — written in full above, not built. Needs a decision on remove-semantics (hard-clear-and-lock vs soft-undo) before implementing.
+- **`docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` is now a redundant duplicate** of the restored `docs/DEMO_SCRIPT.md` (see Phase 6 correction above). It's safe to delete — this session's tooling wouldn't let me run `git rm` on it (classified as irreversible destruction, needs your permission). One `git rm docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` and a commit when you're back removes it, or just leave it as a backup copy.
+- **i18n has no Hindi locale at all** — only `en`/`kn` exist in this codebase, contradicting an assumption in tonight's brief. All new strings tonight were added with real en/kn parity (test-enforced), but if Hindi support is expected for the actual event, that's a pre-existing gap, not something introduced or fixed tonight.
+- **Gemini token-minting endpoint has no per-caller quota** (documented in the Honesty Ledger, Q&A #12) — the real safety net is a spend cap on the Gemini API key at Google's console, which is outside this repo's control and wasn't touched tonight.
+- **The 6 leftover anonymous auth users / 29 orphaned rows** predate tonight's session (created 2026-09-24) and were not created or worsened by tonight's work, but they're still sitting in the live database. Cleaning them up would need a manual admin pass — not done tonight since it wasn't caused tonight and cleanup of pre-existing data was outside this task's scope.
+
+### 6. Commands you would need to run yourself to deploy anything (NOT run tonight, on purpose)
+
+Nothing tonight requires a deploy, migration, or push — every phase either used only existing, already-deployed infrastructure or was implemented as pure client-side/local code. For completeness, if you choose to publish this branch, the one command is pushing the branch itself (not run tonight):
+
+`git push -u origin overnight/2026-09-25`
+
+No Edge Function changes were made (`gemini-live-token`, `live-scheme-retrieval` are byte-identical to this morning's deploy — confirmed via `supabase functions list` / `migration list`, never `functions deploy`). No new migration was written or applied (Phase 5 explicitly reused existing RLS/ownership migrations; Phase 4 was stopped before needing one). The two concrete next actions from tonight's Honesty Ledger — a Gemini spend cap and exposing the admin/approval workflow to the browser — have no repo command to run: the cap is a Google Cloud Console setting, and the admin exposure is unbuilt.
+
+### 7. What is still NOT verified
+
+- **Real microphone audio in a real browser (Chrome/Edge)** — everything about the Gemini Live voice path and the `/apply` speech-to-text path was verified via code review, unit/component tests with fake WebSocket/SpeechRecognition implementations, and one real-server protocol-level handshake check from Node (mint-token-and-connect, never through an actual microphone). No environment tonight had a working microphone to test the full, literal user experience end-to-end.
+- **Opera GX itself** — the `/apply` fix was verified against the reported failure mode (recognition silently never firing any event) using a fake implementation that reproduces exactly that behavior, not against a real Opera GX install.
+- **A live demo run-through of `docs/DEMO_SCRIPT_QUICK_CITIZEN.md` end-to-end in front of anyone** — the script was written from what's true in the codebase, but nobody has actually rehearsed it live tonight.
+- **Whether the pre-existing 29 orphaned rows / 6 leftover anonymous users cause any visible problem** — confirmed they're inert (no live app or UI ever queries by a since-deleted owner), but not exhaustively proven harmless.
+
+### 8. First 15 minutes tomorrow morning — checklist
+
+1. Read this file top to bottom once, then read `docs/HONESTY_LEDGER.md` — it's the source of truth for anything you say to evaluators.
+2. `git log --oneline overnight/2026-09-25` and skim the 7 commits above; `git diff --stat demo/backend-integration..overnight/2026-09-25` to see the full shape of the change.
+3. Decide whether to merge this branch into whatever you're presenting from, or cherry-pick. Nothing was pushed.
+4. **Open `/assistant` and `/apply` in an actual Chrome or Edge with a real microphone** and do the voice flow once yourself — this is the single biggest unverified thing tonight (see section 7).
+5. Read `docs/DEMO_SCRIPT_QUICK_CITIZEN.md` once out loud, ideally at your desk before anyone's watching, to catch anything that reads well but doesn't actually feel right live.
+6. Decide on the Phase 4 proposal (edit/remove profile fields) — is it worth having before the actual event, or does the current read-only sidebar plus `/apply`'s existing editable review step cover it well enough?
+7. Delete or keep `docs/DEMO_SCRIPT_ADMIN_WORKFLOW.md` (your call — see section 5).
+8. If you want the Gemini quota gap (Q&A #12) closed before presenting to anyone outside your own team, set a spend cap on the Gemini API key in Google's console — nothing in this repo needs to change for that.
+
+This is the end of tonight's autonomous work. Per the hard rules: nothing was pushed, nothing was deployed, no migration was applied, no secret was read or printed. Stopping here.
