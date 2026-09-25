@@ -71,7 +71,15 @@ describe('demo-ready presentation lockdown', () => {
 
 describe('runtime localhost audit', () => {
   it('does not hardcode loopback hosts in presentation runtime except optional local Ollama', () => {
-    const allowed = new Set(['src/assistant/aiConfig.ts', 'src/assistant/ai/ollamaProvider.ts'])
+    const allowed = new Set([
+      'src/assistant/aiConfig.ts',
+      'src/assistant/ai/ollamaProvider.ts',
+      // Local FastAPI persistence server (server/) — optional, loopback-only
+      // dev default, overridden by VITE_API_URL when set. Same shape as the
+      // Ollama exception above: a fallback for local development, not a
+      // hardcoded production host.
+      'src/lib/api.ts',
+    ])
     const files: string[] = []
 
     const walk = (dir: string) => {
