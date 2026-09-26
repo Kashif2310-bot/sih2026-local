@@ -19,6 +19,7 @@ const DISTRICT_STATE: Record<string, string> = {
   Dharwad: 'Karnataka',
   Belagavi: 'Karnataka',
   Hassan: 'Karnataka',
+  Tumakuru: 'Karnataka',
   Nashik: 'Maharashtra',
 }
 
