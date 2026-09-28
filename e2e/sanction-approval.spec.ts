@@ -150,7 +150,9 @@ test.describe('sanction approval — UI', () => {
     await page.getByRole('link', { name: 'Export' }).first().click()
     await expect(page.getByRole('heading', { name: /NSFDC Feasibility/i })).toBeVisible()
     await page.getByRole('link', { name: 'Home' }).first().click()
-    await expect(page.getByRole('link', { name: /Start Opportunity Scan/i })).toBeVisible()
+    // `/` is the full-bleed Ishara homepage (no citizen nav); re-enter via its Entrepreneur card.
+    await page.getByRole('link', { name: /^Entrepreneur/ }).click()
+    await expect(page).toHaveURL(/\/scan$/)
     await page.getByRole('link', { name: 'Assistant' }).first().click()
     await expect(page.getByRole('heading', { name: /AI Government Scheme Assistant/i })).toBeVisible()
   })

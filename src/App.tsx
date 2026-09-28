@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom
 import { useTranslation } from 'react-i18next'
 import { AssessmentRoute, LegacyAssessmentRedirect } from './components/AssessmentRoute'
 import { Shell } from './components/Shell'
-import { LandingPage } from './pages/LandingPage'
+import { IsharaHomePage } from './pages/IsharaHomePage'
 import { AppProvider } from './state/AppContext'
 import { AuthProvider } from './state/AuthContext'
 import { ApplicationDraftProvider } from './citizen/ApplicationDraftContext'
@@ -132,8 +132,10 @@ export default function App() {
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Route>
 
+            {/* Full-bleed front door; deliberately outside the citizen Shell. */}
+            <Route path="/" element={<IsharaHomePage />} />
+
             <Route element={<CitizenLayout />}>
-              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/scan" element={<ScanPage />} />

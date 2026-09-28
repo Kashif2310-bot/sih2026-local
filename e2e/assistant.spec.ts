@@ -82,7 +82,8 @@ test('assistant: starter question chips are clickable and existing app routes re
   await page.goto('/scan')
   await expect(page.getByRole('heading', { name: /Tell LokPulse who you are/i })).toBeVisible()
   await page.goto('/')
-  await expect(page.getByRole('link', { name: /Start Opportunity Scan/i })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Entrepreneur/ })).toHaveAttribute('href', '/scan')
+  await expect(page.getByRole('link', { name: /^Admin/ })).toHaveAttribute('href', '/admin')
 })
 
 test('assistant: a third materially different profile (Maharashtra retail, general category) surfaces yet another top scheme', async ({
