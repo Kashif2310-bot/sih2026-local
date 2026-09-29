@@ -4,9 +4,9 @@ import clsx from 'clsx'
 import type { RetrievalSourceStatus } from '../../assistant/types'
 
 const STYLES: Record<RetrievalSourceStatus['status'], { className: string; Icon: typeof Globe }> = {
-  live_official: { className: 'border-forest/25 bg-[#e8f6ee] text-forest', Icon: Globe },
-  verified_local: { className: 'border-sky/25 bg-[#e8f1f8] text-sky', Icon: ShieldCheck },
-  live_unavailable: { className: 'border-gold/40 bg-gold/15 text-[#8a6a00]', Icon: CloudOff },
+  live_official: { className: 'border-black bg-black text-white', Icon: Globe },
+  verified_local: { className: 'border-black/20 bg-white text-ink', Icon: ShieldCheck },
+  live_unavailable: { className: 'border-black/15 bg-[#ececec] text-ink/70', Icon: CloudOff },
 }
 
 /**

@@ -121,7 +121,7 @@ export function buildSubmissionPackage(input: {
       nextService: 'approval-service',
       nextOwner: 'jordan',
       then: ['admin (prerna)', 'multisig', 'audit', 'disbursement_authorization'],
-      note: 'Application package ready for review. Your application has been prepared and routed through the LokPulse review workflow.',
+      note: 'Application package ready for review. Your application has been prepared and routed through the Ishara review workflow.',
     },
   }
 }

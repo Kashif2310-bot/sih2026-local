@@ -1,7 +1,7 @@
 import { NavLink, Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Radar } from 'lucide-react'
 import clsx from 'clsx'
+import { BrandLogo } from './BrandLogo'
 import { readLastAssessmentId } from '../lib/assessmentSnapshot'
 import { useAuth } from '../state/useAuth'
 import { useApp } from '../state/useApp'
@@ -25,7 +25,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const withCase = (page: string) => (caseId ? `/${page}/${caseId}` : `/${page}`)
 
   const links = [
-    { to: '/', label: t('nav.home'), apply: false },
+    { to: '/home', label: t('nav.home'), apply: false },
     { to: applyHref, label: t('nav.apply'), apply: true },
     { to: '/scan', label: t('nav.scan'), apply: false },
     { to: '/history', label: t('nav.history'), apply: false },
@@ -41,16 +41,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={clsx('min-h-screen', kn && 'kn')}>
-      <header className="no-print sticky top-0 z-40 isolate border-b border-forest/10 bg-[#f7faf8]/85 backdrop-blur-md">
+      <header className="no-print sticky top-0 z-40 isolate border-b border-white/10 bg-black/90 text-white backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/" className="flex items-center gap-2 text-forest">
-            <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-forest text-gold">
-              <Radar className="h-5 w-5" />
-              <span className="pulse-ring absolute inset-0 rounded-xl border border-gold/60" />
-            </span>
-            <span className="font-display text-lg font-bold tracking-tight sm:text-xl">
-              {t('brand')}
-            </span>
+          <Link to="/home" className="flex shrink-0 items-center" aria-label={t('brand')}>
+            <BrandLogo variant="white" className="h-9 w-auto sm:h-10" alt={t('brand')} />
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -62,8 +56,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   clsx(
                     'rounded-lg px-3 py-1.5 text-sm font-medium transition',
                     isNavActive(l.to, l.apply)
-                      ? 'bg-forest text-white'
-                      : 'text-ink/70 hover:bg-mist hover:text-forest',
+                      ? 'bg-white text-black'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white',
                   )
                 }
               >
@@ -76,7 +70,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {user ? (
               <>
                 <span
-                  className="hidden max-w-[10rem] truncate text-xs font-semibold text-ink/70 sm:inline"
+                  className="hidden max-w-[10rem] truncate text-xs font-semibold text-white/70 sm:inline"
                   title={who ?? undefined}
                   data-testid="header-user"
                 >
@@ -85,7 +79,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <button
                   type="button"
                   onClick={logout}
-                  className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+                  className="rounded-full border border-white/25 bg-transparent px-3 py-1.5 text-sm font-semibold text-white transition hover:border-white/60 hover:bg-white/10"
                 >
                   {t('nav.logout')}
                 </button>
@@ -93,7 +87,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             ) : (
               <Link
                 to="/login"
-                className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+                className="rounded-full border border-white/25 bg-transparent px-3 py-1.5 text-sm font-semibold text-white transition hover:border-white/60 hover:bg-white/10"
               >
                 {t('nav.login')}
               </Link>
@@ -101,13 +95,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={toggle}
-              className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40"
+              className="rounded-full border border-white/25 bg-transparent px-3 py-1.5 text-sm font-semibold text-white transition hover:border-white/60 hover:bg-white/10"
             >
               {t('lang')}
             </button>
             <Link
               to="/admin/login"
-              className="hidden rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest shadow-sm transition hover:border-forest/40 sm:inline-block"
+              className="hidden rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-white/85 sm:inline-block"
             >
               {t('nav.admin')}
             </Link>
@@ -121,7 +115,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               className={() =>
                 clsx(
                   'shrink-0 rounded-full px-3 py-1 text-xs font-medium',
-                  isNavActive(l.to, l.apply) ? 'bg-forest text-white' : 'bg-white text-ink/70',
+                  isNavActive(l.to, l.apply) ? 'bg-white text-black' : 'bg-white/10 text-white/75',
                 )
               }
             >

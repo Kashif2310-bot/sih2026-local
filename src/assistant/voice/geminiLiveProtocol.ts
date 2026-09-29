@@ -60,21 +60,35 @@ export const GEMINI_LIVE_WEBSOCKET_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 
 /**
- * Current default Live model (verified 2026-09-23 against Google's
- * get-started-sdk guide, which uses `gemini-3.8-live` — documented as "the
- * default option for most low-latency voice agent experiences"; empirically
- * confirmed 2026-09-25 — a real BidiGenerateContentConstrained connection
- * reached setupComplete with this exact model string). The Live API's
- * `setup.model` field takes a fully-qualified resource name, so the
- * `models/` prefix is required here even though the SDK examples pass the
- * bare id. Overridable — see geminiLiveConfig.ts.
+ * Current default Live model. Verified 2026-09-28 over a real
+ * BidiGenerateContentConstrained connection with a minted ephemeral token,
+ * streaming real 16kHz speech: the full app setup (system instruction,
+ * tools, VAD, resumption, transcription) completed English and Kannada
+ * (speechConfig kn-IN) turns with recordCitizenDetail/findSchemes/
+ * getSchemeDetails round-trips, and answered from tool results rather than
+ * from memory.
+ *
+ * Models ruled out the same day — re-test a real spoken TURN (setupComplete
+ * alone proves nothing) before switching to either:
+ *   - `gemini-3.8-live`: closed every session with 1011 "Internal error
+ *     encountered." on the first user input, even with a bare setup.
+ *   - `gemini-2.5-flash-native-audio-preview-12-2025` (and -09-2025): a
+ *     known Google-side fault intermittently closes the session mid-turn
+ *     with 1007 "The audio content type (CONTENT_TYPE_AUDIO) is not
+ *     supported for this model configuration", typically around a tool
+ *     call; both also reject speechConfig languageCode 'kn-IN' with 1007.
+ *
+
+ * The Live API's `setup.model` field takes a fully-qualified resource name,
+ * so the `models/` prefix is required here even though the SDK examples pass
+ * the bare id. Overridable — see geminiLiveConfig.ts.
  */
-export const GEMINI_LIVE_DEFAULT_MODEL = 'models/gemini-3.8-live'
+export const GEMINI_LIVE_DEFAULT_MODEL = 'models/gemini-3.1-flash-live-preview'
 
 /**
  * Normalizes a caller-supplied model id to the fully-qualified form the raw
  * WebSocket protocol requires, so a config value copied straight out of an
- * SDK example (`gemini-3.8-live`) works without silently connecting to
+ * SDK example (`gemini-3.1-flash-live-preview`) works without silently connecting to
  * nothing.
  */
 export function qualifyModelName(model: string): string {
@@ -433,7 +447,11 @@ export function parseServerMessage(raw: unknown): GeminiLiveServerMessage | null
         modelTurn: parts
           ? {
               parts: parts.filter(isRecord).map((p) => ({
-                text: typeof p.text === 'string' ? p.text : undefined,
+                // Native-audio models stream their internal reasoning as text
+                // parts flagged `thought: true` ("**Recording User Details**
+                // I've logged..."). It is never spoken and must never reach
+                // the citizen's transcript, so it is dropped at the parser.
+                text: typeof p.text === 'string' && p.thought !== true ? p.text : undefined,
                 inlineData:
                   isRecord(p.inlineData) && typeof p.inlineData.data === 'string' && typeof p.inlineData.mimeType === 'string'
                     ? { data: p.inlineData.data, mimeType: p.inlineData.mimeType }

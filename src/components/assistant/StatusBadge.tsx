@@ -4,10 +4,10 @@ import clsx from 'clsx'
 import type { EligibilityStatus } from '../../assistant/types'
 
 const STYLES: Record<EligibilityStatus, { className: string; Icon: typeof CheckCircle2 }> = {
-  likely_eligible: { className: 'bg-[#e8f6ee] text-forest border-forest/20', Icon: CheckCircle2 },
-  possibly_eligible: { className: 'bg-[#fff7e8] text-[#8a6a00] border-gold/40', Icon: AlertTriangle },
-  insufficient_data: { className: 'bg-[#e8f1f8] text-sky border-sky/25', Icon: HelpCircle },
-  likely_ineligible: { className: 'bg-[#fff1ed] text-clay border-clay/25', Icon: XCircle },
+  likely_eligible: { className: 'bg-black text-white border-black', Icon: CheckCircle2 },
+  possibly_eligible: { className: 'bg-[#e6e6e6] text-ink border-black/20', Icon: AlertTriangle },
+  insufficient_data: { className: 'bg-white text-ink/70 border-dashed border-black/25', Icon: HelpCircle },
+  likely_ineligible: { className: 'bg-[#f4f4f4] text-ink/50 border-black/10', Icon: XCircle },
 }
 
 export function StatusBadge({ status }: { status: EligibilityStatus }) {

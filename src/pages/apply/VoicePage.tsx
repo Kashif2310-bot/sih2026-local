@@ -149,12 +149,12 @@ export function VoicePage() {
   return (
     <WizardShell title={t('apply.voice.title')} subtitle={t('apply.voice.subtitle')}>
       {!supported && (
-        <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+        <p className="mb-3 rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs text-ink/70">
           {t('apply.voice.unsupported')}
         </p>
       )}
       {voiceErrorKey && (
-        <p role="alert" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+        <p role="alert" className="mb-3 rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs text-ink/70">
           {t(`apply.voice.error.${voiceErrorKey}`)}
         </p>
       )}

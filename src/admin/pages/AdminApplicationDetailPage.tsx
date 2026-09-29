@@ -161,7 +161,7 @@ export function AdminApplicationDetailPage() {
         </span>
       </div>
 
-      <div className="sticky top-28 z-30 -mx-1 flex gap-1 overflow-x-auto bg-[#f0f4f2]/95 px-1 py-2 backdrop-blur-sm">
+      <div className="sticky top-28 z-30 -mx-1 flex gap-1 overflow-x-auto bg-[#f4f4f4]/95 px-1 py-2 backdrop-blur-sm">
         {TABS.map((idTab) => (
           <button
             key={idTab}
@@ -181,7 +181,7 @@ export function AdminApplicationDetailPage() {
         {tab === 'routing' && (
           <section className="space-y-4">
             <h2 className="font-display text-xl font-bold text-forest">{t('admin.review.routing.title')}</h2>
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+            <p className="rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs text-ink/70">
               {t('admin.review.routing.simulatedNote')}
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -233,7 +233,7 @@ export function AdminApplicationDetailPage() {
               <p className="mt-1 text-sm text-ink/75">{app.applicant.businessDescription || t('common.notProvided')}</p>
             </div>
             {trackedPacket && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+              <p className="rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs text-ink/70">
                 {trackedPacket.honestLabel} · {t('apply.filedWithGov')}:{' '}
                 {trackedPacket.filedWithGovernment ? t('apply.yes') : t('apply.no')}
               </p>
@@ -331,7 +331,7 @@ export function AdminApplicationDetailPage() {
           <section className="space-y-4">
             <h2 className="font-display text-xl font-bold text-forest">{t('admin.review.lokscore.title')}</h2>
             {app.isDemoSeed && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+              <p className="rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs">
                 {t('admin.review.lokscore.fixtureNote')}
               </p>
             )}
@@ -376,7 +376,7 @@ export function AdminApplicationDetailPage() {
               {t('admin.review.approvalRequirement.title')}
             </h2>
             <p className="text-sm text-ink/65">{t('admin.review.approvalRequirement.explanation')}</p>
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+            <p className="rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs">
               {t('admin.review.approvalServiceNote')}
             </p>
             <p className="text-lg font-bold text-forest">
@@ -384,7 +384,7 @@ export function AdminApplicationDetailPage() {
               {caseView ? `${caseView.quorum.required} / ${caseView.quorum.pool}` : `${app.quorumRequired} / ${app.quorumPool}`}
             </p>
             {(caseView?.quorum.mentorRequired ?? app.mentorRequired) && (
-              <p className="text-sm font-semibold text-amber-800">
+              <p className="text-sm font-semibold text-ink/80">
                 {t('admin.review.approvalRequirement.mentor')}
               </p>
             )}
@@ -502,7 +502,7 @@ export function AdminApplicationDetailPage() {
                   <span className="ml-2 text-xs font-normal text-ink/50">{caseView.status}</span>
                 </p>
                 {caseView.blockers.length > 0 && (
-                  <ul className="list-inside list-disc text-xs text-amber-800">
+                  <ul className="list-inside list-disc text-xs text-ink/80">
                     {caseView.blockers.map((b) => (
                       <li key={b}>{b}</li>
                     ))}

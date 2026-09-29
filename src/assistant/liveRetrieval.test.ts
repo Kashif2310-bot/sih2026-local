@@ -129,6 +129,40 @@ describe('SupabaseLiveRetriever — configuration and failure handling', () => {
     expect(result[0].sourceUrl).toMatch(/^https:\/\//)
   })
 
+  it('stops calling the Edge Function once it reports itself not_configured', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'fake-anon-key')
+    const fetchSpy = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'not_configured', message: 'unset' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+    globalThis.fetch = fetchSpy
+    const retriever = new SupabaseLiveRetriever()
+    expect(await retriever.isAvailable()).toBe(true)
+    await expect(retriever.retrieve({ schemeIds: ['pmegp'] })).rejects.toThrow()
+    expect(await retriever.isAvailable()).toBe(false)
+  })
+
+  it('keeps retrying after a transient failure that is not not_configured', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'fake-anon-key')
+    globalThis.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'upstream_error' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+    const retriever = new SupabaseLiveRetriever()
+    await expect(retriever.retrieve({ schemeIds: ['pmegp'] })).rejects.toThrow()
+    expect(await retriever.isAvailable()).toBe(true)
+  })
+
   it('has a bounded timeout so a hung Edge Function never hangs the chat', () => {
     expect(LIVE_RETRIEVAL_TIMEOUT_MS).toBeLessThanOrEqual(10_000)
     expect(LIVE_RETRIEVAL_TIMEOUT_MS).toBeGreaterThan(0)

@@ -5,14 +5,21 @@
   --font-display: "Syne", system-ui, sans-serif;
   --font-body: "Work Sans", "Noto Sans Kannada", system-ui, sans-serif;
   --font-kn: "Noto Sans Kannada", "Work Sans", system-ui, sans-serif;
-  --color-ink: #0b1f17;
-  --color-forest: #0b3d2e;
-  --color-leaf: #1f6b4f;
-  --color-mist: #e7f2ec;
-  --color-cream: #f7faf8;
-  --color-gold: #e8c547;
-  --color-clay: #c45c26;
-  --color-sky: #3d7ea6;
+  /*
+   * Ishara monochrome palette. Token NAMES are kept from the original theme
+   * so every page recolours without touching component code: `forest` is the
+   * primary black surface, `gold` the silver accent from the logo's sheen,
+   * `mist`/`cream` the light greys. Only `danger` keeps a hue, so errors and
+   * ineligible states stay unmistakable.
+   */
+  --color-ink: #0a0a0a;
+  --color-forest: #111111;
+  --color-leaf: #3a3a3a;
+  --color-mist: #efefef;
+  --color-cream: #fafafa;
+  --color-gold: #cfcfcf;
+  --color-clay: #474747;
+  --color-sky: #5e5e5e;
   --color-danger: #b42318;
 }
 
@@ -31,9 +38,9 @@ body {
   font-family: var(--font-body);
   color: var(--color-ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, #d8efe4 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #dceaf3 0%, transparent 50%),
-    linear-gradient(180deg, #f4faf7 0%, #eef6f1 40%, #f7faf8 100%);
+    radial-gradient(1200px 600px at 10% -10%, #e9e9e9 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #efefef 0%, transparent 50%),
+    linear-gradient(180deg, #f7f7f7 0%, #f2f2f2 40%, #fafafa 100%);
   background-attachment: fixed;
 }
 
@@ -43,7 +50,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%230b3d2e' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   z-index: 0;
 }
 
@@ -68,6 +75,49 @@ body::before {
   font-family: var(--font-body);
 }
 
+/* Map tiles come from OSM in full colour; render them in the monochrome theme. */
+.leaflet-tile-pane {
+  filter: grayscale(1) contrast(1.05);
+}
+
+/* Leaflet's default pin is a blue PNG; render it as a near-black pin. */
+.leaflet-marker-icon:not(.leaflet-div-icon) {
+  filter: grayscale(1) brightness(0.35);
+}
+
+/* Slow silver glint across the hero logo, echoing the sparkle in the mark. */
+@keyframes ishara-sheen {
+  0%, 62% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+.ishara-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.ishara-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  mix-blend-mode: screen;
+  animation: ishara-sheen 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ishara-sheen::after {
+    animation: none;
+    display: none;
+  }
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.85);
@@ -90,7 +140,7 @@ body::before {
 .glass {
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(14px);
-  border: 1px solid rgba(11, 61, 46, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 @media print {

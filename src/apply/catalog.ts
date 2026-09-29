@@ -177,17 +177,17 @@ const CHANNEL: Record<string, ChannelOverride> = {
   'nsfdc-micro-finance': {
     recommended: 'assisted',
     rationale:
-      'NSFDC applications are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
+      'NSFDC applications are prepared for the State Channelising Agency and routed through the Ishara review workflow.',
   },
   'nsfdc-term-loan': {
     recommended: 'assisted',
     rationale:
-      'NSFDC term-loan cases are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
+      'NSFDC term-loan cases are prepared for the State Channelising Agency and routed through the Ishara review workflow.',
   },
   pmegp: {
     recommended: 'guided',
     rationale:
-      'PMEGP applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
+      'PMEGP applications are prepared as a guided package and routed through the Ishara review workflow. Official scheme information remains available.',
     extraFields: [
       {
         key: 'education',
@@ -203,27 +203,27 @@ const CHANNEL: Record<string, ChannelOverride> = {
   'pm-mudra-yojana': {
     recommended: 'guided',
     rationale:
-      'MUDRA applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
+      'MUDRA applications are prepared as a guided package and routed through the Ishara review workflow. Official scheme information remains available.',
   },
   'stand-up-india': {
     recommended: 'guided',
     rationale:
-      'Stand-Up India applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
+      'Stand-Up India applications are prepared as a guided package and routed through the Ishara review workflow. Official scheme information remains available.',
   },
   'pm-vishwakarma': {
     recommended: 'guided',
     rationale:
-      'PM Vishwakarma applications are prepared as a guided package and routed through the LokPulse review workflow. Official scheme information remains available.',
+      'PM Vishwakarma applications are prepared as a guided package and routed through the Ishara review workflow. Official scheme information remains available.',
   },
   'nbcfdc-term-loan': {
     recommended: 'assisted',
     rationale:
-      'NBCFDC applications are prepared for the State Channelising Agency and routed through the LokPulse review workflow.',
+      'NBCFDC applications are prepared for the State Channelising Agency and routed through the Ishara review workflow.',
   },
   'kudumbashree-microenterprise': {
     recommended: 'assisted',
     rationale:
-      'Kudumbashree microenterprise support is prepared for the NHG / CDS unit and routed through the LokPulse review workflow.',
+      'Kudumbashree microenterprise support is prepared for the NHG / CDS unit and routed through the Ishara review workflow.',
     extraFields: [
       {
         key: 'nhg_membership',

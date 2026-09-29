@@ -299,7 +299,7 @@ export function AnalysisPanel({
           ) : (
             <ul className="space-y-2">
               {report.governmentContextualEvidence.map((c) => (
-                <li key={`${c.sourceUrl}-${c.retrievedAt}`} className="rounded-xl bg-[#fff7e8] p-3 text-sm">
+                <li key={`${c.sourceUrl}-${c.retrievedAt}`} className="rounded-xl bg-[#f1f1f1] p-3 text-sm">
                   <p className="text-ink/80">{c.summary}</p>
                   <p className="mt-1 text-[11px] text-ink/50">
                     {c.sourceName} · {c.reason}

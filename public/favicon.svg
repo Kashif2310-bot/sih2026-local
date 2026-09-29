@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#0B3D2E"/>
-  <circle cx="32" cy="32" r="18" stroke="#E8C547" stroke-width="3"/>
-  <circle cx="32" cy="32" r="6" fill="#E8C547"/>
-  <path d="M32 8v8M32 48v8M8 32h8M48 32h8" stroke="#7CB89A" stroke-width="2.5" stroke-linecap="round"/>
+  <defs>
+    <radialGradient id="glow" cx="32" cy="32" r="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#000"/>
+  <circle cx="32" cy="32" r="22" fill="url(#glow)"/>
+  <!-- Four-point sparkle from the Ishara mark -->
+  <path d="M32 6 C33.2 24 35 29.5 58 32 C35 34.5 33.2 40 32 58 C30.8 40 29 34.5 6 32 C29 29.5 30.8 24 32 6 Z" fill="#fff"/>
 </svg>

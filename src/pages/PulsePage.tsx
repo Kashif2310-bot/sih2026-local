@@ -151,11 +151,11 @@ export function PulsePage() {
               <div className="mt-4 h-28">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#0b3d2e15" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#11111115" />
                     <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                     <YAxis hide />
                     <Tooltip />
-                    <Area type="monotone" dataKey="max" stroke="#0b3d2e" fill="#1f6b4f33" />
+                    <Area type="monotone" dataKey="max" stroke="#111111" fill="#11111126" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -223,17 +223,17 @@ export function PulsePage() {
                 outerRadius="62%"
                 margin={{ top: 16, right: 28, bottom: 16, left: 28 }}
               >
-                <PolarGrid stroke="#0b3d2e22" />
+                <PolarGrid stroke="#11111122" />
                 <PolarAngleAxis
                   dataKey="label"
-                  tick={{ fontSize: 11, fill: '#0b3d2ecc' }}
+                  tick={{ fontSize: 11, fill: '#111111cc' }}
                 />
                 <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9 }} axisLine={false} />
                 <Radar
                   name={t('pulse.breakdown')}
                   dataKey="value"
-                  stroke="#0b3d2e"
-                  fill="#1f6b4f"
+                  stroke="#111111"
+                  fill="#3a3a3a"
                   fillOpacity={0.35}
                 />
                 <Tooltip />
@@ -291,12 +291,12 @@ function LokScoreRing({
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-forest/10 bg-white/80 px-4 py-3">
       <svg width="88" height="88" className="-rotate-90">
-        <circle cx="44" cy="44" r={r} stroke="#e7f2ec" strokeWidth="8" fill="none" />
+        <circle cx="44" cy="44" r={r} stroke="#e9e9e9" strokeWidth="8" fill="none" />
         <circle
           cx="44"
           cy="44"
           r={r}
-          stroke="#0b3d2e"
+          stroke="#111111"
           strokeWidth="8"
           fill="none"
           strokeDasharray={c}
@@ -308,7 +308,7 @@ function LokScoreRing({
         <p className="text-xs uppercase tracking-wider text-ink/50">{label}</p>
         <p className="font-display text-3xl font-bold text-forest">
           {total}
-          <span className="ml-1 text-base text-gold">/{grade}</span>
+          <span className="ml-1 text-base text-ink/40">/{grade}</span>
         </p>
         {provisional && (
           <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-clay">{provisionalLabel}</p>

@@ -55,7 +55,7 @@ export function profileFromAssessment(input: {
     areaType: 'rural',
     occupation: meta.label,
     rawNotes: [
-      `LokPulse scan for ${p.name} in ${loc.name}, ${loc.district}: ${meta.label}, LokScore ${input.score.total}/${input.score.grade}, ${input.plan.schemeName}.`,
+      `Ishara scan for ${p.name} in ${loc.name}, ${loc.district}: ${meta.label}, LokScore ${input.score.total}/${input.score.grade}, ${input.plan.schemeName}.`,
     ],
   }
 }

@@ -1,8 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Radar } from 'lucide-react'
 import clsx from 'clsx'
+import { BrandLogo } from '../components/BrandLogo'
 import { seedDemoApplicationsOnce } from '../platform/store'
 import { useAdminAuth } from './useAdminAuth'
 
@@ -39,14 +39,14 @@ export function AdminShell() {
   }
 
   return (
-    <div className={clsx('min-h-screen bg-[#f0f4f2]', kn && 'kn')}>
-      <header className="sticky top-0 z-40 border-b border-forest/15 bg-[#e8f0eb]/95 backdrop-blur-md">
+    <div className={clsx('min-h-screen bg-[#f4f4f4]', kn && 'kn')}>
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/95 text-white backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link to="/admin" className="flex items-center gap-2 text-forest">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-forest text-gold">
-              <Radar className="h-5 w-5" />
+          <Link to="/admin" className="flex shrink-0 items-center gap-3" aria-label={t('admin.brand')}>
+            <BrandLogo variant="white" className="h-9 w-auto sm:h-10" alt={t('admin.brand')} />
+            <span className="rounded-full border border-white/25 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80">
+              {t('nav.admin')}
             </span>
-            <span className="font-display text-lg font-bold tracking-tight">{t('admin.brand')}</span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -58,7 +58,7 @@ export function AdminShell() {
                 className={({ isActive }) =>
                   clsx(
                     'rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    isActive ? 'bg-forest text-white' : 'text-ink/70 hover:bg-white hover:text-forest',
+                    isActive ? 'bg-white text-black' : 'text-white/70 hover:bg-white/10 hover:text-white',
                   )
                 }
               >
@@ -71,14 +71,14 @@ export function AdminShell() {
             <button
               type="button"
               onClick={toggle}
-              className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest"
+              className="rounded-full border border-white/25 px-3 py-1.5 text-sm font-semibold text-white transition hover:border-white/60 hover:bg-white/10"
             >
               {t('lang')}
             </button>
             <button
               type="button"
               onClick={logout}
-              className="rounded-full border border-forest/20 bg-white px-3 py-1.5 text-sm font-semibold text-forest"
+              className="rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-white/85"
             >
               {t('admin.nav.logout')}
             </button>
@@ -93,7 +93,7 @@ export function AdminShell() {
               className={({ isActive }) =>
                 clsx(
                   'shrink-0 rounded-full px-3 py-1 text-xs font-medium',
-                  isActive ? 'bg-forest text-white' : 'bg-white text-ink/70',
+                  isActive ? 'bg-white text-black' : 'bg-white/10 text-white/75',
                 )
               }
             >
@@ -103,7 +103,7 @@ export function AdminShell() {
         </div>
       </header>
 
-      <div className="border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-xs text-ink/70">
+      <div className="border-b border-black/10 bg-[#ececec] px-4 py-2 text-center text-xs text-ink/70">
         {t('admin.storageNote')}
       </div>
 

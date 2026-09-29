@@ -13,7 +13,7 @@ import { ELIGIBILITY_STATUS_LABEL } from '../eligibility'
 import { normalizeSectorLabel } from '../lexicon'
 import type { AIRequestContext } from './types'
 
-export const ASSISTANT_SYSTEM_PROMPT = `You are the LokPulse Government Scheme Assistant, helping an Indian citizen understand which government livelihood/business schemes might apply to them.
+export const ASSISTANT_SYSTEM_PROMPT = `You are the Ishara Government Scheme Assistant, helping an Indian citizen understand which government livelihood/business schemes might apply to them.
 
 You will be given, in the user turn: the applicant's profile so far, their latest message, a list of conversation history, a RETRIEVED & SCORED SCHEMES section, and a list of SUGGESTED FOLLOW-UP QUESTIONS.
 

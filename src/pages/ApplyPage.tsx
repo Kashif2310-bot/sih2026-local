@@ -131,7 +131,7 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
           </p>
         </div>
 
-        <div className="sticky top-28 z-20 -mx-1 flex flex-wrap gap-2 bg-[#f7faf8]/95 px-1 py-2 backdrop-blur-sm">
+        <div className="sticky top-28 z-20 -mx-1 flex flex-wrap gap-2 bg-[#fafafa]/95 px-1 py-2 backdrop-blur-sm">
           {([1, 2, 3, 4] as const).map((n) => (
             <button
               key={n}
@@ -329,8 +329,8 @@ export function ApplyWizard({ schemeId, initialProfile }: { schemeId: string; in
                 }}
               />
               <span>
-                <span className="font-semibold text-[#6b5300]">{t('apply.simulateLabel')}</span>
-                <span className="mt-0.5 block text-xs text-[#6b5300]">{t('apply.simulateHint')}</span>
+                <span className="font-semibold text-[#3a3a3a]">{t('apply.simulateLabel')}</span>
+                <span className="mt-0.5 block text-xs text-[#3a3a3a]">{t('apply.simulateHint')}</span>
               </span>
             </label>
 
@@ -498,7 +498,7 @@ export function ApplicationTrackView({
     : null
   const nextOwner = formatHandoffOwner(app.package?.handoff.nextOwner, app.package?.handoff.nextService)
   const bannerClass = app.simulation
-    ? 'border-gold/40 bg-gold/15 text-[#6b5300]'
+    ? 'border-gold/40 bg-gold/15 text-[#3a3a3a]'
     : 'border-forest/20 bg-mist text-forest'
 
   return (

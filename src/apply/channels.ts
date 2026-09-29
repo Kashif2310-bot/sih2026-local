@@ -66,9 +66,9 @@ export function consentTextFor(channel: FilingChannel, simulate: boolean): strin
     return 'I confirm the details are accurate and I consent to sending this application package to the connected government apply API when one is configured.'
   }
   if (channel === 'assisted') {
-    return 'I confirm the details are accurate and I consent to preparing this application package for agency filing and routing it through the LokPulse review workflow.'
+    return 'I confirm the details are accurate and I consent to preparing this application package for agency filing and routing it through the Ishara review workflow.'
   }
-  return 'I confirm the details are accurate and I consent to preparing this application package and routing it through the LokPulse review workflow.'
+  return 'I confirm the details are accurate and I consent to preparing this application package and routing it through the Ishara review workflow.'
 }
 
 export async function submitOnChannel(
@@ -159,7 +159,7 @@ export async function submitOnChannel(
       officialPortalUrl: packet.officialApplicationUrl,
       nextSteps: WORKFLOW_NEXT_STEPS,
       honestLabel: 'Application package prepared',
-      detail: 'Your application has been prepared and routed through the LokPulse review workflow.',
+      detail: 'Your application has been prepared and routed through the Ishara review workflow.',
     }
   }
 
@@ -171,6 +171,6 @@ export async function submitOnChannel(
     officialPortalUrl: packet.officialApplicationUrl,
     nextSteps: WORKFLOW_NEXT_STEPS,
     honestLabel: 'Application package prepared',
-    detail: 'Your application has been prepared and routed through the LokPulse review workflow.',
+    detail: 'Your application has been prepared and routed through the Ishara review workflow.',
   }
 }

@@ -227,7 +227,7 @@ export function AssistantPageInner({
         </div>
       </div>
 
-      <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#6b5300]">
+      <p className="rounded-xl border border-gold/30 bg-gold/10 px-3.5 py-2.5 text-xs text-[#3a3a3a]">
         {t('assistant.knowledgeBaseNote')}
       </p>
       {caseBound ? (

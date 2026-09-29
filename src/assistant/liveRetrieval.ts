@@ -110,9 +110,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
+/** True when the function answered 503 `not_configured` — its data.gov.in secrets are unset, so every later call would fail the same way. */
+async function isNotConfiguredResponse(error: unknown): Promise<boolean> {
+  const response = (error as { context?: unknown } | null)?.context
+  if (!(response instanceof Response) || response.status !== 503) return false
+  try {
+    const body: unknown = await response.clone().json()
+    return typeof body === 'object' && body !== null && (body as Record<string, unknown>).error === 'not_configured'
+  } catch {
+    return false
+  }
+}
+
 export class SupabaseLiveRetriever implements LiveRetriever {
+  /**
+   * Set once the deployed function reports itself unconfigured. From then on
+   * isAvailable() is false and the caller takes the same verified_local path
+   * it takes when Supabase itself is unconfigured — the evidence is identical
+   * (a not_configured call returns none), but each voice tool call no longer
+   * waits on a round trip that cannot succeed. Cleared only by a page reload,
+   * which is also when a newly set Supabase secret would be picked up.
+   */
+  private functionNotConfigured = false
+
   isAvailable(): Promise<boolean> {
-    return Promise.resolve(isSupabaseConfigured())
+    return Promise.resolve(isSupabaseConfigured() && !this.functionNotConfigured)
   }
 
   async retrieve(query: LiveRetrievalQuery): Promise<LiveEvidenceItem[]> {
@@ -123,7 +145,10 @@ export class SupabaseLiveRetriever implements LiveRetriever {
       client.functions.invoke('live-scheme-retrieval', { body: query }),
       LIVE_RETRIEVAL_TIMEOUT_MS,
     )
-    if (error) throw error
+    if (error) {
+      if (await isNotConfiguredResponse(error)) this.functionNotConfigured = true
+      throw error
+    }
     return validateLiveEvidenceItems(data)
   }
 }

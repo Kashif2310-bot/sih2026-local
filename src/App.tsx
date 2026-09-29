@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AssessmentRoute, LegacyAssessmentRedirect } from './components/AssessmentRoute'
@@ -99,6 +99,20 @@ function RouteFallback() {
   return <div className="py-16 text-center text-sm text-ink/50">{t('common.loading')}</div>
 }
 
+/**
+ * "/" is the Ishara scroll intro — a standalone static page in public/intro/
+ * whose Entrepreneur card links to /home and Admin card to /admin/login.
+ * A full navigation (not a router redirect) because it is not a React page.
+ */
+const INTRO_URL = '/intro/index.html'
+
+function IntroRedirect() {
+  useEffect(() => {
+    window.location.replace(INTRO_URL)
+  }, [])
+  return null
+}
+
 function CitizenLayout() {
   return (
     <ApplicationDraftProvider>
@@ -132,8 +146,10 @@ export default function App() {
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Route>
 
+            <Route path="/" element={<IntroRedirect />} />
+
             <Route element={<CitizenLayout />}>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/home" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/scan" element={<ScanPage />} />

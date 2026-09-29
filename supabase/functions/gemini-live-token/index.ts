@@ -49,7 +49,7 @@ const REQUEST_TIMEOUT_MS = 8_000
  * GEMINI_LIVE_DEFAULT_MODEL. Overridable per deployment without a code
  * change, because Google's Live model ids move faster than our releases.
  */
-const DEFAULT_MODEL = Deno.env.get('GEMINI_LIVE_MODEL') ?? 'gemini-3.8-live'
+const DEFAULT_MODEL = Deno.env.get('GEMINI_LIVE_MODEL') ?? 'gemini-3.1-flash-live-preview'
 
 /** How long the browser has to OPEN the session with this token. Deliberately short. */
 const NEW_SESSION_EXPIRE_SECONDS = 60

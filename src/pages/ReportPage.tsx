@@ -162,7 +162,7 @@ export function ReportPage() {
         <Block title={t('report.threats')}>
           <ul className="space-y-2 text-sm text-ink/80">
             {report.threats.map((x) => (
-              <li key={x} className="rounded-xl bg-[#fff1ed] px-3 py-2 text-clay">
+              <li key={x} className="rounded-xl bg-[#e9e9e9] px-3 py-2 text-ink">
                 {x}
               </li>
             ))}
@@ -224,10 +224,10 @@ function SwotGrid({
   kn: boolean
 }) {
   const cells = [
-    [kn ? 'ಬಲ' : 'S', s, 'bg-[#e8f6ee]'],
-    [kn ? 'ದುರ್ಬಲ' : 'W', w, 'bg-[#fff7e8]'],
-    [kn ? 'ಅವಕಾಶ' : 'O', o, 'bg-[#e8f1f8]'],
-    [kn ? 'ಅಪಾಯ' : 'T', t, 'bg-[#fff1ed]'],
+    [kn ? 'ಬಲ' : 'S', s, 'bg-[#efefef]'],
+    [kn ? 'ದುರ್ಬಲ' : 'W', w, 'bg-[#f1f1f1]'],
+    [kn ? 'ಅವಕಾಶ' : 'O', o, 'bg-[#f5f5f5]'],
+    [kn ? 'ಅಪಾಯ' : 'T', t, 'bg-[#e6e6e6]'],
   ] as const
   return (
     <div className="grid gap-2 sm:grid-cols-2">

@@ -80,8 +80,8 @@ test('assistant: starter question chips are clickable and existing app routes re
 
   // Existing routes must still work unmodified.
   await page.goto('/scan')
-  await expect(page.getByRole('heading', { name: /Tell LokPulse who you are/i })).toBeVisible()
-  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /Tell Ishara who you are/i })).toBeVisible()
+  await page.goto('/home')
   await expect(page.getByRole('link', { name: /Start Opportunity Scan/i })).toBeVisible()
 })
 

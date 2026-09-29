@@ -92,7 +92,7 @@ export function SanctionPage() {
             </div>
           </dl>
           {quorum.mentorRequired && (
-            <p className="mt-4 rounded-xl bg-[#fff7e8] px-3 py-2 text-sm text-clay">
+            <p className="mt-4 rounded-xl bg-[#f1f1f1] px-3 py-2 text-sm text-clay">
               {t('sanction.mentorRule')}
             </p>
           )}
@@ -118,7 +118,7 @@ export function SanctionPage() {
         </div>
       </div>
 
-      <p className="rounded-xl border border-gold/30 bg-[#fff7e8] px-4 py-2 text-xs font-semibold text-ink">
+      <p className="rounded-xl border border-gold/30 bg-[#f1f1f1] px-4 py-2 text-xs font-semibold text-ink">
         {t('sanction.fixtureIdentities')}
       </p>
 
@@ -183,7 +183,7 @@ export function SanctionPage() {
         </div>
 
         {escrowReleased && (
-          <div className="mt-4 rounded-xl border border-leaf/30 bg-[#e8f6ee] p-4 text-sm text-forest">
+          <div className="mt-4 rounded-xl border border-leaf/30 bg-[#efefef] p-4 text-sm text-forest">
             <p className="font-bold">{t('sanction.simulatedRelease')}</p>
             <p className="mt-1">
               {formatINR(plan.loanAmount)} → {profile.name} · attestation{' '}
@@ -219,7 +219,7 @@ export function SanctionPage() {
         >
           <FileDown className="h-4 w-4" /> {t('nav.export')}
         </Link>
-        <Link to="/" className="text-sm font-semibold text-forest underline-offset-2 hover:underline">
+        <Link to="/home" className="text-sm font-semibold text-forest underline-offset-2 hover:underline">
           {kn ? '← ಮುಖಪುಟಕ್ಕೆ' : '← Back to home'}
         </Link>
       </div>

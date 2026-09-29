@@ -36,7 +36,7 @@ export function SubmissionPage() {
 
   return (
     <WizardShell title={t('apply.submission.title')} subtitle={t('apply.submission.subtitle')}>
-      <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-ink/70">
+      <p className="mb-4 rounded-xl border border-black/10 bg-[#f1f1f1] px-3 py-2 text-xs text-ink/70">
         {t('apply.submission.storageNote')}
       </p>
 

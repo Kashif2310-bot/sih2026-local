@@ -14,7 +14,7 @@ L.Marker.prototype.options.icon = DefaultIcon
 
 const CompetitorIcon = L.divIcon({
   className: '',
-  html: `<span style="display:block;width:10px;height:10px;border-radius:50%;background:#c45c26;border:2px solid #fff;box-shadow:0 0 0 1px #c45c26"></span>`,
+  html: `<span style="display:block;width:10px;height:10px;border-radius:50%;background:#111111;border:2px solid #fff;box-shadow:0 0 0 1px #111111"></span>`,
   iconSize: [10, 10],
   iconAnchor: [5, 5],
 })
@@ -51,12 +51,12 @@ export function VillageMap({
       <Circle
         center={[lat, lng]}
         radius={r}
-        pathOptions={{ color: '#1f6b4f', fillColor: '#1f6b4f', fillOpacity: 0.12 }}
+        pathOptions={{ color: '#111111', fillColor: '#111111', fillOpacity: 0.12 }}
       />
       <Circle
         center={[lat, lng]}
         radius={Math.min(10_000, r * 1.4)}
-        pathOptions={{ color: '#3d7ea6', fillColor: '#3d7ea6', fillOpacity: 0.04 }}
+        pathOptions={{ color: '#6b6b6b', fillColor: '#6b6b6b', fillOpacity: 0.04 }}
       />
       <Marker position={[lat, lng]}>
         <Popup>{name}</Popup>

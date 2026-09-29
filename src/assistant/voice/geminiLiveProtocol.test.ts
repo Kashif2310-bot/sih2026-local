@@ -131,6 +131,18 @@ describe('parseServerMessage', () => {
     })
   })
 
+  it('drops thought parts so model reasoning never reaches the transcript', () => {
+    const parsed = parseServerMessage({
+      serverContent: {
+        modelTurn: { parts: [{ text: '**Recording User Details** I have logged...', thought: true }, { text: 'I found a scheme' }] },
+      },
+    })
+    expect(parsed && 'serverContent' in parsed && parsed.serverContent.modelTurn?.parts.map((p) => p.text)).toEqual([
+      undefined,
+      'I found a scheme',
+    ])
+  })
+
   it('parses interrupted and transcription fields', () => {
     const parsed = parseServerMessage({
       serverContent: {

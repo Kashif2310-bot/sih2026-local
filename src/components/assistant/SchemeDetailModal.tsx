@@ -118,7 +118,7 @@ export function SchemeDetailModal({
           <Section title={t('assistant.detail.liveEvidence')} icon={Globe}>
             <ul className="space-y-3">
               {ranked.liveEvidence.map((live) => (
-                <li key={`${live.sourceUrl}-${live.retrievedAt}`} className="rounded-xl bg-[#e8f6ee] p-3 text-sm">
+                <li key={`${live.sourceUrl}-${live.retrievedAt}`} className="rounded-xl bg-[#efefef] p-3 text-sm">
                   <p className="text-ink/80">{live.summary}</p>
                   <p className="mt-1.5 text-[11px] text-ink/50">
                     {live.sourceName} · {t('assistant.detail.retrievedAt')}:{' '}
