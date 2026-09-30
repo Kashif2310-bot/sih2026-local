@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { offlineProvider } from '../ai'
 import type { AIProvider } from '../ai/types'
-import type { LiveRetriever } from '../liveRetrieval'
+import { neverConfiguredLiveRetriever, type LiveRetriever } from '../liveRetrieval'
 import { SCHEMES } from '../data/schemes'
 import { VoiceAssistantController, type VoiceAssistantControllerDeps } from './voiceAssistantController'
 
-/** Deterministic, network-free deps for every test — offline provider only, and the real defaultLiveRetriever (which is a safe, synchronous no-op when Supabase is unconfigured, as it always is in this test environment). */
+/**
+ * Deterministic, network-free deps for every test — offline provider only,
+ * and neverConfiguredLiveRetriever unless a test passes its own. Not the
+ * default retriever: that one calls the real Supabase edge function whenever
+ * VITE_SUPABASE_URL is set (e.g. by .env.local).
+ */
 function testDeps(overrides: Partial<VoiceAssistantControllerDeps> = {}): VoiceAssistantControllerDeps {
-  return { providers: [offlineProvider], ...overrides }
+  return { providers: [offlineProvider], liveRetriever: neverConfiguredLiveRetriever, ...overrides }
 }
 
 function newController(overrides: Partial<VoiceAssistantControllerDeps> = {}): VoiceAssistantController {
