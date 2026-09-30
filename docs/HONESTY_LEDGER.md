@@ -22,6 +22,8 @@ Every row here is traceable to a file, a test, or an observed result from this r
 | data.gov.in live statistical retrieval | **NOT CONFIGURED** | `supabase/functions/live-scheme-retrieval` deployed (v5, ACTIVE), invoked directly tonight: returns HTTP 503 `{"error":"not_configured","missing":["DATA_GOV_IN_API_KEY","DATA_GOV_IN_RESOURCE_ID"]}` | "Live government statistics are wired up end-to-end, but we haven't found a dataset with a working, registered API key yet — until then, every reply is honestly labelled as coming from our curated dataset, not live government data." |
 | Official-source "Phase 3" discovery adapter (`dataGovInAdapter.ts`) | **BUILT, NOT CONNECTED** | `src/backend/services/officialSource/*`, fully tested (`dataGovInAdapter.test.ts` etc.); confirmed via full browser import-graph trace: 0 of 165 modules reachable from `src/main.tsx` come from `src/backend/*` | "There's a second, separate discovery pipeline built and tested on the backend for broader scheme discovery — it isn't wired into the live product yet." |
 
+PMFME considered for food_processing but not added — its approved period per Ministry guidance ends Sept 2026, with no confirmed extension found as of 2026-09-30. Revisit if extended.
+
 ## 2. AI assistant (text)
 
 | Capability | Status | Evidence | Safe wording |
