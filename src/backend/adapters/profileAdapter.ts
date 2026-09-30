@@ -132,7 +132,7 @@ export function fromEntrepreneurProfile(
     liveQuery: optionalFilled(p.liveQuery),
     liveLat: optionalFilled(p.liveLat),
     liveLng: optionalFilled(p.liveLng),
-    radiusKm: filled(p.radiusKm),
+    radiusKm: optionalFilled(p.radiusKm),
     storySummary: optionalFilled<string>(null),
     businessIntent: optionalFilled<string>(null),
     demoMode: p.demoMode,

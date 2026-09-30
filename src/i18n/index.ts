@@ -608,6 +608,11 @@ export const translationResources = {
         },
         profile: {
           intro: 'Confirm or edit what we picked up, then we will run your hyperlocal scan.',
+          choose: 'Choose…',
+          otherLocation: 'Other / not listed',
+          otherLocationPlace: 'Your village, town or district',
+          otherLocationNote:
+            'This place is outside the 5 supported villages. Hyperlocal scan data for it (such as population, local market and competitor counts) may be limited or unavailable.',
         },
         conversation: {
           title: 'Tell us more',
@@ -1514,6 +1519,11 @@ export const translationResources = {
         },
         profile: {
           intro: 'ನಾವು ಆಯ್ದುಕೊಂಡದ್ದನ್ನು ಖಚಿತಪಡಿಸಿ ಅಥವಾ ತಿದ್ದಿ, ನಂತರ ನಾವು ನಿಮ್ಮ ಹೈಪರ್‌ಲೋಕಲ್ ಸ್ಕ್ಯಾನ್ ರನ್ ಮಾಡುತ್ತೇವೆ.',
+          choose: 'ಆಯ್ಕೆಮಾಡಿ…',
+          otherLocation: 'ಇತರೆ / ಪಟ್ಟಿಯಲ್ಲಿ ಇಲ್ಲ',
+          otherLocationPlace: 'ನಿಮ್ಮ ಗ್ರಾಮ, ಪಟ್ಟಣ ಅಥವಾ ಜಿಲ್ಲೆ',
+          otherLocationNote:
+            'ಈ ಸ್ಥಳ ಬೆಂಬಲಿತ 5 ಗ್ರಾಮಗಳ ಹೊರಗಿದೆ. ಇದಕ್ಕೆ ಹೈಪರ್‌ಲೋಕಲ್ ಸ್ಕ್ಯಾನ್ ಡೇಟಾ (ಜನಸಂಖ್ಯೆ, ಸ್ಥಳೀಯ ಮಾರುಕಟ್ಟೆ ಮತ್ತು ಸ್ಪರ್ಧಿಗಳ ಸಂಖ್ಯೆಯಂತಹ) ಸೀಮಿತವಾಗಿರಬಹುದು ಅಥವಾ ಲಭ್ಯವಿಲ್ಲದಿರಬಹುದು.',
         },
         conversation: {
           title: 'ಇನ್ನಷ್ಟು ತಿಳಿಸಿ',

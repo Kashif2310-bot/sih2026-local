@@ -415,6 +415,33 @@ export function extractProfileFromMessage(text: string): Partial<UserProfile> {
   return extracted
 }
 
+// Words that end a spoken name — "my name is Jordan and I want…" must yield
+// "Jordan", not "Jordan And I Want".
+const NAME_STOP_WORDS = new Set([
+  'a', 'aged', 'also', 'am', 'an', 'and', 'at', 'but', 'currently', 'from', 'here', 'i', "i'm", 'im', 'in',
+  'is', 'living', 'my', 'of', 'so', 'speaking', 'the', 'to', 'want', 'who', 'with',
+])
+
+/**
+ * The applicant's name, from an explicit "my name is …" only — never
+ * guessed from "I am …", which is far more often an age, a status or an
+ * occupation ("I am 28", "I am a farmer"). Latin script only; speech-to-text
+ * usually lowercases names, so each word's first letter is capitalized.
+ * Kept separate from extractProfileFromMessage because UserProfile (the
+ * /assistant profile) has no name field.
+ */
+export function extractApplicantName(text: string): string | undefined {
+  const m = text.match(/\bmy\s+name(?:\s+is|'s)\s+([^,.;!?\n]+)/i)
+  if (!m) return undefined
+  const words: string[] = []
+  for (const word of m[1].trim().split(/\s+/)) {
+    if (NAME_STOP_WORDS.has(word.toLowerCase()) || !/^[a-z][a-z.'-]*$/i.test(word)) break
+    words.push(word.charAt(0).toUpperCase() + word.slice(1))
+    if (words.length === 4) break
+  }
+  return words.length > 0 ? words.join(' ') : undefined
+}
+
 /** Merge a new extraction into the running profile. Later statements overwrite earlier ones. */
 export function mergeProfile(existing: UserProfile, extracted: Partial<UserProfile>): ExtractionResult {
   const updatedFields: Array<keyof UserProfile> = []

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_PROFILE } from './types'
-import { extractAndMerge, extractProfileFromMessage } from './profileExtraction'
+import { extractAndMerge, extractApplicantName, extractProfileFromMessage } from './profileExtraction'
 import { identifyMissingFields, effectiveFinancingNeed } from './missingFields'
 
 describe('extractProfileFromMessage — demo scenario 1 (poultry, Karnataka, SC)', () => {
@@ -328,5 +328,31 @@ describe('extractProfileFromMessage — voice/STT-shaped phrasings (age, gender,
       // to prove patterns 1/2 were left untouched, not a realistic age.
       expect(extractProfileFromMessage('I am 110 years old').age).toBe(110)
     })
+  })
+})
+
+describe('extractApplicantName', () => {
+  it('takes the name after "my name is" and stops at the next clause', () => {
+    expect(
+      extractApplicantName(
+        'my name is Jordan and I want to start a newspaper business in Gulbarga, Karnataka, I am 28 years old, general category, male',
+      ),
+    ).toBe('Jordan')
+    expect(extractApplicantName('My name is Priya Sharma, I am 30')).toBe('Priya Sharma')
+    expect(extractApplicantName("my name's Ravi")).toBe('Ravi')
+  })
+
+  it('capitalizes a lowercased speech-to-text name', () => {
+    expect(extractApplicantName('my name is lakshmi devi and i run a shop')).toBe('Lakshmi Devi')
+  })
+
+  it('caps a run-on capture at four words', () => {
+    expect(extractApplicantName('my name is one two three four five six')).toBe('One Two Three Four')
+  })
+
+  it('never guesses a name from "I am …", which is usually an age, status or occupation', () => {
+    expect(extractApplicantName('I am 28 years old')).toBeUndefined()
+    expect(extractApplicantName('I am a farmer from Mandya')).toBeUndefined()
+    expect(extractApplicantName('my name is')).toBeUndefined()
   })
 })

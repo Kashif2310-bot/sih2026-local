@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Mic, MicOff, Volume2 } from 'lucide-react'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
 import { useApplicationDraft } from '../../citizen/useApplicationDraft'
-import { parseVoiceIntent } from '../../citizen/parseVoiceIntent'
+import { profileFormDraftFromTranscript } from '../../citizen/profileFormDraft'
+import { BUSINESS_META } from '../../data/villages'
 
 type SpeechRecognitionLike = {
   lang: string
@@ -144,7 +145,18 @@ export function VoicePage() {
     i18n.language === 'kn'
       ? 'ನಾನು ಮಂಡ್ಯದಲ್ಲಿ ಒಂದು ಲಕ್ಷ ರೂಪಾಯಿ ಮಾರ್ಜಿನ್‌ನೊಂದಿಗೆ ಹೈನುಗಾರಿಕೆ ಪ್ರಾರಂಭಿಸಲು ಬಯಸುತ್ತೇನೆ'
       : 'I want to start a dairy business in Mandya with one lakh rupees margin'
-  const intent = parseVoiceIntent(transcript)
+  // Exactly what the profile step will pre-fill — nothing else.
+  const draft = profileFormDraftFromTranscript(transcript)
+  const kn = i18n.language === 'kn'
+  const pickedUp = [
+    draft.name,
+    draft.age !== null ? `${t('wizard.age')}: ${draft.age}` : '',
+    draft.gender ? t(`wizard.${draft.gender}`) : '',
+    draft.community ? t(`wizard.${draft.community}`) : '',
+    draft.category ? (kn ? BUSINESS_META[draft.category].labelKn : BUSINESS_META[draft.category].label) : '',
+    draft.availableMargin !== null ? `${t('wizard.margin')}: ${draft.availableMargin.toLocaleString('en-IN')}` : '',
+    draft.annualIncome !== null ? `${t('wizard.income')}: ${draft.annualIncome.toLocaleString('en-IN')}` : '',
+  ].filter(Boolean)
 
   return (
     <WizardShell title={t('apply.voice.title')} subtitle={t('apply.voice.subtitle')}>
@@ -199,11 +211,11 @@ export function VoicePage() {
         {t('apply.voice.exampleDairy')}
       </button>
 
-      {intent.hints.length > 0 && (
+      {pickedUp.length > 0 && (
         <div className="mt-3 rounded-xl bg-mist/70 px-3 py-2">
           <p className="text-xs font-semibold uppercase text-ink/45">{t('apply.voice.pickedUp')}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {intent.hints.map((hint) => (
+            {pickedUp.map((hint) => (
               <span key={hint} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-forest">
                 {hint}
               </span>

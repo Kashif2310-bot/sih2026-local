@@ -20,7 +20,8 @@ export interface EntrepreneurProfile {
   liveQuery?: string
   liveLat?: number
   liveLng?: number
-  radiusKm: number
+  /** Omitted when the citizen never chose one — the scan then uses REACH_KM.default. */
+  radiusKm?: number
   /** Presenter safety switch: skip all live network calls, seeded villages only. */
   demoMode?: boolean
 }
