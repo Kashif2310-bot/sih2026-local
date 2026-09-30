@@ -86,10 +86,28 @@ export interface SchemeLoanInfo {
   notes?: string
 }
 
+/**
+ * A subsidy whose rate depends on who the applicant is (e.g. PMMSY: 60% for
+ * SC/ST/Women, 40% otherwise). An applicant in any listed social category OR
+ * of any listed gender gets the higher rate; one known to be in neither gets
+ * the standard rate. See subsidyRate.ts.
+ */
+export interface SchemeSubsidyTiers {
+  higherRatePercent: number
+  higherRateFor: { socialCategories?: SocialCategory[]; genders?: Gender[] }
+  higherRateLabel: string
+  standardRatePercent: number
+  standardRateLabel: string
+  /** What the rate is a percentage of, e.g. 'project/unit cost'. */
+  rateOf: string
+}
+
 export interface SchemeSubsidyInfo {
   description: string
   ratePercentMin?: number
   ratePercentMax?: number
+  /** Present only when the rate depends on the applicant; every other scheme shows `description` as-is. */
+  applicantTiers?: SchemeSubsidyTiers
 }
 
 export interface SchemeInterestInfo {

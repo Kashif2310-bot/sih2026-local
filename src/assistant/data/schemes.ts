@@ -429,6 +429,14 @@ export const SCHEMES: GovernmentScheme[] = [
         'Government financial assistance of 40% of the project/unit cost for General category and 60% for SC/ST/Women (Operational Guidelines para 5.2.2). No single project-cost ceiling: the Department fixes the unit cost and any upper ceiling per activity (para 9.8).',
       ratePercentMin: 40,
       ratePercentMax: 60,
+      applicantTiers: {
+        higherRatePercent: 60,
+        higherRateFor: { socialCategories: ['sc', 'st'], genders: ['female'] },
+        higherRateLabel: 'SC/ST/Women',
+        standardRatePercent: 40,
+        standardRateLabel: 'General category',
+        rateOf: 'project/unit cost',
+      },
     },
     documents: [
       "Project proposal for the activity (the guidelines' Detailed Project Report or Self Contained Proposal; preparation costs count toward the unit cost)",
