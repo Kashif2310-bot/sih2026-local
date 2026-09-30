@@ -97,6 +97,7 @@ function VoiceControls() {
   const { t } = useTranslation()
   const {
     voiceAvailable,
+    voiceSupportChecked,
     voiceAudioState,
     voiceActive,
     voiceError,
@@ -105,8 +106,27 @@ function VoiceControls() {
     interruptVoice,
   } = useAssistant()
 
-  if (!voiceAvailable) {
+  if (!voiceSupportChecked) {
     return null
+  }
+
+  if (!voiceAvailable) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled
+          aria-describedby="voice-unavailable-note"
+          className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-full border border-forest/15 bg-white px-3.5 py-2 text-xs font-semibold text-forest/40"
+        >
+          <MicOff className="h-3.5 w-3.5" />
+          {t('assistant.voice.micLabel')}
+        </button>
+        <span id="voice-unavailable-note" className="text-xs text-ink/55">
+          {t('assistant.voice.notConfigured')}
+        </span>
+      </div>
+    )
   }
 
   const showInterrupt = canInterruptVoice(voiceActive, voiceAudioState)

@@ -54,6 +54,8 @@ export interface AssistantState {
   reset: () => void
   /** Voice entry point — see conversation/voiceConversationRuntime.ts + conversation/voiceAssistantController.ts. Reuses this exact assistant state; never a second state machine. */
   voiceAvailable: boolean
+  /** False until the first isSupported() check settles, so the UI never flashes "voice is off" on a deployment where it is on. */
+  voiceSupportChecked: boolean
   voiceAudioState: AssistantAudioState
   voiceActive: boolean
   voiceError: string | null

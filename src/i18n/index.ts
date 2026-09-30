@@ -22,6 +22,11 @@ export const translationResources = {
           body: 'Review applications, ministry routing, approvals and the full audit trail.',
           cta: 'Open admin console',
         },
+        jobs: {
+          title: 'Search for jobs',
+          body: 'Find work with Ishara entrepreneurs. No agent in the middle — the wage on the card is the wage you keep.',
+          cta: 'Look for work',
+        },
       },
       lang: 'ಕನ್ನಡ',
       common: {
@@ -429,6 +434,7 @@ export const translationResources = {
         },
         voice: {
           micLabel: 'Talk instead of typing',
+          notConfigured: 'Voice is off: this copy of the app has no Supabase connection (.env.local is missing). Type below for now.',
           stopLabel: 'Stop voice',
           interruptLabel: 'Interrupt',
           unavailable: 'Continue with text.',
@@ -933,6 +939,11 @@ export const translationResources = {
           body: 'ಅರ್ಜಿಗಳು, ಸಚಿವಾಲಯ ಮಾರ್ಗನಿರ್ದೇಶನ, ಅನುಮೋದನೆಗಳು ಮತ್ತು ಸಂಪೂರ್ಣ ಲೆಕ್ಕಪರಿಶೋಧನಾ ದಾಖಲೆಯನ್ನು ಪರಿಶೀಲಿಸಿ.',
           cta: 'ಅಡ್ಮಿನ್ ಕನ್ಸೋಲ್ ತೆರೆಯಿರಿ',
         },
+        jobs: {
+          title: 'ಕೆಲಸ ಹುಡುಕಿ',
+          body: 'ಇಶಾರಾ ಉದ್ಯಮಿಗಳ ಬಳಿ ಕೆಲಸ ಹುಡುಕಿ. ನಡುವೆ ಏಜೆಂಟ್ ಇಲ್ಲ — ಕಾರ್ಡಿನ ಮೇಲಿನ ಕೂಲಿ ನಿಮಗೆ ಸಿಗುವ ಕೂಲಿ.',
+          cta: 'ಕೆಲಸ ನೋಡಿ',
+        },
       },
       lang: 'English',
       common: {
@@ -1340,6 +1351,7 @@ export const translationResources = {
         },
         voice: {
           micLabel: 'ಟೈಪ್ ಮಾಡುವ ಬದಲು ಮಾತನಾಡಿ',
+          notConfigured: 'ಧ್ವನಿ ಆಫ್ ಆಗಿದೆ: ಈ ಆ್ಯಪ್ ಪ್ರತಿಗೆ Supabase ಸಂಪರ್ಕವಿಲ್ಲ (.env.local ಇಲ್ಲ). ಸದ್ಯಕ್ಕೆ ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ.',
           stopLabel: 'ಧ್ವನಿ ನಿಲ್ಲಿಸಿ',
           interruptLabel: 'ಮಾತು ನಿಲ್ಲಿಸಿ',
           unavailable: 'ಪಠ್ಯದೊಂದಿಗೆ ಮುಂದುವರಿಸಿ.',

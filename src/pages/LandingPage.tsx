@@ -1,7 +1,7 @@
 import { motion, MotionConfig } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Landmark, MapPinned, PlayCircle, ShieldCheck, Sparkles, Store } from 'lucide-react'
+import { ArrowRight, HandCoins, Landmark, MapPinned, PlayCircle, ShieldCheck, Sparkles, Store } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
 import { citizenApplyNavPath } from '../apply/resumePath'
 
@@ -109,7 +109,7 @@ export function LandingPage() {
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-white/45">
             {t('roles.choose')}
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <div className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.02] p-6 transition hover:border-white/35 sm:p-7">
               <div className="flex items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-black">
@@ -154,6 +154,24 @@ export function LandingPage() {
                   className="inline-flex items-center gap-2 rounded-full border border-white/40 px-5 py-3 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-black"
                 >
                   {t('roles.admin.cta')} <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-white/[0.10] to-white/[0.02] p-6 transition hover:border-white/35 sm:p-7">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-black">
+                  <HandCoins className="h-5 w-5" />
+                </span>
+                <h2 className="font-display text-2xl font-bold tracking-tight">{t('roles.jobs.title')}</h2>
+              </div>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65">{t('roles.jobs.body')}</p>
+              <div className="mt-6 flex flex-wrap items-center gap-3 md:mt-auto md:pt-6">
+                <Link
+                  to="/jobs"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-bold text-black transition hover:bg-white/85"
+                >
+                  {t('roles.jobs.cta')} <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </Link>
               </div>
             </div>

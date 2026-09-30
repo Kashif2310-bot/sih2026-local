@@ -50,6 +50,7 @@ const AdminApplicationDetailPage = lazy(() =>
 const AdminAuditPage = lazy(() =>
   import('./admin/pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })),
 )
+const JobsPage = lazy(() => import('./pages/JobsPage').then((m) => ({ default: m.JobsPage })))
 
 const ApplyVoicePage = lazy(() =>
   import('./pages/apply/VoicePage').then((m) => ({ default: m.VoicePage })),
@@ -101,7 +102,8 @@ function RouteFallback() {
 
 /**
  * "/" is the Ishara scroll intro — a standalone static page in public/intro/
- * whose Entrepreneur card links to /home and Admin card to /admin/login.
+ * whose Entrepreneur card links to /home, Admin card to /admin/login,
+ * and Search for jobs to /jobs.
  * A full navigation (not a router redirect) because it is not a React page.
  */
 const INTRO_URL = '/intro/index.html'
@@ -109,6 +111,19 @@ const INTRO_URL = '/intro/index.html'
 function IntroRedirect() {
   useEffect(() => {
     window.location.replace(INTRO_URL)
+  }, [])
+  return null
+}
+
+/**
+ * "/assistant" is the Ishaara voice assistant (src/voiceAssistant), a separate page with its own
+ * full-screen styles. The previous assistant page stays available at "/assistant-classic".
+ */
+const VOICE_ASSISTANT_URL = '/voice-assistant/'
+
+function VoiceAssistantRedirect() {
+  useEffect(() => {
+    window.location.replace(`${VOICE_ASSISTANT_URL}${window.location.search}`)
   }, [])
   return null
 }
@@ -147,6 +162,7 @@ export default function App() {
             </Route>
 
             <Route path="/" element={<IntroRedirect />} />
+            <Route path="/jobs" element={<JobsPage />} />
 
             <Route element={<CitizenLayout />}>
               <Route path="/home" element={<LandingPage />} />
@@ -198,7 +214,8 @@ export default function App() {
                   </AssessmentRoute>
                 }
               />
-              <Route path="/assistant" element={<AssistantPage />} />
+              <Route path="/assistant" element={<VoiceAssistantRedirect />} />
+              <Route path="/assistant-classic" element={<AssistantPage />} />
               <Route
                 path="/assistant/:id"
                 element={

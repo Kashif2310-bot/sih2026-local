@@ -34,7 +34,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: withCase('finance'), label: t('nav.finance'), apply: false },
     { to: withCase('sanction'), label: t('nav.sanction'), apply: false },
     { to: withCase('export'), label: t('nav.export'), apply: false },
-    { to: caseId ? `/assistant/${caseId}` : '/assistant', label: t('nav.assistant'), apply: false },
+    // The Ishaara voice assistant; "/assistant/:id" (the older case assistant) is still reachable directly.
+    { to: '/assistant', label: t('nav.assistant'), apply: false },
   ]
 
   const isNavActive = (to: string, apply: boolean) => isCitizenNavActive(location.pathname, to, apply)
