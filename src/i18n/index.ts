@@ -434,7 +434,7 @@ export const translationResources = {
         },
         voice: {
           micLabel: 'Talk instead of typing',
-          notConfigured: 'Voice is off: this copy of the app has no Supabase connection (.env.local is missing). Type below for now.',
+          notConfigured: 'Voice is currently unavailable. Type below for now.',
           stopLabel: 'Stop voice',
           interruptLabel: 'Interrupt',
           unavailable: 'Continue with text.',
@@ -1351,7 +1351,7 @@ export const translationResources = {
         },
         voice: {
           micLabel: 'ಟೈಪ್ ಮಾಡುವ ಬದಲು ಮಾತನಾಡಿ',
-          notConfigured: 'ಧ್ವನಿ ಆಫ್ ಆಗಿದೆ: ಈ ಆ್ಯಪ್ ಪ್ರತಿಗೆ Supabase ಸಂಪರ್ಕವಿಲ್ಲ (.env.local ಇಲ್ಲ). ಸದ್ಯಕ್ಕೆ ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ.',
+          notConfigured: 'ಧ್ವನಿ ಸದ್ಯಕ್ಕೆ ಲಭ್ಯವಿಲ್ಲ. ಕೆಳಗೆ ಟೈಪ್ ಮಾಡಿ.',
           stopLabel: 'ಧ್ವನಿ ನಿಲ್ಲಿಸಿ',
           interruptLabel: 'ಮಾತು ನಿಲ್ಲಿಸಿ',
           unavailable: 'ಪಠ್ಯದೊಂದಿಗೆ ಮುಂದುವರಿಸಿ.',
