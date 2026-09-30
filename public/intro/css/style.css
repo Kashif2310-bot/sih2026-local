@@ -241,7 +241,7 @@ ul {
 }
 
 .connect-inner {
-  max-width: 1080px;
+  max-width: 1180px;
   width: 100%;
   text-align: center;
 }
@@ -252,7 +252,7 @@ ul {
 
 .connect-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
 }
 
@@ -353,7 +353,7 @@ ul {
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 800px) {
+@media (max-width: 960px) {
   .connect-cards {
     grid-template-columns: 1fr;
     gap: 20px;

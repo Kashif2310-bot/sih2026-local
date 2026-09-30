@@ -64,6 +64,7 @@ export function AssistantProvider({
   const [hasStarted, setHasStarted] = useState(false)
 
   const [voiceAvailable, setVoiceAvailable] = useState(false)
+  const [voiceSupportChecked, setVoiceSupportChecked] = useState(false)
   const [voiceAudioState, setVoiceAudioState] = useState<AssistantAudioState>('idle')
   const [voiceActive, setVoiceActive] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -99,6 +100,9 @@ export function AssistantProvider({
       })
       .catch(() => {
         if (!cancelled) setVoiceAvailable(false)
+      })
+      .finally(() => {
+        if (!cancelled) setVoiceSupportChecked(true)
       })
     return () => {
       cancelled = true
@@ -459,6 +463,7 @@ export function AssistantProvider({
     selectScheme,
     reset,
     voiceAvailable,
+    voiceSupportChecked,
     voiceAudioState,
     voiceActive,
     voiceError,

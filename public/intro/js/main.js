@@ -9,9 +9,11 @@
   // Entry points into the Ishara app (served from public/intro/ at "/").
   // Entrepreneur opens the full citizen app (scan, assistant, apply, ...);
   // Admin opens only the admin console, which has its own login and shell.
+  // Search for jobs opens direct hire — workers and Ishara entrepreneurs, no agent.
   const ROUTES = {
     entrepreneur: "/home",
     admin: "/admin/login",
+    jobs: "/jobs",
   };
 
   const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");

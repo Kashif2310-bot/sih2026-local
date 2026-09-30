@@ -50,6 +50,7 @@ const AdminApplicationDetailPage = lazy(() =>
 const AdminAuditPage = lazy(() =>
   import('./admin/pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })),
 )
+const JobsPage = lazy(() => import('./pages/JobsPage').then((m) => ({ default: m.JobsPage })))
 
 const ApplyVoicePage = lazy(() =>
   import('./pages/apply/VoicePage').then((m) => ({ default: m.VoicePage })),
@@ -101,7 +102,8 @@ function RouteFallback() {
 
 /**
  * "/" is the Ishara scroll intro — a standalone static page in public/intro/
- * whose Entrepreneur card links to /home and Admin card to /admin/login.
+ * whose Entrepreneur card links to /home, Admin card to /admin/login,
+ * and Search for jobs to /jobs.
  * A full navigation (not a router redirect) because it is not a React page.
  */
 const INTRO_URL = '/intro/index.html'
@@ -147,6 +149,7 @@ export default function App() {
             </Route>
 
             <Route path="/" element={<IntroRedirect />} />
+            <Route path="/jobs" element={<JobsPage />} />
 
             <Route element={<CitizenLayout />}>
               <Route path="/home" element={<LandingPage />} />
