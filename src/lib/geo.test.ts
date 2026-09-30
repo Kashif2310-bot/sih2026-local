@@ -5,8 +5,10 @@ import {
   distanceKm,
   fetchCompetitorsNearby,
   geocodeLocation,
+  geocodeLocationDetailed,
   resetNominatimRateLimit,
   reverseGeocode,
+  reverseGeocodeDetailed,
 } from './geo'
 import { NOMINATIM_MIN_INTERVAL_MS } from './config'
 
@@ -68,8 +70,8 @@ describe('geocodeLocation', () => {
     })
   })
 
-  it('retries exactly once and returns the successful retry result', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse([])).mockResolvedValueOnce(
+  it('retries exactly once after a network failure and returns the successful retry result', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down')).mockResolvedValueOnce(
       jsonResponse([{ display_name: 'Hassan, Karnataka, India', lat: '13.0033', lon: '76.1004' }]),
     )
     const hit = await geocodeLocation('Hassan')
@@ -77,10 +79,11 @@ describe('geocodeLocation', () => {
     expect(hit?.displayName).toBe('Hassan, Karnataka, India')
   })
 
-  it('never fabricates a result — returns null (not a retry loop, not a guess) when every attempt is empty', async () => {
+  it('never fabricates a result, and never repeats a search that found nothing', async () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
     expect(await geocodeLocation('Nowhere Real')).toBeNull()
-    expect(fetchMock).toHaveBeenCalledTimes(2) // one attempt + one retry, per retryOnceIf
+    // Nominatim policy: "clients sending repeatedly the same query may be classified as faulty and blocked".
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('returns null, not a thrown error, on a non-ok HTTP response', async () => {
@@ -162,7 +165,7 @@ describe('Nominatim usage policy', () => {
   it('makes the retry wait for its slot too, not just the backoff', async () => {
     fetchMock.mockImplementation(() => {
       fetchTimes.push(Date.now())
-      return Promise.resolve(jsonResponse(fetchTimes.length === 1 ? [] : HIT))
+      return Promise.resolve(fetchTimes.length === 1 ? jsonResponse(null, false, 503) : jsonResponse(HIT))
     })
     const result = geocodeLocation('Mandya')
     await vi.advanceTimersByTimeAsync(5_000)
@@ -225,7 +228,7 @@ describe('fetchCompetitorsNearby', () => {
   it('reports ok:false with an honest error, never a fabricated empty-success, when both endpoints fail', async () => {
     fetchMock.mockRejectedValue(new Error('all mirrors down'))
     const result = await fetchCompetitorsNearby({ lat: 1, lng: 1, category: 'poultry' })
-    expect(result).toEqual({ ok: false, pois: [], error: 'Overpass unreachable or returned no data' })
+    expect(result).toEqual({ ok: false, pois: [], error: 'Overpass unreachable', failure: 'unreachable' })
   })
 
   it('retries once on failure and returns the successful retry', async () => {
@@ -238,6 +241,114 @@ describe('fetchCompetitorsNearby', () => {
     const result = await fetchCompetitorsNearby({ lat: 1, lng: 1, category: 'food' })
     expect(result.ok).toBe(true)
     expect(call).toBeGreaterThan(2) // first attempt (both mirrors) failed, retry succeeded
+  })
+})
+
+describe('failure kinds — rate limit vs timeout vs unreachable vs no match', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  const HIT = [{ display_name: 'Mandya, Karnataka, India', lat: '12.5242', lon: '76.8958' }]
+
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    resetNominatimRateLimit()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('place search: HTTP 429 is rate_limited, and is not retried', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 429))
+    expect(await geocodeLocationDetailed('Mandya')).toEqual({ hit: null, failure: 'rate_limited' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('place search: an empty answer is no_match — distinct from a rate limit — and is not retried', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([]))
+    expect(await geocodeLocationDetailed('Nowhere Real')).toEqual({ hit: null, failure: 'no_match' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('place search: HTTP 504 is timed_out, and gets the one quick retry', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, false, 504)).mockResolvedValueOnce(jsonResponse(null, false, 504))
+    expect(await geocodeLocationDetailed('Mandya')).toEqual({ hit: null, failure: 'timed_out' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('place search: a network error is unreachable, and gets the one quick retry', async () => {
+    fetchMock.mockRejectedValue(new Error('network down'))
+    expect(await geocodeLocationDetailed('Mandya')).toEqual({ hit: null, failure: 'unreachable' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('place search: no answer within our own timeout is timed_out', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementation(
+      (_url: unknown, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+        }),
+    )
+    const pending = geocodeLocationDetailed('Mandya')
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(await pending).toEqual({ hit: null, failure: 'timed_out' })
+  })
+
+  it('place search: a hit carries no failure', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(HIT))
+    const result = await geocodeLocationDetailed('Mandya')
+    expect(result.hit?.lat).toBe(12.5242)
+    expect(result.failure).toBeUndefined()
+  })
+
+  it('reverse lookup: "Unable to geocode" is no_match, and HTTP 429 is rate_limited — neither retried', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'Unable to geocode' }))
+    expect(await reverseGeocodeDetailed(1, 1)).toEqual({ hit: null, failure: 'no_match' })
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 429))
+    expect(await reverseGeocodeDetailed(1, 1)).toEqual({ hit: null, failure: 'rate_limited' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('competitors: both mirrors answering 429 is rate_limited, and is not retried', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 429))
+    const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
+    expect(result).toMatchObject({ ok: false, pois: [], failure: 'rate_limited' })
+    expect(result.error).toContain('429')
+    expect(fetchMock).toHaveBeenCalledTimes(2) // one request per mirror, no retry
+  })
+
+  it('competitors: a rate limit on one mirror outranks a network error on the other', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, false, 429)).mockRejectedValueOnce(new Error('network down'))
+    const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
+    expect(result.failure).toBe('rate_limited')
+  })
+
+  it('competitors: both mirrors answering 504 is timed_out, and gets the one quick retry', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 504))
+    const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
+    expect(result).toMatchObject({ ok: false, failure: 'timed_out', error: 'Overpass timed out' })
+    expect(fetchMock).toHaveBeenCalledTimes(4) // 2 mirrors x (attempt + retry)
+  })
+
+  it('competitors: a 200 with an Overpass "runtime error" remark is timed_out, not "0 competitors"', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        remark: 'runtime error: Query timed out in "query" at line 1 after 26 seconds.',
+        elements: [{ id: 1, lat: 12.5, lon: 76.9, tags: { name: 'Partial result' } }],
+      }),
+    )
+    const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
+    expect(result).toMatchObject({ ok: false, pois: [], failure: 'timed_out' })
+  })
+
+  it('competitors: finding 0 competitors is a real result, not a failure', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }))
+    const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
+    expect(result).toEqual({ ok: true, pois: [] })
+    expect(fetchMock).toHaveBeenCalledTimes(2) // both mirrors raced once; nothing retried
   })
 })
 

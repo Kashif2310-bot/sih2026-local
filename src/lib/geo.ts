@@ -73,13 +73,50 @@ const NOMINATIM_FETCH_INIT: RequestInit = {
   referrerPolicy: 'strict-origin-when-cross-origin',
 }
 
+/**
+ * Why a live lookup produced no usable data. Kept distinct rather than
+ * collapsed into one "failed", so the UI can say what actually happened:
+ *   rate_limited - the service answered HTTP 429 (asked us to slow down)
+ *   timed_out    - HTTP 504, our own request timeout, or an Overpass
+ *                  "runtime error" remark (the query ran out of time/memory)
+ *   unreachable  - a network error, or any other bad response
+ *   no_match     - the service answered and found nothing for the query
+ */
+export type LiveFailureKind = 'rate_limited' | 'timed_out' | 'unreachable' | 'no_match'
+
+export type GeocodeResult = { hit: GeocodeHit; failure?: undefined } | { hit: null; failure: LiveFailureKind }
+
+/**
+ * Only a transient failure is worth the one quick retry. Not a 429:
+ * Overpass asks clients to "pause for 30 seconds", and Nominatim blocks
+ * clients that keep hammering it. Not a "no match" either: Nominatim's
+ * policy warns that "clients sending repeatedly the same query may be
+ * classified as faulty and blocked".
+ */
+function isTransient(failure: LiveFailureKind | undefined): boolean {
+  return failure === 'timed_out' || failure === 'unreachable'
+}
+
+function failureFromStatus(status: number): LiveFailureKind {
+  if (status === 429) return 'rate_limited'
+  if (status === 504) return 'timed_out'
+  return 'unreachable'
+}
+
 export async function geocodeLocation(query: string): Promise<GeocodeHit | null> {
   const q = query.trim()
   if (!q) return null
-  return retryOnceIf(() => geocodeLocationOnce(q), (hit) => hit == null)
+  return (await geocodeLocationDetailed(q)).hit
 }
 
-async function geocodeLocationOnce(q: string): Promise<GeocodeHit | null> {
+/** Like geocodeLocation, but says why when there is no hit. */
+export async function geocodeLocationDetailed(query: string): Promise<GeocodeResult> {
+  const q = query.trim()
+  if (!q) return { hit: null, failure: 'no_match' }
+  return retryOnceIf(() => geocodeLocationOnce(q), (r) => r.hit == null && isTransient(r.failure))
+}
+
+async function geocodeLocationOnce(q: string): Promise<GeocodeResult> {
   const url =
     `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=in&q=` +
     encodeURIComponent(q)
@@ -88,38 +125,45 @@ async function geocodeLocationOnce(q: string): Promise<GeocodeHit | null> {
   const t = setTimeout(() => ctrl.abort(), NOMINATIM_TIMEOUT_MS)
   try {
     const res = await fetch(url, { ...NOMINATIM_FETCH_INIT, signal: ctrl.signal })
-    if (!res.ok) return null
+    if (!res.ok) return { hit: null, failure: failureFromStatus(res.status) }
     const data = (await res.json()) as Array<{
       display_name: string
       lat: string
       lon: string
       address?: Record<string, string>
     }>
-    if (!data?.length) return null
+    if (!data?.length) return { hit: null, failure: 'no_match' }
     const hit = data[0]
     const a = hit.address ?? {}
     return {
-      displayName: hit.display_name,
-      lat: Number(hit.lat),
-      lng: Number(hit.lon),
-      village: a.village ?? a.hamlet,
-      town: a.town,
-      city: a.city,
-      state: a.state,
-      county: a.county ?? a.state_district,
+      hit: {
+        displayName: hit.display_name,
+        lat: Number(hit.lat),
+        lng: Number(hit.lon),
+        village: a.village ?? a.hamlet,
+        town: a.town,
+        city: a.city,
+        state: a.state,
+        county: a.county ?? a.state_district,
+      },
     }
   } catch {
-    return null
+    return { hit: null, failure: ctrl.signal.aborted ? 'timed_out' : 'unreachable' }
   } finally {
     clearTimeout(t)
   }
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeHit | null> {
-  return retryOnceIf(() => reverseGeocodeOnce(lat, lng), (hit) => hit == null)
+  return (await reverseGeocodeDetailed(lat, lng)).hit
 }
 
-async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeHit | null> {
+/** Like reverseGeocode, but says why when there is no hit. */
+export async function reverseGeocodeDetailed(lat: number, lng: number): Promise<GeocodeResult> {
+  return retryOnceIf(() => reverseGeocodeOnce(lat, lng), (r) => r.hit == null && isTransient(r.failure))
+}
+
+async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeResult> {
   const url =
     `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`
   await waitForNominatimSlot()
@@ -127,29 +171,41 @@ async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeHit 
   const t = setTimeout(() => ctrl.abort(), NOMINATIM_TIMEOUT_MS)
   try {
     const res = await fetch(url, { ...NOMINATIM_FETCH_INIT, signal: ctrl.signal })
-    if (!res.ok) return null
+    if (!res.ok) return { hit: null, failure: failureFromStatus(res.status) }
     const hit = (await res.json()) as {
       display_name?: string
       lat?: string
       lon?: string
       address?: Record<string, string>
     }
-    if (!hit?.lat || !hit?.lon) return null
+    if (!hit?.lat || !hit?.lon) return { hit: null, failure: 'no_match' }
     const a = hit.address ?? {}
     return {
-      displayName: hit.display_name ?? `${lat}, ${lng}`,
-      lat: Number(hit.lat),
-      lng: Number(hit.lon),
-      village: a.village ?? a.hamlet,
-      town: a.town,
-      city: a.city,
-      state: a.state,
-      county: a.county ?? a.state_district,
+      hit: {
+        displayName: hit.display_name ?? `${lat}, ${lng}`,
+        lat: Number(hit.lat),
+        lng: Number(hit.lon),
+        village: a.village ?? a.hamlet,
+        town: a.town,
+        city: a.city,
+        state: a.state,
+        county: a.county ?? a.state_district,
+      },
     }
   } catch {
-    return null
+    return { hit: null, failure: ctrl.signal.aborted ? 'timed_out' : 'unreachable' }
   } finally {
     clearTimeout(t)
+  }
+}
+
+/** One Overpass mirror's reason for giving no answer — thrown so Promise.any can race the mirrors. */
+class OverpassFailure extends Error {
+  readonly failure: LiveFailureKind
+
+  constructor(failure: LiveFailureKind, message: string) {
+    super(message)
+    this.failure = failure
   }
 }
 
@@ -166,8 +222,9 @@ async function queryOverpassEndpoint(
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `data=${encodeURIComponent(query)}`,
     })
-    if (!res.ok) throw new Error(`Overpass endpoint returned ${res.status}`)
+    if (!res.ok) throw new OverpassFailure(failureFromStatus(res.status), `Overpass endpoint returned ${res.status}`)
     const data = (await res.json()) as {
+      remark?: string
       elements?: Array<{
         id: number
         lat?: number
@@ -176,6 +233,10 @@ async function queryOverpassEndpoint(
         tags?: Record<string, string>
       }>
     }
+    // An overloaded Overpass can answer 200 with a "runtime error" remark
+    // (the query timed out or ran out of memory) and partial or no elements.
+    // That is a failed lookup, not "no competitors here".
+    if (data.remark?.includes('runtime error')) throw new OverpassFailure('timed_out', data.remark)
     return (data.elements ?? [])
       .map((el) => {
         const lat = el.lat ?? el.center?.lat
@@ -190,9 +251,20 @@ async function queryOverpassEndpoint(
         }
       })
       .filter((x): x is CompetitorPoi => x != null)
+  } catch (err) {
+    if (err instanceof OverpassFailure) throw err
+    throw new OverpassFailure(ctrl.signal.aborted ? 'timed_out' : 'unreachable', String(err))
   } finally {
     clearTimeout(t)
   }
+}
+
+export interface CompetitorLookup {
+  ok: boolean
+  pois: CompetitorPoi[]
+  error?: string
+  /** Why the lookup failed, when ok is false. Finding 0 competitors is ok: true — a real result, not a failure. */
+  failure?: LiveFailureKind
 }
 
 export async function fetchCompetitorsNearby(input: {
@@ -200,16 +272,27 @@ export async function fetchCompetitorsNearby(input: {
   lng: number
   category: BusinessCategory
   radiusKm?: number
-}): Promise<{ ok: boolean; pois: CompetitorPoi[]; error?: string }> {
-  return retryOnceIf(() => fetchCompetitorsNearbyOnce(input), (r) => !r.ok)
+}): Promise<CompetitorLookup> {
+  return retryOnceIf(() => fetchCompetitorsNearbyOnce(input), (r) => !r.ok && isTransient(r.failure))
 }
+
+const OVERPASS_FAILURE_MESSAGES: Record<LiveFailureKind, string> = {
+  rate_limited: 'Overpass rate-limited this request (HTTP 429)',
+  timed_out: 'Overpass timed out',
+  unreachable: 'Overpass unreachable',
+  no_match: 'Overpass returned no data',
+}
+
+// When both mirrors fail, report the most actionable reason: a rate limit
+// (retrying now makes it worse), then a timeout (servers busy), then unreachable.
+const OVERPASS_FAILURE_PRIORITY: LiveFailureKind[] = ['rate_limited', 'timed_out', 'unreachable']
 
 async function fetchCompetitorsNearbyOnce(input: {
   lat: number
   lng: number
   category: BusinessCategory
   radiusKm?: number
-}): Promise<{ ok: boolean; pois: CompetitorPoi[]; error?: string }> {
+}): Promise<CompetitorLookup> {
   const radiusM = Math.round((input.radiusKm ?? REACH_KM.default) * 1000)
   const filter = categoryOverpassFilter(input.category)
     .replaceAll('{r}', String(radiusM))
@@ -225,8 +308,11 @@ async function fetchCompetitorsNearbyOnce(input: {
       OVERPASS_ENDPOINTS.map((endpoint) => queryOverpassEndpoint(endpoint, query)),
     )
     return { ok: true, pois }
-  } catch {
-    return { ok: false, pois: [], error: 'Overpass unreachable or returned no data' }
+  } catch (err) {
+    const reasons = err instanceof AggregateError ? err.errors : []
+    const failures = reasons.map((e): LiveFailureKind => (e instanceof OverpassFailure ? e.failure : 'unreachable'))
+    const failure = OVERPASS_FAILURE_PRIORITY.find((f) => failures.includes(f)) ?? 'unreachable'
+    return { ok: false, pois: [], error: OVERPASS_FAILURE_MESSAGES[failure], failure }
   }
 }
 

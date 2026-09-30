@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VILLAGES } from '../data/villages'
-import type { CompetitorPoi, GeocodeHit } from './geo'
+import type { CompetitorPoi, GeocodeHit, LiveFailureKind } from './geo'
 
 /**
  * Pure-logic unit tests for resolveLocation.ts, mocking ./geo entirely (no
@@ -12,16 +12,16 @@ import type { CompetitorPoi, GeocodeHit } from './geo'
  */
 
 const fetchCompetitorsNearby = vi.fn()
-const geocodeLocation = vi.fn()
-const reverseGeocode = vi.fn()
+const geocodeLocationDetailed = vi.fn()
+const reverseGeocodeDetailed = vi.fn()
 
 vi.mock('./geo', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./geo')>()
   return {
     ...actual,
     fetchCompetitorsNearby: (...args: unknown[]) => fetchCompetitorsNearby(...args),
-    geocodeLocation: (...args: unknown[]) => geocodeLocation(...args),
-    reverseGeocode: (...args: unknown[]) => reverseGeocode(...args),
+    geocodeLocationDetailed: (...args: unknown[]) => geocodeLocationDetailed(...args),
+    reverseGeocodeDetailed: (...args: unknown[]) => reverseGeocodeDetailed(...args),
   }
 })
 
@@ -77,10 +77,11 @@ describe('resolveCuratedVillage', () => {
   })
 
   it('keeps the curated seed but marks competitors unavailable, with the real error, when Overpass fails', async () => {
-    fetchCompetitorsNearby.mockResolvedValue({ ok: false, pois: [], error: 'Overpass unreachable or returned no data' })
+    fetchCompetitorsNearby.mockResolvedValue({ ok: false, pois: [], error: 'Overpass rate-limited this request (HTTP 429)', failure: 'rate_limited' })
     const loc = await resolveCuratedVillage('dinka-mandya', 'dairy', 7, false)
     expect(loc.competitorQueryOk).toBe(false)
-    expect(loc.competitorError).toBe('Overpass unreachable or returned no data')
+    expect(loc.competitorError).toBe('Overpass rate-limited this request (HTTP 429)')
+    expect(loc.competitorFailure).toBe('rate_limited')
     expect(loc.provenanceLabelEn).toContain('unavailable')
     // Never silently loses the seeded density just because the live enrichment failed.
     expect(loc.competitorDensity).toEqual(DINKA.competitorDensity)
@@ -96,8 +97,8 @@ describe('resolveCuratedVillage', () => {
 describe('resolveLiveLocation', () => {
   beforeEach(() => {
     fetchCompetitorsNearby.mockReset()
-    geocodeLocation.mockReset()
-    reverseGeocode.mockReset()
+    geocodeLocationDetailed.mockReset()
+    reverseGeocodeDetailed.mockReset()
   })
 
   afterEach(() => {
@@ -107,20 +108,50 @@ describe('resolveLiveLocation', () => {
   it('rejects with a clear message when neither a query nor coordinates are given, without calling any geo function', async () => {
     const result = await resolveLiveLocation({ category: 'dairy' })
     expect(result.ok).toBe(false)
-    expect(geocodeLocation).not.toHaveBeenCalled()
-    expect(reverseGeocode).not.toHaveBeenCalled()
+    expect(geocodeLocationDetailed).not.toHaveBeenCalled()
+    expect(reverseGeocodeDetailed).not.toHaveBeenCalled()
   })
 
   it('reports a clear failure, not a fabricated location, when forward geocoding fails entirely', async () => {
-    geocodeLocation.mockResolvedValue(null)
+    geocodeLocationDetailed.mockResolvedValue({ hit: null, failure: 'no_match' })
     const result = await resolveLiveLocation({ query: 'Nowhere Real', category: 'dairy' })
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain('Could not geocode')
+    expect(fetchCompetitorsNearby).not.toHaveBeenCalled()
+  })
+
+  it('gives a different, specific message for each way a place search can fail', async () => {
+    const expected: Array<[LiveFailureKind, string]> = [
+      ['no_match', 'No place called "Nowhere Real" was found in India'],
+      ['rate_limited', 'is limiting requests right now'],
+      ['timed_out', 'took too long to answer'],
+      ['unreachable', "Couldn't reach the place-search service"],
+    ]
+    const messages = new Set<string>()
+    const messagesKn = new Set<string>()
+    for (const [failure, text] of expected) {
+      geocodeLocationDetailed.mockResolvedValue({ hit: null, failure })
+      const result = await resolveLiveLocation({ query: 'Nowhere Real', category: 'dairy' })
+      expect(result.ok).toBe(false)
+      if (result.ok) continue
+      expect(result.error).toContain(text)
+      expect(result.errorKn.length).toBeGreaterThan(0)
+      messages.add(result.error)
+      messagesKn.add(result.errorKn)
+    }
+    expect(messages.size).toBe(4)
+    expect(messagesKn.size).toBe(4)
+  })
+
+  it('never tells a rate-limited citizen that their place does not exist', async () => {
+    geocodeLocationDetailed.mockResolvedValue({ hit: null, failure: 'rate_limited' })
+    const result = await resolveLiveLocation({ query: 'Mandya', category: 'dairy' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).not.toContain('No place called')
   })
 
   it('on a successful geocode + successful Overpass, fills only the selected category from the real count and marks others 0.5 (never fabricated)', async () => {
     const hit: GeocodeHit = { displayName: 'Hassan, Karnataka, India', lat: 13.0033, lng: 76.1004, county: 'Hassan' }
-    geocodeLocation.mockResolvedValue(hit)
+    geocodeLocationDetailed.mockResolvedValue({ hit })
     fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [poi('1', 13, 76), poi('2', 13, 76)] })
 
     const result = await resolveLiveLocation({ query: 'Hassan', category: 'poultry' })
@@ -136,20 +167,23 @@ describe('resolveLiveLocation', () => {
 
   it('on a successful geocode but a failed Overpass, marks partial provenance and leaves ALL densities neutral, including the selected category', async () => {
     const hit: GeocodeHit = { displayName: 'Somewhere, India', lat: 20, lng: 78 }
-    geocodeLocation.mockResolvedValue(hit)
-    fetchCompetitorsNearby.mockResolvedValue({ ok: false, pois: [], error: 'Overpass unreachable or returned no data' })
+    geocodeLocationDetailed.mockResolvedValue({ hit })
+    fetchCompetitorsNearby.mockResolvedValue({ ok: false, pois: [], error: 'Overpass timed out', failure: 'timed_out' })
 
     const result = await resolveLiveLocation({ query: 'Somewhere', category: 'textiles' })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.location.provenance).toBe('partial')
     expect(result.location.competitorQueryOk).toBe(false)
+    expect(result.location.competitorFailure).toBe('timed_out')
     expect(result.location.competitorDensity.textiles).toBe(0.5)
     expect(result.location.notes).toContain('not fabricated')
   })
 
   it('when given coordinates and reverse-geocoding succeeds, uses the real place name/district', async () => {
-    reverseGeocode.mockResolvedValue({ displayName: 'Kunigal, Tumakuru', lat: 13.02, lng: 77.02, town: 'Kunigal', county: 'Tumakuru' } satisfies GeocodeHit)
+    reverseGeocodeDetailed.mockResolvedValue({
+      hit: { displayName: 'Kunigal, Tumakuru', lat: 13.02, lng: 77.02, town: 'Kunigal', county: 'Tumakuru' } satisfies GeocodeHit,
+    })
     fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [] })
 
     const result = await resolveLiveLocation({ lat: 13.02, lng: 77.02, category: 'dairy' })
@@ -161,7 +195,7 @@ describe('resolveLiveLocation', () => {
   })
 
   it('when given coordinates and reverse-geocoding fails, still proceeds using the raw coordinates (geocodeOk: false) rather than bailing out entirely', async () => {
-    reverseGeocode.mockResolvedValue(null)
+    reverseGeocodeDetailed.mockResolvedValue({ hit: null, failure: 'rate_limited' })
     fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [] })
 
     const result = await resolveLiveLocation({ lat: 15.5, lng: 80.1, category: 'dairy' })
@@ -170,6 +204,7 @@ describe('resolveLiveLocation', () => {
     // Unlike a failed forward geocode (which has nothing to fall back to), a
     // failed reverse geocode still has the coordinates themselves to work with.
     expect(result.location.geocodeOk).toBe(false)
+    expect(result.location.geocodeFailure).toBe('rate_limited')
     expect(result.location.lat).toBe(15.5)
     expect(result.location.lng).toBe(80.1)
   })

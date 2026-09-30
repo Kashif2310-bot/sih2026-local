@@ -3,10 +3,11 @@ import { REACH_KM } from './config'
 import {
   densityFromCount,
   fetchCompetitorsNearby,
-  geocodeLocation,
-  reverseGeocode,
+  geocodeLocationDetailed,
+  reverseGeocodeDetailed,
   type CompetitorPoi,
   type GeocodeHit,
+  type LiveFailureKind,
 } from './geo'
 
 export type DataProvenance = 'curated_seed' | 'live_lookup' | 'partial'
@@ -34,9 +35,13 @@ export interface ResolvedLocation {
   competitors: CompetitorPoi[]
   competitorQueryOk: boolean
   competitorError?: string
+  /** Why the competitor lookup failed, when competitorQueryOk is false. */
+  competitorFailure?: LiveFailureKind
   radiusKm: number
   /** False when Nominatim geocoding/reverse-geocoding was attempted and failed. */
   geocodeOk?: boolean
+  /** Why reverse geocoding failed, when geocodeOk is false. */
+  geocodeFailure?: LiveFailureKind
   /** True when festivals/mandi curated packs apply */
   hasCuratedSignals: boolean
 }
@@ -106,8 +111,38 @@ export async function resolveCuratedVillage(
     ...base,
     competitorQueryOk: false,
     competitorError: live.error,
+    competitorFailure: live.failure,
     provenanceLabelEn: `Curated local data for ${v.name} (live map POIs unavailable)`,
     provenanceLabelKn: `${v.nameKn} ಕ್ಯುರೇಟೆಡ್ ಡೇಟಾ (ಲೈವ್ ನಕ್ಷೆ POI ಲಭ್ಯವಿಲ್ಲ)`,
+  }
+}
+
+/** A specific reason a place search failed — a missing place and a busy or unreachable service need different next steps. */
+function placeSearchError(failure: LiveFailureKind, query: string): { error: string; errorKn: string } {
+  switch (failure) {
+    case 'no_match':
+      return {
+        error: `No place called "${query}" was found in India. Check the spelling, or add the district or state.`,
+        errorKn: `ಭಾರತದಲ್ಲಿ "${query}" ಎಂಬ ಸ್ಥಳ ಕಂಡುಬಂದಿಲ್ಲ. ಕಾಗುಣಿತ ಪರಿಶೀಲಿಸಿ, ಅಥವಾ ಜಿಲ್ಲೆ ಅಥವಾ ರಾಜ್ಯವನ್ನು ಸೇರಿಸಿ.`,
+      }
+    case 'rate_limited':
+      return {
+        error: 'The place-search service (OpenStreetMap Nominatim) is limiting requests right now. Wait a minute, then try again.',
+        errorKn:
+          'ಸ್ಥಳ ಹುಡುಕಾಟ ಸೇವೆ (OpenStreetMap Nominatim) ಈಗ ವಿನಂತಿಗಳನ್ನು ಮಿತಿಗೊಳಿಸುತ್ತಿದೆ. ಒಂದು ನಿಮಿಷ ಕಾಯಿರಿ, ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+      }
+    case 'timed_out':
+      return {
+        error: 'The place-search service (OpenStreetMap Nominatim) took too long to answer — the connection may be slow. Try again.',
+        errorKn:
+          'ಸ್ಥಳ ಹುಡುಕಾಟ ಸೇವೆ (OpenStreetMap Nominatim) ಉತ್ತರಿಸಲು ತುಂಬಾ ಸಮಯ ತೆಗೆದುಕೊಂಡಿತು — ಸಂಪರ್ಕ ನಿಧಾನವಾಗಿರಬಹುದು. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+      }
+    case 'unreachable':
+      return {
+        error: "Couldn't reach the place-search service (OpenStreetMap Nominatim). Check the internet connection, then try again.",
+        errorKn:
+          'ಸ್ಥಳ ಹುಡುಕಾಟ ಸೇವೆಯನ್ನು (OpenStreetMap Nominatim) ತಲುಪಲಾಗಲಿಲ್ಲ. ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸಿ, ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+      }
   }
 }
 
@@ -121,11 +156,14 @@ export async function resolveLiveLocation(input: {
   const radiusKm = input.radiusKm ?? REACH_KM.default
   let hit: GeocodeHit | null = null
   let geocodeOk = true
+  let geocodeFailure: LiveFailureKind | undefined
 
   if (input.lat != null && input.lng != null) {
-    hit = await reverseGeocode(input.lat, input.lng)
+    const reverse = await reverseGeocodeDetailed(input.lat, input.lng)
+    hit = reverse.hit
     if (!hit) {
       geocodeOk = false
+      geocodeFailure = reverse.failure
       hit = {
         displayName: `${input.lat.toFixed(4)}, ${input.lng.toFixed(4)}`,
         lat: input.lat,
@@ -133,14 +171,10 @@ export async function resolveLiveLocation(input: {
       }
     }
   } else if (input.query?.trim()) {
-    hit = await geocodeLocation(input.query)
-    if (!hit) {
-      return {
-        ok: false,
-        error: 'Could not geocode that location (Nominatim unavailable or no match in India).',
-        errorKn: 'ಸ್ಥಳ ಜಿಯೋಕೋಡ್ ಆಗಲಿಲ್ಲ (Nominatim ಲಭ್ಯವಿಲ್ಲ ಅಥವಾ ಭಾರತದಲ್ಲಿ ಹೊಂದಾಣಿಕೆ ಇಲ್ಲ).',
-      }
-    }
+    const query = input.query.trim()
+    const found = await geocodeLocationDetailed(query)
+    if (!found.hit) return { ok: false, ...placeSearchError(found.failure ?? 'unreachable', query) }
+    hit = found.hit
   } else {
     return {
       ok: false,
@@ -206,7 +240,9 @@ export async function resolveLiveLocation(input: {
     competitors: live.pois,
     competitorQueryOk: live.ok,
     competitorError: live.error,
+    competitorFailure: live.failure,
     geocodeOk,
+    geocodeFailure,
     radiusKm,
     hasCuratedSignals: false,
   }
