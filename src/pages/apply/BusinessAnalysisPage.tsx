@@ -2,11 +2,12 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useApp } from '../../state/useApp'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
+import { CompetitionAnalysis } from '../../components/CompetitionAnalysis'
 
 export function BusinessAnalysisPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { profile, score, location } = useApp()
+  const { profile, score, location, competition, analyzeCompetition } = useApp()
 
   if (!profile || !score) return <Navigate to="/apply/profile" replace />
 
@@ -33,6 +34,20 @@ export function BusinessAnalysisPage() {
           /report
         </Link>
       </div>
+
+      {location && (
+        <div className="rounded-2xl border border-forest/10 bg-white p-5">
+          <h2 className="font-display text-xl font-bold text-forest">Local competition analysis</h2>
+          <p className="mb-4 mt-1 text-sm text-ink/60">Google Places evidence near the confirmed business location.</p>
+          <CompetitionAnalysis
+            state={competition}
+            latitude={location.lat}
+            longitude={location.lng}
+            locationName={location.name}
+            onAnalyze={analyzeCompetition}
+          />
+        </div>
+      )}
 
       <WizardActions
         onBack={() => navigate('/apply/recommendations')}

@@ -117,6 +117,7 @@ export async function resolveLiveLocation(input: {
   lng?: number
   category: BusinessCategory
   radiusKm?: number
+  competitorLookup?: typeof fetchCompetitorsNearby
 }): Promise<{ ok: true; location: ResolvedLocation } | { ok: false; error: string; errorKn: string }> {
   const radiusKm = input.radiusKm ?? REACH_KM.default
   let hit: GeocodeHit | null = null
@@ -151,7 +152,7 @@ export async function resolveLiveLocation(input: {
 
   const name = hitName(hit)
   const district = hit.county ?? hit.state ?? 'Unknown district'
-  const live = await fetchCompetitorsNearby({
+  const live = await (input.competitorLookup ?? fetchCompetitorsNearby)({
     lat: hit.lat,
     lng: hit.lng,
     category: input.category,

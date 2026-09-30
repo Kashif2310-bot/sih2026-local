@@ -38,7 +38,7 @@ import { ensureIdentity, isRemotePersistenceConfigured, type RemoteSyncResult } 
 const PROFILE_ID_STORAGE_KEY = 'lokpulse.sharedApplicantProfileId'
 
 /** The stable id this browser's ApplicantProfile is upserted under. Created once, reused for every sync — never regenerated, or every save would orphan the previous row instead of updating it. */
-function getOrCreateLocalProfileId(): string | null {
+export function getOrCreateLocalProfileId(): string | null {
   try {
     const existing = localStorage.getItem(PROFILE_ID_STORAGE_KEY)
     if (existing) return existing

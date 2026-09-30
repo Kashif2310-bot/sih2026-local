@@ -9,6 +9,27 @@ import { useApp } from '../../state/useApp'
 import { useApplicationDraft } from '../../citizen/useApplicationDraft'
 import { parseVoiceIntent } from '../../citizen/parseVoiceIntent'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
+import { LocationPicker } from '../../maps/LocationPicker'
+import type { SelectedLocation } from '../../maps/types'
+
+function initialConfirmedLocation(profile: EntrepreneurProfile | null): SelectedLocation {
+  if (profile?.locationMode === 'live' && profile.liveLat != null && profile.liveLng != null) {
+    return {
+      latitude: profile.liveLat,
+      longitude: profile.liveLng,
+      formattedAddress: profile.liveQuery || `${profile.liveLat}, ${profile.liveLng}`,
+      placeId: '',
+    }
+  }
+  const villageId = profile?.villageId ?? defaultProfile().villageId
+  const village = VILLAGES.find((item) => item.id === villageId) ?? VILLAGES[0]
+  return {
+    latitude: village.lat,
+    longitude: village.lng,
+    formattedAddress: `${village.name}, ${village.district}, Karnataka, India`,
+    placeId: '',
+  }
+}
 
 export function ProfilePage() {
   const { t, i18n } = useTranslation()
@@ -18,10 +39,15 @@ export function ProfilePage() {
   const { transcript, updateExtra } = useApplicationDraft()
 
   const [form, setForm] = useState<EntrepreneurProfile>(() => {
+    const confirmed = initialConfirmedLocation(profile)
     const base = {
       ...defaultProfile(),
       name: profile?.name ?? defaultProfile().name,
-      demoMode: true as const,
+      demoMode: false,
+      locationMode: 'live' as const,
+      liveQuery: confirmed.formattedAddress,
+      liveLat: confirmed.latitude,
+      liveLng: confirmed.longitude,
     }
     const intent = parseVoiceIntent(transcript)
     return {
@@ -31,6 +57,9 @@ export function ProfilePage() {
       availableMargin: intent.availableMargin ?? base.availableMargin,
     }
   })
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(() =>
+    initialConfirmedLocation(profile),
+  )
   const [localErr, setLocalErr] = useState<string | null>(null)
 
   const update = <K extends keyof EntrepreneurProfile>(key: K, value: EntrepreneurProfile[K]) => {
@@ -43,10 +72,14 @@ export function ProfilePage() {
       setLocalErr(t('apply.application.requiredField'))
       return
     }
+    if (!selectedLocation || form.liveLat == null || form.liveLng == null) {
+      setLocalErr('Confirm your business location on the map before continuing.')
+      return
+    }
     if (transcript.trim()) {
       updateExtra({ businessDescription: transcript.trim() })
     }
-    const ok = await setProfileAndScan({ ...form, demoMode: true })
+    const ok = await setProfileAndScan({ ...form, demoMode: false, locationMode: 'live' })
     if (ok) navigate('/apply/conversation')
   }
 
@@ -124,20 +157,26 @@ export function ProfilePage() {
             onChange={(e) => update('availableMargin', Number(e.target.value))}
           />
         </label>
-        <label className="text-sm font-semibold text-forest sm:col-span-2">
-          {t('wizard.village')}
-          <select
-            className="mt-1 w-full rounded-xl border border-forest/20 px-3 py-2 font-normal text-ink"
-            value={form.villageId}
-            onChange={(e) => update('villageId', e.target.value)}
-          >
-            {VILLAGES.map((v) => (
-              <option key={v.id} value={v.id}>
-                {kn ? v.nameKn : v.name} ({v.district})
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="text-sm font-semibold text-forest sm:col-span-2">
+          Confirm business location
+          <div className="mt-2 font-normal text-ink">
+            <LocationPicker
+              value={selectedLocation}
+              onLocationSelect={(next) => {
+                setSelectedLocation(next)
+                setLocalErr(null)
+                setForm((current) => ({
+                  ...current,
+                  locationMode: 'live',
+                  liveQuery: next.formattedAddress,
+                  liveLat: next.latitude,
+                  liveLng: next.longitude,
+                  demoMode: false,
+                }))
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {(localErr || error) && (
@@ -146,7 +185,7 @@ export function ProfilePage() {
         </p>
       )}
 
-      <p className="mt-3 text-xs text-ink/50">{t('wizard.offlineDemoModeHint')}</p>
+      <p className="mt-3 text-xs text-ink/50">The selected coordinates feed the same location and LokScore engines used by the rest of ISHARA.</p>
 
       <WizardActions
         onBack={() => navigate('/apply')}

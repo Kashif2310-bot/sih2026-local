@@ -80,6 +80,11 @@ export {
   createSupabaseSharedProfilePersistence,
 } from './services/sharedProfilePersistence'
 export type { SharedProfilePersistence } from './services/sharedProfilePersistence'
+export { createSupabaseCompetitionAnalysisPersistence } from './services/competitionAnalysisPersistence'
+export type {
+  CompetitionAnalysisPersistence,
+  StoredCompetitionAnalysis,
+} from './services/competitionAnalysisPersistence'
 
 export {
   createMemoryAditaApplicationPersistence,
