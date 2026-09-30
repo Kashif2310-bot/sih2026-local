@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { profileFromAssessment } from './fromAssessment'
+import { rankSchemes } from './ranking'
 import { VILLAGES, BUSINESS_META } from '../data/villages'
 import { curatedLocationFromVillage } from '../lib/resolveLocation'
 import { buildSchemePlan } from '../lib/finance'
@@ -72,7 +73,7 @@ describe('profileFromAssessment', () => {
       ['dairy', 'dairy'],
       ['retail', 'retail'],
       ['food', 'food_processing'],
-      ['textiles', 'textiles'],
+      ['textiles', 'tailoring'],
       ['poultry', 'poultry'],
       ['agri_processing', 'food_processing'],
     ]
@@ -82,6 +83,18 @@ describe('profileFromAssessment', () => {
       expect(result.proposedBusiness).toBe(BUSINESS_META[category].label)
       expect(result.occupation).toBe(BUSINESS_META[category].label)
     }
+  })
+
+  it('lets a "Textiles / Tailoring" scan reach PM Vishwakarma as a sector match', () => {
+    const location = curatedLocationFromVillage(villageByDistrict('Mandya'), 7)
+    const plan = buildSchemePlan(100000)
+    const userProfile = profileFromAssessment({ profile: profileFor({ category: 'textiles' }), location, plan, score })
+
+    const pmv = rankSchemes(userProfile).find((r) => r.scheme.id === 'pm-vishwakarma')!
+    expect(pmv.eligibility.reasons).toContain('Supports tailoring businesses.')
+    // Not 'likely_eligible' here: this scan's plan needs a ₹9 lakh loan, above
+    // PM Vishwakarma's ₹3 lakh ceiling, which is correctly flagged as a concern.
+    expect(['likely_eligible', 'possibly_eligible']).toContain(pmv.eligibility.status)
   })
 
   it('resolves the state for every curated village district, including Tumakuru (regression: was previously missing)', () => {

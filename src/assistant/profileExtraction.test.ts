@@ -391,3 +391,15 @@ describe('extractProfileFromMessage — "capital" as own contribution', () => {
     expect(setup.investmentRequired).toBe(500_000)
   })
 })
+
+describe('extractProfileFromMessage — trade keywords stay substring-safe', () => {
+  it('does not read a trade out of an unrelated longer word, a shop, or a surname', () => {
+    expect(extractProfileFromMessage('I do cabinet making').businessSector).toBeUndefined()
+    expect(extractProfileFromMessage('I want to open a footwear shop').businessSector).toBeUndefined()
+    expect(extractProfileFromMessage('my name is Ravi Sunar and I run a kirana store').businessSector).toBe('retail')
+  })
+
+  it('prefers the specific trade over the generic metalwork keyword', () => {
+    expect(extractProfileFromMessage('I am a locksmith doing metalwork').businessSector).toBe('metal_tools')
+  })
+})

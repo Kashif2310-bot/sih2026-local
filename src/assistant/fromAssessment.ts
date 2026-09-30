@@ -9,7 +9,10 @@ const SECTOR_BY_CATEGORY: Record<BusinessCategory, string> = {
   dairy: 'dairy',
   retail: 'retail',
   food: 'food_processing',
-  textiles: 'textiles',
+  // The scan's "Textiles / Tailoring" category. A profile carries one sector
+  // tag, and 'tailoring' is the one PM Vishwakarma lists (Tailor/Darzi is one
+  // of its 18 trades), so a tailor who came through /scan still reaches it.
+  textiles: 'tailoring',
   poultry: 'poultry',
   agri_processing: 'food_processing',
 }

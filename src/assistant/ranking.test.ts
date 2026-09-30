@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { extractAndMerge } from './profileExtraction'
 import { rankSchemes } from './ranking'
 import type { SchemeRetriever } from './retrieval'
 import { EMPTY_PROFILE, type UserProfile } from './types'
@@ -120,5 +121,35 @@ describe('rankSchemes — provider/retrieval failure and empty-result resilience
     const ranked = rankSchemes(EMPTY_PROFILE)
     expect(ranked.length).toBeGreaterThan(0)
     expect(ranked.every((r) => r.eligibility.status === 'insufficient_data' || r.eligibility.status === 'possibly_eligible' || r.eligibility.status === 'likely_ineligible' || r.eligibility.status === 'likely_eligible')).toBe(true)
+  })
+})
+
+describe('rankSchemes — PM Vishwakarma trade sector tags', () => {
+  // One stated trade per sector tag added for the 18 PM Vishwakarma trades
+  // (Guidelines v30.0, para 2.3), plus handicraft's basket/mat keywords.
+  const TRADE_STATEMENTS: Array<[tag: string, statement: string]> = [
+    ['metal_tools', 'I am 34 years old and I work as a locksmith'],
+    ['goldsmith', 'I am 41 years old and I am a goldsmith in my village'],
+    ['stonework', 'I am 29 years old and I do stone carving'],
+    ['cobbler_footwear', 'I am 38 years old and I work as a cobbler'],
+    ['masonry', 'I am 45 years old and I work as a mason'],
+    ['barber', 'I am 31 years old and I work as a barber'],
+    ['garland_making', 'I am 27 years old and I make flower garlands'],
+    ['washerman', 'I am 50 years old and I work as a washerman'],
+    ['boat_making', 'I am 36 years old and I do boat making'],
+    ['fishing_net_making', 'I am 33 years old and I make fishing nets'],
+    ['handicraft', 'I am 40 years old and I do basket and mat weaving'],
+  ]
+
+  it.each(TRADE_STATEMENTS)('%s: ranks PM Vishwakarma first with its official figures', (tag, statement) => {
+    const profile = extractAndMerge(statement, EMPTY_PROFILE).profile
+    expect(profile.businessSector).toBe(tag)
+
+    const top = rankSchemes(profile)[0]!
+    expect(top.scheme.id).toBe('pm-vishwakarma')
+    expect(top.eligibility.status).toBe('likely_eligible')
+    expect(top.scheme.loanAmount?.maxRupees).toBe(300_000)
+    expect(top.scheme.interest?.ratePercent).toBe(5)
+    expect(top.scheme.subsidy?.description).toContain('₹15,000')
   })
 })
