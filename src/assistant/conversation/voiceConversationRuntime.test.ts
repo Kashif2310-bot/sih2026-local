@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { offlineProvider } from '../ai'
-import type { LiveRetriever } from '../liveRetrieval'
+import { neverConfiguredLiveRetriever, type LiveRetriever } from '../liveRetrieval'
 import { OfflineVoiceSession } from '../voice/offlineVoiceSession'
 import { GeminiLiveVoiceSession, type GeminiLiveVoiceSessionDeps } from '../voice/geminiLiveVoiceSession'
 import { FakeGeminiLiveTransport } from '../voice/testing/fakeGeminiLiveTransport'
@@ -185,7 +185,10 @@ function fakeTurnResult(replyText: string): VoiceAssistantTurnResult {
 }
 
 function realController(): VoiceAssistantController {
-  return new VoiceAssistantController({ providers: [offlineProvider] })
+  // The default retriever calls the real Supabase edge function whenever
+  // VITE_SUPABASE_URL is set (e.g. by .env.local), which made the end-to-end
+  // tests below depend on network latency against their 2s wait.
+  return new VoiceAssistantController({ providers: [offlineProvider], liveRetriever: neverConfiguredLiveRetriever })
 }
 
 function collectEvents(runtime: { subscribe: (l: (e: RuntimeEvent) => void) => () => void }) {
