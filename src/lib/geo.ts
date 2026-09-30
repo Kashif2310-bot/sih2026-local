@@ -1,6 +1,6 @@
 import type { BusinessCategory } from '../data/villages'
-import { NOMINATIM_TIMEOUT_MS, OVERPASS_TIMEOUT_MS, REACH_KM } from './config'
-import { retryOnceIf } from './retry'
+import { NOMINATIM_MIN_INTERVAL_MS, NOMINATIM_TIMEOUT_MS, OVERPASS_TIMEOUT_MS, REACH_KM } from './config'
+import { retryOnceIf, wait } from './retry'
 
 export interface GeocodeHit {
   displayName: string
@@ -45,6 +45,34 @@ function categoryOverpassFilter(category: BusinessCategory): string {
   }
 }
 
+// Nominatim usage policy (operations.osmfoundation.org/policies/nominatim):
+// at most 1 request per second, and a valid HTTP Referer or User-Agent
+// identifying the application. Every Nominatim request — retries included —
+// waits for its slot here. The slot is reserved before awaiting, so
+// concurrent callers queue up rather than firing together.
+let nominatimNextSlotAt = 0
+
+async function waitForNominatimSlot(): Promise<void> {
+  const now = Date.now()
+  const slotAt = Math.max(now, nominatimNextSlotAt)
+  nominatimNextSlotAt = slotAt + NOMINATIM_MIN_INTERVAL_MS
+  if (slotAt > now) await wait(slotAt - now)
+}
+
+/** Clears the request spacing — for tests only, so one test's calls don't delay the next test's. */
+export function resetNominatimRateLimit(): void {
+  nominatimNextSlotAt = 0
+}
+
+// Browsers don't let page scripts set User-Agent (Chrome drops it), so the
+// app identifies itself the way the policy allows for web pages: the
+// Referer. Set explicitly so a page-wide referrer policy added later can't
+// silently strip it.
+const NOMINATIM_FETCH_INIT: RequestInit = {
+  headers: { Accept: 'application/json' },
+  referrerPolicy: 'strict-origin-when-cross-origin',
+}
+
 export async function geocodeLocation(query: string): Promise<GeocodeHit | null> {
   const q = query.trim()
   if (!q) return null
@@ -55,13 +83,11 @@ async function geocodeLocationOnce(q: string): Promise<GeocodeHit | null> {
   const url =
     `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=in&q=` +
     encodeURIComponent(q)
+  await waitForNominatimSlot()
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), NOMINATIM_TIMEOUT_MS)
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { Accept: 'application/json' },
-    })
+    const res = await fetch(url, { ...NOMINATIM_FETCH_INIT, signal: ctrl.signal })
     if (!res.ok) return null
     const data = (await res.json()) as Array<{
       display_name: string
@@ -96,13 +122,11 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeH
 async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeHit | null> {
   const url =
     `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${lat}&lon=${lng}`
+  await waitForNominatimSlot()
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), NOMINATIM_TIMEOUT_MS)
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { Accept: 'application/json' },
-    })
+    const res = await fetch(url, { ...NOMINATIM_FETCH_INIT, signal: ctrl.signal })
     if (!res.ok) return null
     const hit = (await res.json()) as {
       display_name?: string

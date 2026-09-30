@@ -5,8 +5,10 @@ import {
   distanceKm,
   fetchCompetitorsNearby,
   geocodeLocation,
+  resetNominatimRateLimit,
   reverseGeocode,
 } from './geo'
+import { NOMINATIM_MIN_INTERVAL_MS } from './config'
 
 /**
  * Pure-logic unit tests for geo.ts, mocking global.fetch — no real network
@@ -30,6 +32,7 @@ describe('geocodeLocation', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    resetNominatimRateLimit()
   })
 
   afterEach(() => {
@@ -97,6 +100,7 @@ describe('reverseGeocode', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    resetNominatimRateLimit()
   })
 
   afterEach(() => {
@@ -119,6 +123,63 @@ describe('reverseGeocode', () => {
   it('returns null (not a guessed location) when the response has no coordinates', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}))
     expect(await reverseGeocode(1, 1)).toBeNull()
+  })
+})
+
+describe('Nominatim usage policy', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  const fetchTimes: number[] = []
+  const HIT = [{ display_name: 'Mandya, Karnataka, India', lat: '12.5242', lon: '76.8958' }]
+  const REVERSE_HIT = { display_name: 'Mandya, Karnataka, India', lat: '12.5242', lon: '76.8958' }
+  const answer = (url: unknown) => jsonResponse(String(url).includes('/reverse') ? REVERSE_HIT : HIT)
+  const gaps = () => fetchTimes.slice(1).map((t, i) => t - fetchTimes[i]!)
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    fetchTimes.length = 0
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    resetNominatimRateLimit()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('spaces concurrent requests at least 1 second apart (policy: max 1 request/second)', async () => {
+    fetchMock.mockImplementation((url: unknown) => {
+      fetchTimes.push(Date.now())
+      return Promise.resolve(answer(url))
+    })
+    const both = Promise.all([geocodeLocation('Mandya'), reverseGeocode(12.52, 76.9)])
+    await vi.advanceTimersByTimeAsync(5_000)
+    await both
+    expect(fetchTimes).toHaveLength(2)
+    for (const gap of gaps()) expect(gap).toBeGreaterThanOrEqual(NOMINATIM_MIN_INTERVAL_MS)
+  })
+
+  it('makes the retry wait for its slot too, not just the backoff', async () => {
+    fetchMock.mockImplementation(() => {
+      fetchTimes.push(Date.now())
+      return Promise.resolve(jsonResponse(fetchTimes.length === 1 ? [] : HIT))
+    })
+    const result = geocodeLocation('Mandya')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(await result).not.toBeNull()
+    expect(fetchTimes).toHaveLength(2)
+    for (const gap of gaps()) expect(gap).toBeGreaterThanOrEqual(NOMINATIM_MIN_INTERVAL_MS)
+  })
+
+  it('always sends a Referer policy that identifies the app (browsers cannot set User-Agent)', async () => {
+    fetchMock.mockImplementation((url: unknown) => Promise.resolve(answer(url)))
+    const both = Promise.all([geocodeLocation('Mandya'), reverseGeocode(12.52, 76.9)])
+    await vi.advanceTimersByTimeAsync(5_000)
+    await both
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const [, init] of fetchMock.mock.calls as Array<[string, RequestInit]>) {
+      expect(init.referrerPolicy).toBe('strict-origin-when-cross-origin')
+    }
   })
 })
 

@@ -83,5 +83,11 @@ export const NSFDC = {
 export const LIVE_CALL_TIMEOUT_MS = 2_500
 export const OVERPASS_TIMEOUT_MS = LIVE_CALL_TIMEOUT_MS
 export const NOMINATIM_TIMEOUT_MS = LIVE_CALL_TIMEOUT_MS
+/**
+ * Nominatim usage policy: "an absolute maximum of 1 request per second"
+ * (operations.osmfoundation.org/policies/nominatim). A small margin over 1s
+ * so clock jitter can never land two requests inside the same second.
+ */
+export const NOMINATIM_MIN_INTERVAL_MS = 1_100
 /** One retry after a live-source failure, before marking the scan incomplete. */
 export const LIVE_RETRY_BACKOFF_MS = 400
