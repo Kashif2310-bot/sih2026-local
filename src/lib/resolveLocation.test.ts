@@ -87,6 +87,14 @@ describe('resolveCuratedVillage', () => {
     expect(loc.competitorDensity).toEqual(DINKA.competitorDensity)
   })
 
+  it('marks competitor POIs served from the scan cache, with when they were fetched', async () => {
+    fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [poi('1', 1, 1)], cachedAt: 1_000 })
+    const loc = await resolveCuratedVillage('dinka-mandya', 'dairy', 7, false)
+    expect(loc.competitorQueryOk).toBe(true) // cached data still counts as confirmed
+    expect(loc.competitorsCachedAt).toBe(1_000)
+    expect(loc.provenanceLabelEn).toContain('cached')
+  })
+
   it('falls back to the first village for an unknown villageId, rather than throwing', async () => {
     fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [] })
     const loc = await resolveCuratedVillage('no-such-village', 'dairy', 7, false)
@@ -178,6 +186,33 @@ describe('resolveLiveLocation', () => {
     expect(result.location.competitorFailure).toBe('timed_out')
     expect(result.location.competitorDensity.textiles).toBe(0.5)
     expect(result.location.notes).toContain('not fabricated')
+  })
+
+  it('carries cache timestamps for the place search and competitors onto the location, and says so in its label', async () => {
+    const hit: GeocodeHit = { displayName: 'Hassan, Karnataka, India', lat: 13.0033, lng: 76.1004, county: 'Hassan' }
+    geocodeLocationDetailed.mockResolvedValue({ hit, cachedAt: 2_000 })
+    fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [], cachedAt: 3_000 })
+
+    const result = await resolveLiveLocation({ query: 'Hassan', category: 'dairy' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.location.geocodeCachedAt).toBe(2_000)
+    expect(result.location.competitorsCachedAt).toBe(3_000)
+    expect(result.location.competitorQueryOk).toBe(true)
+    expect(result.location.provenanceLabelEn).toBe('Live lookup for Hassan (cached)')
+  })
+
+  it('leaves the cache fields unset and the label unchanged for a fully live lookup', async () => {
+    const hit: GeocodeHit = { displayName: 'Hassan, Karnataka, India', lat: 13.0033, lng: 76.1004, county: 'Hassan' }
+    geocodeLocationDetailed.mockResolvedValue({ hit })
+    fetchCompetitorsNearby.mockResolvedValue({ ok: true, pois: [] })
+
+    const result = await resolveLiveLocation({ query: 'Hassan', category: 'dairy' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.location.geocodeCachedAt).toBeUndefined()
+    expect(result.location.competitorsCachedAt).toBeUndefined()
+    expect(result.location.provenanceLabelEn).toBe('Live lookup for Hassan')
   })
 
   it('when given coordinates and reverse-geocoding succeeds, uses the real place name/district', async () => {

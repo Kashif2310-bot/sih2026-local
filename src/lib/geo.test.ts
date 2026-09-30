@@ -11,6 +11,7 @@ import {
   reverseGeocodeDetailed,
 } from './geo'
 import { NOMINATIM_MIN_INTERVAL_MS } from './config'
+import { clearScanCache } from './scanCache'
 
 /**
  * Pure-logic unit tests for geo.ts, mocking global.fetch — no real network
@@ -34,6 +35,7 @@ describe('geocodeLocation', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
     resetNominatimRateLimit()
   })
 
@@ -103,6 +105,7 @@ describe('reverseGeocode', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
     resetNominatimRateLimit()
   })
 
@@ -142,6 +145,7 @@ describe('Nominatim usage policy', () => {
     fetchTimes.length = 0
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
     resetNominatimRateLimit()
   })
 
@@ -192,6 +196,7 @@ describe('fetchCompetitorsNearby', () => {
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
   })
 
   afterEach(() => {
@@ -251,6 +256,7 @@ describe('failure kinds — rate limit vs timeout vs unreachable vs no match', (
   beforeEach(() => {
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
     resetNominatimRateLimit()
   })
 
@@ -349,6 +355,79 @@ describe('failure kinds — rate limit vs timeout vs unreachable vs no match', (
     const result = await fetchCompetitorsNearby({ lat: 12.5, lng: 76.9, category: 'dairy' })
     expect(result).toEqual({ ok: true, pois: [] })
     expect(fetchMock).toHaveBeenCalledTimes(2) // both mirrors raced once; nothing retried
+  })
+})
+
+describe('scan cache — geocode and competitor lookups', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  const HIT = [{ display_name: 'Mandya, Karnataka, India', lat: '12.5242', lon: '76.8958' }]
+  const POIS = { elements: [{ id: 1, lat: 12.52, lon: 76.9, tags: { name: 'Dairy shop' } }] }
+
+  beforeEach(() => {
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    clearScanCache()
+    resetNominatimRateLimit()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('serves a repeated place search from the cache — no second Nominatim call — and marks when it was fetched', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(HIT))
+    const live = await geocodeLocationDetailed('Mandya')
+    expect(live.cachedAt).toBeUndefined()
+
+    const cached = await geocodeLocationDetailed('  mandya ')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(cached.hit).toEqual(live.hit)
+    expect(typeof cached.cachedAt).toBe('number')
+  })
+
+  it('never caches a failed place search — a rate limit is retried live next time', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 429))
+    expect(await geocodeLocationDetailed('Mandya')).toEqual({ hit: null, failure: 'rate_limited' })
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(jsonResponse(HIT))
+    expect((await geocodeLocationDetailed('Mandya')).hit).not.toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('serves a repeated reverse lookup of the same spot (~100 m) from the cache', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(HIT[0]))
+    await reverseGeocodeDetailed(12.5242, 76.8958)
+    const cached = await reverseGeocodeDetailed(12.5244, 76.8957)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(typeof cached.cachedAt).toBe('number')
+  })
+
+  it('serves repeated competitor lookups from the cache, keyed by category and radius, with a fetch time', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(POIS))
+    const live = await fetchCompetitorsNearby({ lat: 12.5242, lng: 76.8958, category: 'dairy', radiusKm: 7 })
+    expect(live).toMatchObject({ ok: true })
+    expect(live.cachedAt).toBeUndefined()
+    const callsAfterLive = fetchMock.mock.calls.length
+
+    const cached = await fetchCompetitorsNearby({ lat: 12.5242, lng: 76.8958, category: 'dairy', radiusKm: 7 })
+    expect(fetchMock.mock.calls.length).toBe(callsAfterLive) // no Overpass call at all
+    expect(cached.ok).toBe(true)
+    expect(cached.pois).toEqual(live.pois)
+    expect(typeof cached.cachedAt).toBe('number')
+
+    await fetchCompetitorsNearby({ lat: 12.5242, lng: 76.8958, category: 'retail', radiusKm: 7 })
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterLive) // another category is its own entry
+  })
+
+  it('caches a real "0 competitors" result, but never a failed competitor lookup', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(null, false, 429))
+    expect((await fetchCompetitorsNearby({ lat: 1, lng: 1, category: 'dairy' })).ok).toBe(false)
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }))
+    expect(await fetchCompetitorsNearby({ lat: 1, lng: 1, category: 'dairy' })).toEqual({ ok: true, pois: [] })
+    const cached = await fetchCompetitorsNearby({ lat: 1, lng: 1, category: 'dairy' })
+    expect(cached).toMatchObject({ ok: true, pois: [] })
+    expect(typeof cached.cachedAt).toBe('number')
   })
 })
 

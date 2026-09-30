@@ -1,6 +1,17 @@
 import type { WeatherSignal } from './lokScore'
 import { LIVE_CALL_TIMEOUT_MS } from './config'
 import { retryOnce } from './retry'
+import { readScanCache, scanCacheKey, writeScanCache } from './scanCache'
+
+/** A weather signal, plus when it was actually fetched if it came from the scan cache instead of a live call. */
+export type CachedWeatherSignal = WeatherSignal & { cachedAt?: number }
+
+/** When this weather was actually fetched, if it was served from the scan cache; undefined when it is live. */
+export function weatherCachedAt(weather: WeatherSignal): number | undefined {
+  return (weather as CachedWeatherSignal).cachedAt
+}
+
+type WeekTemp = { date: string; max: number; min: number; rain: number }
 
 /** Fetch with an abort timeout so a stalled connection fails fast instead of
  * hanging the UI indefinitely — critical for a live screen-share demo. */
@@ -27,8 +38,14 @@ const WMO: Record<number, { en: string; kn: string }> = {
   95: { en: 'Thunderstorm', kn: 'ಗುಡುಗು ಮಳೆ' },
 }
 
-export async function fetchWeather(lat: number, lng: number): Promise<WeatherSignal> {
-  return retryOnce(() => fetchWeatherOnce(lat, lng))
+export async function fetchWeather(lat: number, lng: number): Promise<CachedWeatherSignal> {
+  const key = scanCacheKey.weather(lat, lng)
+  const cached = readScanCache<WeatherSignal>(key)
+  if (cached) return { ...cached.value, cachedAt: cached.fetchedAt }
+  // retryOnce throws when both attempts fail, so only a successful live reading is cached.
+  const weather = await retryOnce(() => fetchWeatherOnce(lat, lng))
+  writeScanCache(key, weather)
+  return weather
 }
 
 async function fetchWeatherOnce(lat: number, lng: number): Promise<WeatherSignal> {
@@ -54,11 +71,16 @@ async function fetchWeatherOnce(lat: number, lng: number): Promise<WeatherSignal
   }
 }
 
-export async function fetchWeekTemps(lat: number, lng: number) {
-  return retryOnce(() => fetchWeekTempsOnce(lat, lng))
+export async function fetchWeekTemps(lat: number, lng: number): Promise<WeekTemp[]> {
+  const key = scanCacheKey.weekTemps(lat, lng)
+  const cached = readScanCache<WeekTemp[]>(key)
+  if (cached) return cached.value
+  const week = await retryOnce(() => fetchWeekTempsOnce(lat, lng))
+  writeScanCache(key, week)
+  return week
 }
 
-async function fetchWeekTempsOnce(lat: number, lng: number) {
+async function fetchWeekTempsOnce(lat: number, lng: number): Promise<WeekTemp[]> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +

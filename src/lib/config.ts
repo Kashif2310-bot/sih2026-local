@@ -91,3 +91,5 @@ export const NOMINATIM_TIMEOUT_MS = LIVE_CALL_TIMEOUT_MS
 export const NOMINATIM_MIN_INTERVAL_MS = 1_100
 /** One retry after a live-source failure, before marking the scan incomplete. */
 export const LIVE_RETRY_BACKOFF_MS = 400
+/** How long a successful live lookup (geocode, competitors, weather) is reused — a demo's lifetime, not production freshness. */
+export const SCAN_CACHE_TTL_MS = 3 * 60 * 60 * 1000

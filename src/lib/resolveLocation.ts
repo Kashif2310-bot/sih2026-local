@@ -37,11 +37,15 @@ export interface ResolvedLocation {
   competitorError?: string
   /** Why the competitor lookup failed, when competitorQueryOk is false. */
   competitorFailure?: LiveFailureKind
+  /** When the competitor POIs were actually fetched, if they came from the scan cache (epoch ms). */
+  competitorsCachedAt?: number
   radiusKm: number
   /** False when Nominatim geocoding/reverse-geocoding was attempted and failed. */
   geocodeOk?: boolean
   /** Why reverse geocoding failed, when geocodeOk is false. */
   geocodeFailure?: LiveFailureKind
+  /** When the geocode result was actually fetched, if it came from the scan cache (epoch ms). */
+  geocodeCachedAt?: number
   /** True when festivals/mandi curated packs apply */
   hasCuratedSignals: boolean
 }
@@ -99,12 +103,14 @@ export async function resolveCuratedVillage(
     radiusKm,
   })
   if (live.ok) {
+    const cached = live.cachedAt != null
     return {
       ...base,
       competitors: live.pois,
       competitorQueryOk: true,
-      provenanceLabelEn: `Curated local data for ${v.name} (map POIs from OpenStreetMap)`,
-      provenanceLabelKn: `${v.nameKn} ಕ್ಯುರೇಟೆಡ್ ಡೇಟಾ (ನಕ್ಷೆ POI: OpenStreetMap)`,
+      competitorsCachedAt: live.cachedAt,
+      provenanceLabelEn: `Curated local data for ${v.name} (map POIs from OpenStreetMap${cached ? ', cached' : ''})`,
+      provenanceLabelKn: `${v.nameKn} ಕ್ಯುರೇಟೆಡ್ ಡೇಟಾ (ನಕ್ಷೆ POI: OpenStreetMap${cached ? ', ಸಂಗ್ರಹದಿಂದ' : ''})`,
     }
   }
   return {
@@ -157,10 +163,12 @@ export async function resolveLiveLocation(input: {
   let hit: GeocodeHit | null = null
   let geocodeOk = true
   let geocodeFailure: LiveFailureKind | undefined
+  let geocodeCachedAt: number | undefined
 
   if (input.lat != null && input.lng != null) {
     const reverse = await reverseGeocodeDetailed(input.lat, input.lng)
     hit = reverse.hit
+    geocodeCachedAt = reverse.cachedAt
     if (!hit) {
       geocodeOk = false
       geocodeFailure = reverse.failure
@@ -175,6 +183,7 @@ export async function resolveLiveLocation(input: {
     const found = await geocodeLocationDetailed(query)
     if (!found.hit) return { ok: false, ...placeSearchError(found.failure ?? 'unreachable', query) }
     hit = found.hit
+    geocodeCachedAt = found.cachedAt
   } else {
     return {
       ok: false,
@@ -232,17 +241,19 @@ export async function resolveLiveLocation(input: {
       : `ಜಿಯೋಕೋಡ್ ಸರಿ; Overpass ವಿಫಲ: ಸಾಂದ್ರತೆ ಕಲ್ಪಿಸಲಾಗಿಲ್ಲ.`,
     provenance: live.ok ? 'live_lookup' : 'partial',
     provenanceLabelEn: live.ok
-      ? `Live lookup for ${name}`
+      ? `Live lookup for ${name}${live.cachedAt != null ? ' (cached)' : ''}`
       : `Partial live lookup for ${name} (competitors unavailable)`,
     provenanceLabelKn: live.ok
-      ? `${name} ಗೆ ಲೈವ್ ಹುಡುಕಾಟ`
+      ? `${name} ಗೆ ಲೈವ್ ಹುಡುಕಾಟ${live.cachedAt != null ? ' (ಸಂಗ್ರಹದಿಂದ)' : ''}`
       : `${name} ಭಾಗಶಃ ಲೈವ್ (ಸ್ಪರ್ಧಿಗಳು ಲಭ್ಯವಿಲ್ಲ)`,
     competitors: live.pois,
     competitorQueryOk: live.ok,
     competitorError: live.error,
     competitorFailure: live.failure,
+    competitorsCachedAt: live.cachedAt,
     geocodeOk,
     geocodeFailure,
+    geocodeCachedAt,
     radiusKm,
     hasCuratedSignals: false,
   }

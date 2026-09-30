@@ -1,6 +1,7 @@
 import type { BusinessCategory } from '../data/villages'
 import { NOMINATIM_MIN_INTERVAL_MS, NOMINATIM_TIMEOUT_MS, OVERPASS_TIMEOUT_MS, REACH_KM } from './config'
 import { retryOnceIf, wait } from './retry'
+import { readScanCache, scanCacheKey, writeScanCache } from './scanCache'
 
 export interface GeocodeHit {
   displayName: string
@@ -84,7 +85,10 @@ const NOMINATIM_FETCH_INIT: RequestInit = {
  */
 export type LiveFailureKind = 'rate_limited' | 'timed_out' | 'unreachable' | 'no_match'
 
-export type GeocodeResult = { hit: GeocodeHit; failure?: undefined } | { hit: null; failure: LiveFailureKind }
+export type GeocodeResult =
+  /** cachedAt: when the hit was actually fetched, if it was served from the scan cache instead of a live call. */
+  | { hit: GeocodeHit; failure?: undefined; cachedAt?: number }
+  | { hit: null; failure: LiveFailureKind; cachedAt?: undefined }
 
 /**
  * Only a transient failure is worth the one quick retry. Not a 429:
@@ -113,7 +117,12 @@ export async function geocodeLocation(query: string): Promise<GeocodeHit | null>
 export async function geocodeLocationDetailed(query: string): Promise<GeocodeResult> {
   const q = query.trim()
   if (!q) return { hit: null, failure: 'no_match' }
-  return retryOnceIf(() => geocodeLocationOnce(q), (r) => r.hit == null && isTransient(r.failure))
+  const key = scanCacheKey.geocode(q)
+  const cached = readScanCache<GeocodeHit>(key)
+  if (cached) return { hit: cached.value, cachedAt: cached.fetchedAt }
+  const result = await retryOnceIf(() => geocodeLocationOnce(q), (r) => r.hit == null && isTransient(r.failure))
+  if (result.hit) writeScanCache(key, result.hit)
+  return result
 }
 
 async function geocodeLocationOnce(q: string): Promise<GeocodeResult> {
@@ -160,7 +169,12 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeH
 
 /** Like reverseGeocode, but says why when there is no hit. */
 export async function reverseGeocodeDetailed(lat: number, lng: number): Promise<GeocodeResult> {
-  return retryOnceIf(() => reverseGeocodeOnce(lat, lng), (r) => r.hit == null && isTransient(r.failure))
+  const key = scanCacheKey.reverseGeocode(lat, lng)
+  const cached = readScanCache<GeocodeHit>(key)
+  if (cached) return { hit: cached.value, cachedAt: cached.fetchedAt }
+  const result = await retryOnceIf(() => reverseGeocodeOnce(lat, lng), (r) => r.hit == null && isTransient(r.failure))
+  if (result.hit) writeScanCache(key, result.hit)
+  return result
 }
 
 async function reverseGeocodeOnce(lat: number, lng: number): Promise<GeocodeResult> {
@@ -265,6 +279,8 @@ export interface CompetitorLookup {
   error?: string
   /** Why the lookup failed, when ok is false. Finding 0 competitors is ok: true — a real result, not a failure. */
   failure?: LiveFailureKind
+  /** When the POIs were actually fetched, if they were served from the scan cache instead of a live call. */
+  cachedAt?: number
 }
 
 export async function fetchCompetitorsNearby(input: {
@@ -273,7 +289,12 @@ export async function fetchCompetitorsNearby(input: {
   category: BusinessCategory
   radiusKm?: number
 }): Promise<CompetitorLookup> {
-  return retryOnceIf(() => fetchCompetitorsNearbyOnce(input), (r) => !r.ok && isTransient(r.failure))
+  const key = scanCacheKey.competitors(input.lat, input.lng, input.category, input.radiusKm ?? REACH_KM.default)
+  const cached = readScanCache<CompetitorPoi[]>(key)
+  if (cached) return { ok: true, pois: cached.value, cachedAt: cached.fetchedAt }
+  const result = await retryOnceIf(() => fetchCompetitorsNearbyOnce(input), (r) => !r.ok && isTransient(r.failure))
+  if (result.ok) writeScanCache(key, result.pois)
+  return result
 }
 
 const OVERPASS_FAILURE_MESSAGES: Record<LiveFailureKind, string> = {
