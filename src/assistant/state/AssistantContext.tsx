@@ -12,8 +12,15 @@ import {
   type RuntimeEvent,
 } from '../conversation/voiceConversationRuntime'
 import type { SourceCoverageAccounting } from '../evidence/types'
-import type { MissingFieldInfo } from '../missingFields'
-import { createInitialProfile, defaultAssistantDeps, runAssistantTurn, type ActionPlanStep } from '../orchestrator'
+import { identifyMissingFields, type MissingFieldInfo } from '../missingFields'
+import {
+  buildActionPlan,
+  createInitialProfile,
+  defaultAssistantDeps,
+  runAssistantTurn,
+  type ActionPlanStep,
+} from '../orchestrator'
+import { rankSchemes } from '../ranking'
 import type { ContextualEvidenceItem, RankedScheme, UserProfile } from '../types'
 import { geminiLiveVoiceSessionFactory } from '../voice'
 import { BrowserAudioBridge, isBrowserVoiceAudioSupported } from '../voice/audio/browserAudioBridge'
@@ -41,6 +48,23 @@ export interface AssistantProviderProps {
   voiceSessionFactory?: VoiceSessionFactory
 }
 
+/**
+ * The deterministic part of a chat turn — ranking, missing fields and the
+ * action plan — run on a profile the page already has. A scan case
+ * (/assistant/:id) arrives with that profile filled in by the scan, so its
+ * recommendations can show before the citizen says anything. Needs no
+ * message, calls no model and generates no text; live evidence (a network
+ * call) still arrives with the first real turn.
+ */
+function scanCaseEvidence(profile: UserProfile): {
+  ranked: RankedScheme[]
+  missingFields: MissingFieldInfo[]
+  actionPlan: ActionPlanStep[]
+} {
+  const ranked = rankSchemes(profile)
+  return { ranked, missingFields: identifyMissingFields(profile), actionPlan: buildActionPlan(ranked) }
+}
+
 export function AssistantProvider({
   children,
   initialProfile,
@@ -51,9 +75,11 @@ export function AssistantProvider({
   const [profile, setProfile] = useState<UserProfile>(seed)
   const [applicantProfile, setApplicantProfile] = useState<ApplicantProfile>(() => createEmptyApplicantProfile())
   const [messages, setMessages] = useState<UIMessage[]>([])
-  const [ranked, setRanked] = useState<RankedScheme[]>([])
-  const [missingFields, setMissingFields] = useState<MissingFieldInfo[]>([])
-  const [actionPlan, setActionPlan] = useState<ActionPlanStep[]>([])
+  // A scan case is ranked on load; a plain /assistant visit has nothing to rank until the citizen engages.
+  const [scanSeed] = useState(() => (caseBound && initialProfile ? scanCaseEvidence(initialProfile) : null))
+  const [ranked, setRanked] = useState<RankedScheme[]>(scanSeed?.ranked ?? [])
+  const [missingFields, setMissingFields] = useState<MissingFieldInfo[]>(scanSeed?.missingFields ?? [])
+  const [actionPlan, setActionPlan] = useState<ActionPlanStep[]>(scanSeed?.actionPlan ?? [])
   const [sourceStatus, setSourceStatus] = useState<AssistantState['sourceStatus']>(null)
   const [contextualEvidence, setContextualEvidence] = useState<ContextualEvidenceItem[]>([])
   const [evidenceCoverage, setEvidenceCoverage] = useState<SourceCoverageAccounting | null>(null)
@@ -293,7 +319,14 @@ export function AssistantProvider({
         setVoiceError('Voice is not available right now — continue with text below.')
         return
       }
-      const controller = new VoiceAssistantController({}, createInitialConversationState(applicantProfile, profile))
+      // Start from what the page already shows (a scan case's ranking, or
+      // earlier typed turns): every tool call re-projects the controller's
+      // state into the UI, so an empty starting list would blank the schemes
+      // panel until findSchemes ran.
+      const controller = new VoiceAssistantController(
+        {},
+        { ...createInitialConversationState(applicantProfile, profile), ranked, missingFields },
+      )
 
       // The controller already announces a rebuilt report every turn — reuse
       // that rather than recomputing one here, which would be a second
@@ -387,7 +420,18 @@ export function AssistantProvider({
     } finally {
       voiceStartingRef.current = false
     }
-  }, [voiceAvailable, voiceSessionFactory, applicantProfile, profile, voiceLanguage, mergeVoiceTurn, appendVoiceTranscript, syncFromController])
+  }, [
+    voiceAvailable,
+    voiceSessionFactory,
+    applicantProfile,
+    profile,
+    ranked,
+    missingFields,
+    voiceLanguage,
+    mergeVoiceTurn,
+    appendVoiceTranscript,
+    syncFromController,
+  ])
 
   const stopVoice = useCallback(async () => {
     voiceStartingRef.current = false
@@ -421,9 +465,10 @@ export function AssistantProvider({
     setProfile(initialProfile ?? createInitialProfile())
     setApplicantProfile(createEmptyApplicantProfile())
     setMessages([])
-    setRanked([])
-    setMissingFields([])
-    setActionPlan([])
+    const seed = caseBound && initialProfile ? scanCaseEvidence(initialProfile) : null
+    setRanked(seed?.ranked ?? [])
+    setMissingFields(seed?.missingFields ?? [])
+    setActionPlan(seed?.actionPlan ?? [])
     setSourceStatus(null)
     setContextualEvidence([])
     setEvidenceCoverage(null)
@@ -436,7 +481,7 @@ export function AssistantProvider({
     setVoiceAudioState('idle')
     setVoiceError(null)
     pendingTextRef.current = null
-  }, [initialProfile])
+  }, [initialProfile, caseBound])
 
   const value: AssistantState = {
     profile,
