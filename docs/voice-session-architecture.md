@@ -73,7 +73,7 @@ Interruption is **interruption-safe** by construction: an in-flight model turn c
 
 ## Language — no English-only assumption
 
-`VoiceSessionLanguageConfig.primary` is `'en' | 'kn' | 'auto'`. `'auto'` is a first-class value, not an afterthought — it's how the contract expresses "let mixed Kannada-English happen," which the product requires. `allowCodeSwitching` is a separate hint a provider may use or ignore. Nothing in `VoiceSession`, `VoiceEvent`, or the offline implementation assumes English; `languageHint` on `VoiceUserTranscriptFinalEvent` just echoes back whatever the session was configured with.
+`VoiceSessionLanguageConfig.primary` is `'en' | 'kn' | 'hi' | 'auto'`. `'auto'` is a first-class value, not an afterthought — it's how the contract expresses "let mixed Kannada-English happen," which the product requires. `allowCodeSwitching` is a separate hint a provider may use or ignore. Nothing in `VoiceSession`, `VoiceEvent`, or the offline implementation assumes English; `languageHint` on `VoiceUserTranscriptFinalEvent` just echoes back whatever the session was configured with.
 
 ## AI safety boundary (unchanged, extended to voice)
 

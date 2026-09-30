@@ -47,9 +47,10 @@ describe('GEMINI_LIVE_WEBSOCKET_ENDPOINT', () => {
 })
 
 describe('languageCodeFor', () => {
-  it('maps en -> en-US and kn -> kn-IN', () => {
+  it('maps en -> en-US, kn -> kn-IN and hi -> hi-IN', () => {
     expect(languageCodeFor('en')).toBe('en-US')
     expect(languageCodeFor('kn')).toBe('kn-IN')
+    expect(languageCodeFor('hi')).toBe('hi-IN')
   })
 
   it('maps auto to undefined so Gemini applies its own detection/code-switching handling', () => {

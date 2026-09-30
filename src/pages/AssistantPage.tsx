@@ -7,6 +7,7 @@ import { AssistantProvider } from '../assistant/state/AssistantContext'
 import { useAssistant } from '../assistant/state/useAssistant'
 import type { AssistantAudioState } from '../assistant/conversation/voiceConversationRuntime'
 import { canInterruptVoice } from '../assistant/state/voiceTurnMapping'
+import type { VoiceLanguageSelection } from '../assistant/voice/voiceLanguageSelection'
 import { ActionPlanPanel } from '../components/assistant/ActionPlanPanel'
 import { AnalysisPanel } from '../components/assistant/AnalysisPanel'
 import { ChatMessageBubble } from '../components/assistant/ChatMessageBubble'
@@ -56,6 +57,12 @@ function voiceAudioStateKey(state: AssistantAudioState): string {
   }
 }
 
+const VOICE_LANGUAGE_LABEL_KEYS: Record<VoiceLanguageSelection, string> = {
+  en: 'assistant.voice.languageEnglish',
+  kn: 'assistant.voice.languageKannada',
+  hi: 'assistant.voice.languageHindi',
+}
+
 function VoiceLanguageSelector() {
   const { t } = useTranslation()
   const { voiceLanguage, setVoiceLanguage, voiceActive } = useAssistant()
@@ -66,7 +73,7 @@ function VoiceLanguageSelector() {
       aria-label={t('assistant.voice.languageSelectorLabel')}
       className="inline-flex items-center gap-0.5 rounded-full border border-forest/20 bg-white p-0.5 text-xs"
     >
-      {(['en', 'kn'] as const).map((lang) => (
+      {(['en', 'kn', 'hi'] as const).map((lang) => (
         <button
           key={lang}
           type="button"
@@ -79,7 +86,7 @@ function VoiceLanguageSelector() {
               : 'rounded-full px-2.5 py-1 font-semibold text-forest disabled:opacity-50'
           }
         >
-          {t(lang === 'en' ? 'assistant.voice.languageEnglish' : 'assistant.voice.languageKannada')}
+          {t(VOICE_LANGUAGE_LABEL_KEYS[lang])}
         </button>
       ))}
     </div>

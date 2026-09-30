@@ -444,6 +444,7 @@ export const translationResources = {
           languageSelectorLabel: 'Voice language',
           languageEnglish: 'English',
           languageKannada: 'Kannada',
+          languageHindi: 'Hindi',
         },
       },
       apply: {
@@ -1349,6 +1350,7 @@ export const translationResources = {
           languageSelectorLabel: 'ಧ್ವನಿ ಭಾಷೆ',
           languageEnglish: 'ಇಂಗ್ಲಿಷ್',
           languageKannada: 'ಕನ್ನಡ',
+          languageHindi: 'ಹಿಂದಿ',
         },
       },
       apply: {

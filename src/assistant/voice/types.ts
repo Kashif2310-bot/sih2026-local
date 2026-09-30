@@ -72,12 +72,12 @@ export type VoiceTurnEndReason = 'completed' | 'interrupted' | 'error'
 // ---------------------------------------------------------------------------
 
 /**
- * 'auto' explicitly allows mixed Kannada-English conversation (the product's
- * required "mixed Kannada-English" case) rather than forcing a single
- * language classification per session. Nothing in this contract assumes
- * English.
+ * 'auto' explicitly allows mixed Kannada-English (or Hindi-English)
+ * conversation (the product's required "mixed Kannada-English" case) rather
+ * than forcing a single language classification per session. Nothing in
+ * this contract assumes English.
  */
-export type VoiceLanguage = 'en' | 'kn' | 'auto'
+export type VoiceLanguage = 'en' | 'kn' | 'hi' | 'auto'
 
 export interface VoiceSessionLanguageConfig {
   /** Primary language hint for STT/TTS, or 'auto' to allow free code-switching. */

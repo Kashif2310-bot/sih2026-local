@@ -306,9 +306,10 @@ export type GeminiLiveServerMessage =
 // ---------------------------------------------------------------------------
 
 /** Maps the provider-independent VoiceLanguage onto a Gemini speechConfig.languageCode. 'auto' deliberately omits languageCode so Gemini applies its own detection/code-switching handling, rather than this adapter guessing one language. */
-export function languageCodeFor(language: 'en' | 'kn' | 'auto'): string | undefined {
+export function languageCodeFor(language: 'en' | 'kn' | 'hi' | 'auto'): string | undefined {
   if (language === 'en') return 'en-US'
   if (language === 'kn') return 'kn-IN'
+  if (language === 'hi') return 'hi-IN'
   return undefined
 }
 
