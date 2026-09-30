@@ -56,6 +56,10 @@ describe('profileFormDraftFromTranscript', () => {
     expect(profileFormDraftFromTranscript('I want to start a catering business').category).toBeNull()
   })
 
+  it('fills Available margin capital from "I have a capital of 4 lakhs"', () => {
+    expect(profileFormDraftFromTranscript('I have a capital of 4 lakhs').availableMargin).toBe(400_000)
+  })
+
   it('fills annual income only when the citizen states it', () => {
     expect(profileFormDraftFromTranscript('my annual income is ₹2 lakh').annualIncome).toBe(200_000)
   })

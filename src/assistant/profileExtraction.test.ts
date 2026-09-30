@@ -356,3 +356,38 @@ describe('extractApplicantName', () => {
     expect(extractApplicantName('my name is')).toBeUndefined()
   })
 })
+
+describe('extractProfileFromMessage — "capital" as own contribution', () => {
+  it('reads "I have a capital of 4 lakhs" as own contribution, not investment', () => {
+    const extracted = extractProfileFromMessage('I have a capital of 4 lakhs')
+    expect(extracted.ownContribution).toBe(400_000)
+    expect(extracted.investmentRequired).toBeUndefined()
+  })
+
+  it('reads other possessive phrasings on either side of the amount', () => {
+    expect(extractProfileFromMessage('I have 4 lakhs capital').ownContribution).toBe(400_000)
+    expect(extractProfileFromMessage('my own capital is ₹2 lakh').ownContribution).toBe(200_000)
+    expect(extractProfileFromMessage('we have got some capital of ₹50,000').ownContribution).toBe(50_000)
+  })
+
+  it('does not treat working capital as the citizen’s own money', () => {
+    const needed = extractProfileFromMessage('I need working capital of 2 lakh')
+    expect(needed.ownContribution).toBeUndefined()
+    expect(needed.investmentRequired).toBe(200_000) // unchanged from before this rule
+    expect(extractProfileFromMessage('I have 4 lakh working capital').ownContribution).toBeUndefined()
+  })
+
+  it('does not fire on an unrelated or needed "capital"', () => {
+    const city = extractProfileFromMessage('Bengaluru is the capital of Karnataka and I want a loan of 3 lakh')
+    expect(city.ownContribution).toBeUndefined()
+    expect(city.financingRequired).toBe(300_000)
+
+    const need = extractProfileFromMessage('I need 4 lakh capital')
+    expect(need.ownContribution).toBeUndefined()
+    expect(need.financingRequired).toBe(400_000)
+
+    const setup = extractProfileFromMessage('I need a capital of 5 lakh to set up')
+    expect(setup.ownContribution).toBeUndefined()
+    expect(setup.investmentRequired).toBe(500_000)
+  })
+})

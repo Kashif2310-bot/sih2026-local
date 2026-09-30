@@ -351,13 +351,37 @@ function nearestMoneyCategory(before: string, after: string): MoneyCategory | un
   return best?.category
 }
 
+// "capital" is the citizen's OWN money only in a possessive phrasing that
+// touches the amount: "I have a capital of ₹4 lakh", "my own capital is 2
+// lakh", "4 lakhs capital". It is deliberately not a plain keyword: that
+// would also fire on "working capital" (a separate, computed operating-cash
+// figure — see lib/workingCapital.ts), "capital city" or "capital of
+// Karnataka", and a non-possessive "capital of ₹X" already means what a
+// business needs (INVESTMENT_KEYWORDS). Both patterns are anchored to the
+// amount, so a match is always the keyword nearest to it — consistent with
+// nearestMoneyCategory's closest-keyword-wins rule.
+const OWN_CAPITAL_BEFORE =
+  /\b(?:(?:i|we)\s+(?:have|had|got)\s+(?:got\s+)?(?:a\s+|some\s+)?(?:my\s+|our\s+)?(?:own\s+)?|(?:my|our)\s+(?:own\s+)?|own\s+)capital(?:\s+(?:is|of))?(?:\s+(?:about|around|nearly))?\s*$/
+const OWN_CAPITAL_AFTER =
+  /^s?\s+(?:rupees\s+)?(?:of\s+|as\s+)?(?:my\s+|our\s+)?(?:own\s+)?capital\b(?!\s+(?:city|needed|required|is\s+(?:needed|required)))/
+
+function isOwnCapital(before: string, after: string): boolean {
+  if (OWN_CAPITAL_BEFORE.test(before)) return true
+  if (!OWN_CAPITAL_AFTER.test(after)) return false
+  // "I need 4 lakh capital" is money the citizen needs, not money they have.
+  const clause = before.split(/[.,;!?]/).pop() ?? ''
+  return ![...FINANCING_KEYWORDS, ...INVESTMENT_KEYWORDS].some((kw) => clause.includes(kw))
+}
+
 function classifyMoney(
   text: string,
   mentions: MoneyMention[],
 ): Pick<UserProfile, 'annualIncome' | 'investmentRequired' | 'financingRequired' | 'ownContribution'> {
   const out: Pick<UserProfile, 'annualIncome' | 'investmentRequired' | 'financingRequired' | 'ownContribution'> = {}
   for (const mention of mentions) {
-    const category = nearestMoneyCategory(contextBefore(text, mention.index), contextAfter(text, mention.endIndex))
+    const before = contextBefore(text, mention.index)
+    const after = contextAfter(text, mention.endIndex)
+    const category = isOwnCapital(before, after) ? 'ownContribution' : nearestMoneyCategory(before, after)
     if (category) out[category] = mention.value
   }
   return out
