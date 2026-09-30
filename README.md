@@ -1,195 +1,410 @@
-# LokPulse — SIH26091
+<!-- README last revised: 2026-10-01. Update team roles, screenshots, and the "Recent changes" note below when the UI/UX and marketplace work from Kashif lands. -->
 
-**Hyperlocal Opportunity Radar + NSFDC Financial Structuring for Rural Micro-Entrepreneurs**
-Ministry of Social Justice & Empowerment · NSFDC schemes · English + Kannada
+# Ishara — Hyperlocal Enterprise Intelligence
 
-> **This branch (`ai-assistant-dev`)** additionally includes a prototype **AI Government Scheme Assistant** at `/assistant`, built on top of everything below without changing any existing route or logic. See [AI Government Scheme Assistant](#ai-government-scheme-assistant-prototype) further down for what it does and how to run it — it is not yet on `main`.
+**ASYNC'26 submission · Open Track · team Trust The Process**
+Originally **LokPulse**, built for SIH 2026 (problem statement SIH26091 · Ministry of Social Justice & Empowerment · NSFDC schemes). The codebase and API still use the LokPulse name.
+**Interface:** English + Kannada · **Voice assistant:** English, Kannada, Hindi
 
-LokPulse answers one question before money moves: *what should this person start, in this village, in the next 14 days, with this margin capital — and who must co-sign before disbursement?* It combines a hyperlocal opportunity scan (weather, mandi prices, festival demand, competitor density) with an exact NSFDC loan router and an adaptive multi-signature sanction flow, instead of being another eligibility-checklist chatbot.
+> **Maturity: hackathon prototype.** Parts of this app are real and tested end to end; other parts are built but not connected, or run only in the browser. [Reliability & Known Limitations](#5-reliability--known-limitations) lists which is which. [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) is the source of truth for every claim.
 
-## Run
+---
+
+## 1. Context & Overview
+
+### Elevator pitch
+
+Ishara helps a rural micro-entrepreneur decide **what to start, where, and with how much money**, and then helps them **find and apply for the government schemes that fit**. A hyperlocal scan scores a business idea against local weather, competition and demand signals. An exact NSFDC loan calculator structures the finance. A cryptographically signed, score-driven approval quorum decides who must sign off. A scheme assistant (text or voice) matches the person against a curated set of real government schemes and walks them through an application.
+
+### Before and during ASYNC'26
+
+ASYNC'26 began on **22 September 2026**. The dates below are commit dates from this repository's history.
+
+**Before ASYNC'26** — LokPulse, built for SIH 2026 (SIH26091). All of this was already in the codebase before the hackathon began:
+- The hyperlocal scan → Pulse → Finance → Sanction flow: LokScore computation, the NSFDC finance/EMI engine and live geo lookups (Nominatim/Overpass/Open-Meteo).
+- An early text-only scheme assistant with rule-based profile extraction (12 Sep).
+- The first Gemini Live voice foundation (16 Sep).
+- The `/apply` guided wizard (16 Sep) and the `/apply/hub` application workflow (17 Sep).
+- The first Supabase schema (17 Sep).
+- The FastAPI persistence and login backend for the scan flow (20 Sep).
+
+**During ASYNC'26 (22 Sep onward)** — this repo, Open Track, team Trust The Process. We took that existing foundation and made it real, tested and correct:
+- **Voice:**
+  - Deployed the voice token-minting function and proved its tokens are fresh and single-use.
+  - Moved the assistant to native audio.
+  - Fixed the Gemini Live WebSocket endpoint bug and the Blob/ArrayBuffer frame-decoding bug.
+  - Added Kannada and Hindi voice modes.
+- **Data isolation:** built real anonymous-auth row-level security and tested it with two real identities. One citizen cannot read or forge another's application or profile.
+- **Profile extraction and `/apply`:** hardened profile extraction, and fixed `/apply` pre-filling placeholder demo data instead of what the citizen actually said.
+- **Scheme data:** verified PM Vishwakarma against its official guidelines and expanded it to all 18 official trades. Added PMMSY (fisheries) from its operational guidelines.
+- **Scan reliability:** Nominatim rate-limit compliance, telling rate limits, timeouts and missing places apart, and a 3-hour result cache.
+- **Tests:** about 490 new tests, roughly 760 → 1,248 declared tests (about 1.65×).
+
+*Note:* this repository's commit history also includes contributions from the wider original LokPulse/SIH team, who are not part of the ASYNC'26 team roster below:
+- Prerana Prakash — the FastAPI persistence/auth layer for the scan flow
+- vamshikrishna21vk — the Supabase schema
+- Aadita — the `/apply/hub` workflow
+
+This section describes team roles for this hackathon's submission specifically, not full repository authorship.
+
+### Problem statement
+
+Rural enterprise failure is rarely just "no loan". More often it is **the wrong activity, the wrong timing, or the wrong loan structure**. Most tools stop at an eligibility checklist or a generic chatbot. Ishara tries to answer the whole question before money moves: *what should this person start, in this village, soon, with this margin money — and who must co-sign before disbursement?*
+
+### Target audience
+
+- **Rural micro-entrepreneurs**, especially applicants to NSFDC and similar central livelihood schemes. The built-in reference case is an SC woman in Dinka village (Mandya, Karnataka) starting a dairy unit with ₹1,00,000 of margin money.
+- **Reviewing officers** who approve applications. The officer dashboard exists as a demo only; see [Known Limitations](#known-limitations).
+
+### Core features
+
+| Feature | What it does | Status |
+|---|---|---|
+| **Hyperlocal scan** (`/scan`) | Profile + location → live weather (Open-Meteo), live geocoding (Nominatim) and live competitor density (Overpass) for any Indian place; seeded mandi and festival signals for 5 curated Karnataka villages | Live APIs; seeded data where noted |
+| **LokScore** | 0–100 score: demand 25%, competition gap 20%, weather fit 15%, financial coverage 25%, eligibility 15% (`src/lib/config.ts`) | Live, local computation |
+| **NSFDC finance engine** | Exact scheme rules (table below), reducing-balance quarterly annuity EMI in integer paise | Live, locked by `src/lib/finance.test.ts` |
+| **Adaptive sanction quorum** (`/sanction`) | LokScore ≥ 80 → 2-of-3 signers; ≥ 60 → 3-of-5; below 60 → 4-of-5 plus a mentor. Every signature is real secp256k1 ECDSA (`ethers`) | Real cryptography; stored in the browser only |
+| **Report export** (`/export`) | One printable report (browser print → PDF) combining every screen plus a document checklist | Live |
+| **Assistant** (`/assistant`) — the primary, tested experience | Text or voice. Plain-language description → deterministic profile extraction → deterministic eligibility ranking across 9 curated schemes → explanation. Every AI reply is validated against the evidence before it is shown (`src/assistant/ai/responseGuard.ts`). Opened from a scan (`/assistant/:id`), it ranks that case's schemes on load | Live, runs in the browser; this is the assistant used in the demo and screenshots |
+| **Voice on `/assistant`** | Gemini Live native audio in English, Kannada or Hindi; the browser only ever holds a short-lived token minted by a Supabase Edge Function | Live; real-microphone use checked by hand, not by automated tests (see limitations) |
+| **Experimental voice UI** (`/voice-assistant/`) | A separate, full-screen voice page built by a teammate this week, with its own Gemini Live session code and an animated advisor, reusing the same scheme and eligibility engine | Experimental and still being refined; English and Kannada only (no Hindi); not the one the demo or screenshots use |
+| **Jobs** (`/jobs`) | Employment matching between entrepreneurs who are hiring and workers looking for work, showing each wage with and without a middleman's cut | **Sample/demo listings only.** A worker's name and number are saved on this device; nothing reaches a real employer yet |
+| **Guided application** (`/apply`) | Profile → scheme → documents → review → consent → submission, synced to Supabase under the citizen's own anonymous identity with row-level security | Live |
+| **Officer dashboard** (`/admin`) | Applications table, detail, approval and audit views | Browser-only demo with demo login |
+
+**NSFDC rules implemented** (`src/lib/config.ts`, `NSFDC`):
+
+| Rule | Value |
+|---|---|
+| Project cost | margin money ÷ 10% |
+| Loan | 90% of project cost |
+| Micro Finance Scheme | project cost ≤ ₹1,40,000 · loan cap ₹1,25,000 · 6.5% p.a. · 3 years · 3-month moratorium |
+| Term Loan Scheme | project cost ≤ ₹50,00,000 · loan cap ₹45,00,000 · 8% p.a. · 7 years · 6-month moratorium |
+| Maximum margin money | ₹5,00,000 (larger amounts are rejected with a message, not silently clamped) |
+
+**Schemes in the assistant's catalog** (`src/assistant/data/schemes.ts`, each with an official source URL and a last-verified date): NSFDC Micro Finance Scheme, NSFDC Term Loan Scheme, PMEGP, PM Mudra Yojana, Stand-Up India, PM Vishwakarma, NBCFDC Term Loan Scheme, Kudumbashree Microenterprise Support (Kerala), PMMSY (fisheries).
+
+### Demo screenshots
+
+*Screenshots to be added.*
+
+<!-- Planned: docs/screenshots/{scan,pulse,finance,sanction,export,assistant,voice,apply,admin}.png -->
+
+---
+
+## 2. Architecture & System Design
+
+**Stack.** Frontend: React 19, TypeScript, Vite 8, Tailwind CSS 4, React Router 7, i18next, Leaflet, Recharts, ethers 6. Backend: FastAPI with SQLAlchemy and Alembic, on SQLite by default. Supabase: Postgres with row-level security, anonymous auth, and two Edge Functions.
+
+```mermaid
+flowchart TB
+  subgraph browser["Browser · React + TypeScript"]
+    subgraph flowA["Flow A · hyperlocal scan"]
+      scan["Scan"] --> steps["Pulse → Report → Finance"] --> sanction["Sanction · ECDSA quorum"] --> export["Export · printable report"]
+    end
+    subgraph flowB["Flow B · schemes and applying"]
+      assistant["Assistant · text + voice"] --> apply["Apply wizard"]
+    end
+    admin["Admin dashboard"]
+    local[("localStorage + in-memory store")]
+  end
+
+  fastapi[("FastAPI + SQLAlchemy · SQLite")]
+  supabase[("Supabase Postgres + RLS · anonymous auth")]
+  fns["Supabase Edge Functions: gemini-live-token, live-scheme-retrieval"]
+  gemini["Gemini Live"]
+  datagov["data.gov.in · not configured"]
+  geo["Open-Meteo · Nominatim · Overpass"]
+
+  scan -->|"weather, geocode, competitors"| geo
+  scan -->|"assessments, login, history"| fastapi
+  sanction --> local
+  admin --> local
+  apply -->|"local draft first"| local
+  apply -->|"applications, profile sync"| supabase
+  assistant -->|"request short-lived token"| fns
+  assistant -->|"audio over WebSocket"| gemini
+  fns --> datagov
+  scan -.->|"one-way: /assistant/:id seeds the profile"| assistant
+```
+
+### The two citizen flows
+
+**Flow A — Scan → Pulse → Report → Finance → Sanction → Export.** Orchestrated by `src/state/AppContext.tsx`.
+1. `/scan` collects the profile and a location: one of 5 curated villages, or any place geocoded live.
+2. The scan resolves the location, fetches weather, competitor density and (for curated villages) mandi signals. It then builds the NSFDC finance plan and computes the LokScore.
+3. It opens an approval case with real ECDSA signing, and saves the assessment to the **FastAPI** backend.
+4. `/pulse/:id`, `/report/:id`, `/finance/:id`, `/sanction/:id` and `/export/:id` reload the assessment from FastAPI. If the server is unreachable, they fall back to a local snapshot.
+5. `/login` (phone + OTP) and `/history` belong to this flow.
+
+**Flow B — Assistant + guided Apply.** Built on `src/assistant/**` and `src/backend/**`, independent of Flow A's state and backend.
+1. `/assistant` ranks schemes deterministically (`rankScore = eligibility × 0.7 + relevance × 0.3`, `src/assistant/ranking.ts`) and explains the results. Voice uses Gemini Live, in English, Kannada or Hindi. The experimental `/voice-assistant/` page is a separate Vite entry (`voice-assistant/index.html`, `src/voiceAssistant/`). It reuses the same ranking and eligibility engine but has its own voice session code.
+2. `/apply` (guided wizard) and `/apply/hub` (structured `LP-APP-*` workflow) save a tracked application to `localStorage` first. They then sync it to **Supabase** under the citizen's anonymous identity.
+
+**The one bridge between flows:** opening `/assistant/:id` from a completed scan seeds the assistant with that scan's profile (`src/assistant/fromAssessment.ts`). It is one-way and purely client-side.
+
+The assistant's internals — pipeline, AI providers, live retrieval and its trust model, Supabase setup, and the `/apply/hub` submission channels — are documented in [`docs/ASSISTANT.md`](docs/ASSISTANT.md).
+
+### Three persistence paths — they do not interoperate yet
+
+| Path | Used by | Identity |
+|---|---|---|
+| **FastAPI + SQLAlchemy** (`server/`, Alembic migrations) | Flow A: assessments, `/history`, `/login` | Phone + OTP (fixed demo OTP `123456`), real bearer token |
+| **Supabase** (Postgres + RLS) | `/apply` applications, assistant profile sync, voice token and live-retrieval Edge Functions | Anonymous Supabase auth, one identity per browser |
+| **localStorage / in-memory** (`src/platform/store.ts`, `src/lib/approval/*`, `src/admin/**`) | `/sanction` approvals, the whole `/admin` dashboard, the local application draft | None, or the demo admin login |
+
+**Nothing links these today.** A citizen signed in through FastAPI and the same citizen's anonymous Supabase identity are unrelated as far as the code is concerned. The admin dashboard reads neither backend. Choosing which model becomes canonical is an open team decision ([`docs/handoffs/team-audit-2026-09-26.md`](docs/handoffs/team-audit-2026-09-26.md) §7).
+
+### External services
+
+| Service | Used for | State |
+|---|---|---|
+| Open-Meteo | Weather on `/scan` | Live, no key |
+| Nominatim (OpenStreetMap) | Place search / geocoding | Live, no key; rate-limited to 1 request/second |
+| Overpass (OpenStreetMap) | Nearby competitor density | Live, no key |
+| Gemini Live | Voice assistant | Live; needs `GEMINI_API_KEY` as a Supabase secret |
+| data.gov.in | Live scheme statistics | Wired end to end but **not configured** (no API key or dataset) |
+| Ollama (local) | Optional local LLM for assistant explanations | Optional; the default is a deterministic offline provider |
+
+---
+
+## 3. Installation & Configuration
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | `package.json` does not pin one. The tooling requires **Node 22.12+ or 24** (Vitest 5: `^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0`; Vite 8: `^20.19.0 \|\| >=22.12.0`). Tested with Node 24.14.1 and npm 11.11.0. |
+| Python | Not pinned in `server/`. Tested with **Python 3.12.10**. `server/requirements.txt` is unpinned. |
+| Browser | Chrome or Edge for voice and for speech input on `/apply` |
+| Optional | Supabase CLI (included as a dev dependency, run via `npx supabase`), Ollama |
+
+The setup below is what the team has run all week, on Windows. macOS and Linux have not been tested; there the virtual-environment interpreter is `.venv/bin/python`.
+
+### Frontend
 
 ```bash
+git clone https://github.com/Kashif2310-bot/sih2026-local.git
+cd sih2026-local
 npm install
-npm run dev        # dev server (Vite prints the URL)
-npm run build      # production build (tsc -b && vite build)
-npm test           # Vitest unit tests
-npm run test:e2e   # Playwright end-to-end tests (needs a dev/preview server; see note below)
+npm run dev
 ```
 
-**Demo path:** `/scan` starts empty (name field has a placeholder, no Lakshmi S. prefill). Click **Load demo case** for the reference profile — SC woman, Dinka village, dairy, ₹1,00,000 available margin — or use `/scan?demo=1`. Then **Run hyperlocal scan** → walk **Pulse → Report → Finance → Sanction**. This should always produce: project cost **₹10,00,000**, max loan **₹9,00,000**, **NSFDC Term Loan Scheme**, and a LokScore-driven signing quorum on `/sanction`. From `/sanction`, **Export** produces a single printable report (`window.print()` → Save as PDF) combining every screen's output plus a document checklist. Assistant lives at `/assistant` (empty) and `/assistant/:id` (this scan).
+Open the URL Vite prints (often `http://127.0.0.1:5173/`, or the next free port).
 
-> **Port:** Vite may already find **5173** held by an older build. The app that just started is the URL Vite prints (often `http://127.0.0.1:5174/`). Always open that printed URL — a remembered 5173 tab can be stale. Startup also logs `LokPulse UI: http://127.0.0.1:<port>/` and `app_version`.
+### Backend (FastAPI) — needed for Flow A persistence
 
-> **Presenting live? Flip on "Offline Demo Mode"** (top-right corner of `/scan`) if venue wifi is unreliable. It forces the seeded-village path and skips every live network call (weather, geocoding, competitor lookup) entirely, so the scan completes near-instantly with zero network dependency — a safe fallback while the live-lookup feature (real Nominatim geocoding + Overpass competitor data for any Indian town) stays available to show off when connectivity is good. Even with it off, every live call times out at 2.5s, retries once with backoff, and falls through to an honest "unavailable" / `incomplete` state rather than hanging. An incomplete assessment cannot be signed on `/sanction`.
-
-> **Playwright note:** `playwright.config.ts` targets port 5173 by default. If something else on your machine is already bound to that port, run `npm run dev -- --port <free-port>` and point a local Playwright config's `baseURL`/`webServer` at it instead. Same rule as above: the printed Vite URL is canonical.
-
-## AI Government Scheme Assistant (prototype)
-
-An experimental, conversational scheme-matching assistant at **`/assistant`** (empty visit) and **`/assistant/:id`** (this scan's profile is passed in). It is not a general chatbot — it only matches government livelihood schemes against a profile.
-
-- **Frontend:** React + TypeScript (same stack as the rest of this app).
-- **Backend:** Supabase — entirely optional; see [Supabase backend (optional)](#supabase-backend-optional) below. With no Supabase project configured, everything works exactly as it did before this was added.
-- **Knowledge:** a maintained, source-cited local scheme database, plus live official-source retrieval for the one government API we could actually confirm is self-service and authorized — see [Live government-source retrieval](#live-government-source-retrieval).
-- **AI:** the same provider abstraction as before — local Ollama when reachable, a deterministic offline fallback otherwise. Never a hosted model called directly from the browser.
-
-A user describes their situation in plain English; the assistant extracts a structured profile, deterministically retrieves and scores real government schemes against it (optionally enriched with live official data), and explains the results in a chat UI.
-
-**Prerequisites:** Node.js (see `package.json`'s tooling versions) and npm. No API keys, accounts, or `.env` file are required to run it — it works fully out of the box on the local scheme database alone.
-
-```bash
-npm install
-npm run dev        # then open the printed URL and click "Assistant" in the nav, or go straight to /assistant
+```powershell
+cd server
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-**Pipeline:** message → regex/keyword profile extraction (no AI call needed) → retrieval + filtering against the local scheme knowledge base (`src/assistant/data/schemes.ts`) → an attempt at live official-source retrieval, if Supabase is configured (`src/assistant/liveRetrieval.ts`) → merge live evidence into the local ranking without ever changing eligibility rules (`src/assistant/evidenceMerge.ts`) → a deterministic eligibility/ranking engine (`src/assistant/eligibility.ts`, `src/assistant/ranking.ts` — a match score and status like "possible match" is *computed*, never invented by a model) → an AI provider explains that evidence in plain language. Every AI reply is checked against the evidence (`src/assistant/ai/responseGuard.ts`) before being shown, rejecting anything that cites a URL or claims an outcome the evidence doesn't support.
-
-## Application automation (Adita)
-
-The assistant advises. **`/apply` helps you actually apply**, using one shared workflow for every last-mile channel:
-
-Citizen profile + selected scheme → application schema → field mapping → missing fields → document requirements → validation → generated application → user review → corrections → explicit consent → submission adapter → tracking id → status tracking.
-
-| Channel | What "submit" means | When it may say the government received it |
-| --- | --- | --- |
-| **Real government API** | `POST` to `VITE_GOV_APPLY_API_URL` | Only if that API returns an application id. If the env var is unset (the default), the result is **"Government API not configured — not submitted"**. |
-| **Assisted** | Packet for bank / SCA / local agency | Never. Outcome is `assisted_packet_ready`. |
-| **Guided** | Packet + official portal link | Never. You still file on the portal. |
-| **Simulation** | Explicit checkbox | Never. Banner: **"Simulation only — nothing was filed"**. |
-
-Start from **Apply** in the nav, or from a scheme's **Start application** button in `/assistant`. Tracked packets are stored on this device (`localStorage`); they are not a government register.
-
-```bash
-# optional — only if you actually have a government apply endpoint
-# VITE_GOV_APPLY_API_URL=https://example.gov/apply
-```
-
-
-**Offline fallback (what you get by default):** no AI provider is configured out of the box, so every reply comes from a deterministic, template-based explanation of the same retrieved evidence — never a live model — and is clearly labelled **"Offline reasoning — no AI model used"** on every such message in the chat.
-
-**Source-status indicator (what you'll actually see on each reply):** every assistant message shows exactly what happened that turn, never a guess:
-- **"Verified scheme knowledge base"** — the normal, out-of-the-box state: Supabase isn't configured, so live retrieval was never attempted.
-- **"Official live sources checked · ⟨time⟩"** — Supabase is configured and the live-retrieval Edge Function returned successfully this turn.
-- **"Live government sources unavailable · showing verified scheme data"** — Supabase is configured but the live call failed or timed out; the local dataset was used, and the UI says so rather than pretending nothing happened.
-
-**Testing the local LLM (Ollama) path — optional:**
-1. Install [Ollama](https://ollama.com) and run `ollama serve`.
-2. Pull a chat model: `ollama pull llama3.1` (the default model name the app looks for; see `OLLAMA_MODEL`/`OLLAMA_BASE_URL` in `src/assistant/aiConfig.ts` to point at a different local model or port).
-3. Reload `/assistant` — it auto-detects a reachable local Ollama server (a ~1.2s health check) and uses it instead of the offline fallback. Nothing leaves your machine, no key needed.
-
-A hosted-model provider abstraction exists (`src/assistant/ai/hostedProvider.ts`) but is intentionally disabled (`HOSTED_PROXY_URL` unset) — a hosted model must only ever be called through a backend proxy that holds its API key server-side, never directly from the browser, and no such proxy is included in this repo.
-
-**The local scheme database is still the core of this**, regardless of whether live retrieval is configured: `src/assistant/data/schemes.ts` is a small, manually curated set of real, source-cited central/state schemes (NSFDC, PMEGP, PM Mudra Yojana, Stand-Up India, PM Vishwakarma, NBCFDC, Kudumbashree), each with its official source URL and a `lastVerifiedDate`. Live retrieval only ever *adds* supplementary, clearly-sourced facts to a scheme that's already in this database — it never replaces or invents a scheme, an eligibility rule, a loan amount, or a document requirement. Every scheme shown in `/assistant` displays its source and a reminder to verify before applying.
-
-**EN/KN:** all assistant UI chrome (labels, buttons, statuses) follows the existing app's English/Kannada toggle. Scheme content itself (names, descriptions, eligibility text) is deliberately kept English-only to avoid mistranslating financial/legal specifics.
-
-**Tests:** `npm test` (182 tests) and `npm run test:e2e` (`e2e/assistant.spec.ts`, 8 tests) both cover the assistant alongside the existing LokPulse suite — see [Run](#run) above and the note on Playwright ports.
-
-### Supabase backend (optional)
-
-Supabase is used only as thin, optional infrastructure: an Edge Function that holds the one external API key this app ever uses (so the browser never has to), plus two tables for caching and auditing live retrieval. **Nothing in this repo requires you to set up Supabase** — clone it, `npm install`, `npm run dev`, and the assistant works fully on the local scheme database.
-
-To enable it:
-
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Copy `.env.example` to `.env.local` and fill in your project's URL and anon/public key (Project Settings → API). **The anon key is safe to put in frontend code by design** — Supabase's model relies on Row Level Security, not on that key being secret — but never put a service-role key in a `VITE_`-prefixed variable or anywhere in frontend code.
-3. Apply the schema: `supabase db push` (with the [Supabase CLI](https://supabase.com/docs/guides/cli) linked to your project), or paste `supabase/migrations/0001_scheme_assistant_schema.sql` into the SQL editor.
-4. Deploy the Edge Function: `supabase functions deploy live-scheme-retrieval`.
-5. (Optional — only if you want live data, not just the cache tables) register a free API key at [data.gov.in/user/register](https://data.gov.in/user/register), pick a dataset resource, and set both as Edge Function secrets: `supabase secrets set DATA_GOV_IN_API_KEY=... DATA_GOV_IN_RESOURCE_ID=...`.
-
-No authentication/login was introduced anywhere in this app — it wasn't needed for anything implemented, per the "don't add what isn't required" instruction this feature was built under. Both tables are readable via the public anon key (nothing sensitive lives in them) and writable only by the Edge Function's service-role key, which Supabase injects automatically and which this repo's frontend code never touches.
-
-**Database schema** (`supabase/migrations/0001_scheme_assistant_schema.sql`):
-- **`schemes`** — a server-side cache of scheme evidence (id, name, description, scope/state, sector, eligibility/benefits/application as JSONB, `source_url`/`source_name`/`source_type`, `verification_status`, `last_verified_at`, `retrieved_at`, `updated_at`). The curated TypeScript dataset remains the primary source; this table is optional caching infrastructure, not a replacement for it.
-- **`scheme_retrievals`** — an audit log of every live-retrieval attempt (source, query, retrieved_at, status, result_count, error) so "did we actually check live data, and did it work" is answerable from the database itself, not just inferred from the UI.
-- **Deliberately no conversation/profile table.** The assistant's profile-across-turns memory is in-session React state (`src/assistant/state/AssistantContext.tsx`) and needs no backend to work — adding Supabase-backed persistence for it would mean storing personal details (income, category, state) with no real benefit for a single-session demo, so it was left out. Nothing about in-session behavior changed by adding Supabase.
-
-### Live government-source retrieval
-
-**What we actually investigated, and why myScheme isn't integrated:** before writing any retrieval code, we checked what official machine-readable access actually exists.
-- **[data.gov.in](https://data.gov.in)** (Open Government Data Platform India) has a genuine self-service API — free registration, a real API key, real HTTPS. This is the one live source implemented, via `supabase/functions/live-scheme-retrieval`.
-- **myScheme.gov.in** explicitly prohibits automated/bot access in its Terms of Use, and its only sanctioned integration route (API Setu) is a formal partner-approval process, not self-service registration. **It is not scraped or called anywhere in this codebase**, and won't be without that formal approval.
-- We did not find a public, self-service API for any individual ministry (PMEGP/KVIC, Mudra, NSFDC, etc.) — their sites are informational, not data services.
-
-**What data.gov.in actually gives us:** the PMEGP/MSME-tagged datasets we could confirm are **statistical/performance data** — e.g. units sanctioned or margin-money subsidy disbursed, by state and year — not structured eligibility rules, loan-amount tables, application steps, or a scheme identifier. So today, every fact this source returns is honestly classified as `live_contextual` (see trust model below): useful, verifiably-sourced government context, but never treated as proof about one specific scheme. It **never changes eligibility criteria, loan amounts, or your computed match score**, and it never creates a new scheme out of thin statistics.
-
-**Government evidence layer (`src/assistant/evidence/`).** Live retrieval goes through a small provider-independent pipeline before anything reaches ranking or the report: a `GovernmentSourceConnector` (`evidence/dataGovInConnector.ts` today) fetches and normalizes records → they're deduplicated (`evidence/dedup.ts`, never merging records across different states) → each record is deterministically bound to a specific local scheme (`evidence/schemeBinding.ts`) **only** when the record itself carries proof — an explicit scheme identifier or a matching official application URL — never merely because it was requested for that scheme. Anything that can't be bound this way surfaces separately as government *contextual* evidence (`ContextualEvidenceItem`, exposed on the personalized report as `governmentContextualEvidence`) instead of being attached to any scheme's evidence. An honest coverage/completeness accounting (`evidence/coverage.ts`) travels alongside it and **never claims all government schemes were checked** — see `claimsAllGovernmentSchemesChecked` (always `false`).
-
-**Real-time or cached?** Every successful call is genuinely real-time — the Edge Function calls `api.data.gov.in` fresh on each chat turn (bounded to a 4s frontend timeout / 6s Edge Function timeout so a slow response can't hang the chat) and returns validated evidence to the frontend, which is why it always carries an accurate `retrievedAt` timestamp for *that* turn. Nothing is proactively pre-fetched or refreshed on a schedule; the `schemes` table exists as cache infrastructure but nothing in the current implementation writes to it automatically.
-
-**Trust model.** Every piece of evidence — local or live — carries a `verification_status`:
-| Status | Meaning |
-| --- | --- |
-| `verified_local` | From the curated local dataset, or: live retrieval was never attempted this turn (not configured). |
-| `live_official` | Fetched this turn from an allowlisted official domain **and** deterministically bound to one specific scheme (explicit scheme id or matching official application URL — see `evidence/schemeBinding.ts`). |
-| `live_contextual` | Fetched this turn from an allowlisted official domain but could **not** be tied to one specific scheme — e.g. today's data.gov.in statistics. Useful context; never presented as proof of a scheme's eligibility or benefits. |
-| `live_unverified` | Reserved for evidence that's allowlisted but couldn't be fully validated — not currently produced (anything that fails validation is dropped, not passed through with this label), kept in the type for future use. |
-| `unavailable` | Live retrieval was attempted and failed. |
-
-Every live evidence item's source URL is checked against a hardcoded allowlist of official domains (`src/assistant/trustedSources.ts`, mirrored for the Edge Function in `supabase/functions/_shared/trustedDomains.ts`) and must be `https://` — anything else is silently dropped, never surfaced. See `src/assistant/liveRetrieval.ts`'s `validateLiveEvidenceItems()` for the transport-level validation (every field independently checked; a malformed item is dropped, not repaired or guessed at) and `src/assistant/evidence/governmentEvidenceOrchestrator.ts`'s `isWellFormedRecord()` for the same discipline applied to the newer connector-normalized shape.
-
-**When live retrieval is unavailable** (not configured, the Edge Function errors, or the call times out), the app **falls straight back to the local dataset with no change in behavior** other than the source-status line reading "Live government sources unavailable · showing verified scheme data" — never a fabricated "checked" result, and the local ranking is never altered by a failed live attempt.
-
-**Limitations to disclose plainly:** this is a real, working integration, not a mock — but its actual live coverage is narrow. It can enrich a handful of schemes with statistical context when a specific data.gov.in resource is configured; it does not, and does not claim to, provide live eligibility rules, live loan amounts, or coverage of all — or even most — central/state schemes. The local curated database remains the actual source of truth for every eligibility decision.
+Health check: `http://127.0.0.1:8000/health` returns `{"status":"ok","db":"ok"}`. Without the backend, `/scan` still runs but assessments are only cached locally.
 
 ### Environment variables
 
-| Variable | Where | Required? | Notes |
-| --- | --- | --- | --- |
-| `VITE_SUPABASE_URL` | frontend (`.env.local`) | No | Your Supabase project URL. |
-| `VITE_SUPABASE_ANON_KEY` | frontend (`.env.local`) | No | Supabase's public anon key — safe to expose by design, not a secret. |
-| `DATA_GOV_IN_API_KEY` | Supabase Edge Function secret | No | Free self-service key from data.gov.in. Never set this as a `VITE_`-prefixed variable. |
-| `DATA_GOV_IN_RESOURCE_ID` | Supabase Edge Function secret | No | Which data.gov.in dataset resource to query. |
+Copy `.env.example` to `.env.local` and fill in only what you need. `.env.local` is git-ignored — **never commit it**. **No variable is required to start the app.** Flow B's Supabase sync and voice need the two `VITE_SUPABASE_*` values.
 
-None are required to run the app. See `.env.example`.
+**Browser (`VITE_*` — bundled into the frontend, so never put a secret here)**
 
-## Exact NSFDC figures implemented
+| Variable | Purpose |
+|---|---|
+| `VITE_API_URL` | FastAPI base URL. Defaults to `http://127.0.0.1:8000` |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/publishable key (public by design; access is enforced by RLS) |
+| `VITE_GEMINI_LIVE_PROXY_URL` | Optional URL of a developer-run voice relay (an address, not a key) |
+| `VITE_GOV_APPLY_API_URL` | Optional real government apply endpoint for `/apply/hub`. When unset, submission says "not configured" and nothing is filed. *Read by the code but not listed in `.env.example`.* |
 
-These are the real scheme constants (`src/lib/config.ts`'s `NSFDC` object) — a Vitest test (`finance.test.ts`) locks them so no future change silently drifts:
+**Server-side, integration tests, Supabase CLI (never prefix with `VITE_`)**
 
-| Rule | Value |
-| --- | --- |
-| Margin capital → project cost | project cost = margin ÷ 10% |
-| Loan ratio | 90% of project cost |
-| Micro Finance scheme | project cost ≤ **₹1,40,000** |
-| Micro Finance loan cap | **₹1,25,000** |
-| Micro Finance rate / tenure / moratorium | **6.5% p.a. / 3 years / 3 months** |
-| Term Loan scheme | ₹1,40,000 < project cost ≤ **₹50,00,000** |
-| Term Loan loan cap | **₹45,00,000** |
-| Term Loan rate / tenure / moratorium | **8% p.a. / 7 years / 6 months** |
-| Max supported margin capital | **₹5,00,000** (above this, project cost would exceed the ₹50L Term Loan cap — rejected with a clear message, not silently clamped) |
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_PUBLISHABLE_KEY` | Supabase access for integration tests and scripts |
+| `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY` | Privileged keys, server and tests only |
+| `SUPABASE_JWKS_URL` | JWKS endpoint for token verification |
+| `SUPABASE_INTEGRATION` | `1` runs the hosted Supabase integration tests; default `0` skips them |
+| `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` | Optional; for `supabase link` / `db push` to a hosted project |
+| `DATABASE_URL` | FastAPI database (read by `server/app/config.py` from `server/.env`). Defaults to `sqlite:///./lokpulse.db` |
 
-Repayment is a real **reducing-balance quarterly annuity EMI** (not equal-principal, not a rough calculator), computed with exact BigInt rational arithmetic so there's no floating-point drift in the compounding. All money math runs in integer paise internally; the final installment absorbs any rounding residue so every schedule closes to exactly ₹0.00. Moratorium interest accrues and is capitalised into principal at the start of repayment (the `capitalize_into_principal` policy, named and displayed on-screen — not silently assumed).
+**Supabase Edge Function secrets** (set with `npx supabase secrets set NAME=...`, never in `.env.local`)
 
-**LokScore** (`src/lib/config.ts`'s `LOKSCORE_WEIGHTS`) blends five 0–100 components — demand 25%, competition gap 20%, weather fit 15%, financial coverage 25%, eligibility 15% — into a 0–100 total that drives an **adaptive multi-sig quorum**: ≥80 → 2-of-3 verifiers, ≥60 → 3-of-5, below 60 → 4-of-5 plus a mandatory mentor. Every signature is a real secp256k1 ECDSA signature (`ethers.js`), not a checkbox — see `src/lib/multisig.ts`.
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Used by `gemini-live-token` to mint short-lived voice tokens. Unset → voice reports unavailable (HTTP 503); text still works |
+| `GEMINI_LIVE_MODEL` | Optional model override. Default `gemini-3.1-flash-live-preview` |
+| `DATA_GOV_IN_API_KEY`, `DATA_GOV_IN_RESOURCE_ID` | data.gov.in access for `live-scheme-retrieval`. Currently unset |
 
-## What makes this not "another chatbot"
+**Backend-only discovery adapter** (`src/backend/services/officialSource/`, not reachable from the browser): `DATA_GOV_IN_API_KEY`, `DATA_GOV_IN_SCHEME_RESOURCE_ID`, `DATA_GOV_IN_BASE_URL`. These are separate from the Edge Function's variables; setting one set does not configure the other.
 
-| Typical SIH build | LokPulse |
-| --- | --- |
-| NLP Q&A chatbot | **Temporal Opportunity Graph** — jatra × weather × mandi × competition |
-| Generic SWOT text | Village-level feasibility with live map reach rings, real geocoded locations, and a document export |
-| Rough EMI calculator | **Exact NSFDC router** with a real reducing-balance annuity schedule |
-| Scheme dump | Eligibility-aware **LokScore** → **adaptive multi-sig quorum** with real ECDSA signatures |
+More detail: [`docs/ASSISTANT.md`](docs/ASSISTANT.md) (Supabase setup), [`docs/BACKEND_SETUP.md`](docs/BACKEND_SETUP.md), [`docs/BACKEND_INTEGRATION.md`](docs/BACKEND_INTEGRATION.md), [`docs/voice-session-architecture.md`](docs/voice-session-architecture.md).
 
-## Working pieces (live, not mocked)
+---
 
-1. **Live weather** from Open-Meteo for any resolved location (seeded village or free-text search) — an honest "unavailable" state on failure, never a fabricated reading.
-2. **Live geocoding + competitor lookup** beyond the 5 seeded villages: free-text place search via Nominatim, nearby-business density via the Overpass API, with an honest "limited data" fallback if either call returns nothing usable.
-3. **NSFDC financial engine** matching the SIH26091 scheme rules above, including the quarterly repayment schedule and an itemised working-capital breakdown.
-4. **Real ECDSA multi-sig attestations** (`ethers.js` secp256k1) — the attestation hash and signed message both commit to the applicant, project cost, scheme, loan amount, and LokScore at signing time; a wrong-key or tampered-data signature is provably rejected (see `multisig.test.ts`).
-5. **EN / KN** toggle across the full flow, key-parity-tested (`i18n/parity.test.ts`).
-6. **Consolidated report export** (`/export`) — one printable document combining location, feasibility, finance, LokScore, and a scheme-specific document checklist, with a generation timestamp and data-provenance note.
+## 4. Developer Experience
 
-## Clearly simulated / not live
+### Run a scan (UI)
 
-- **Escrow release** on `/sanction` is a UI simulation ("Simulated release — no blockchain transaction") — no chain call is made.
-- **Verifier identities** are demo/fixture wallets, labeled as such on-screen, not real government officer accounts.
-- `contracts/AdaptiveSanction.sol` is a Solidity sketch for a future on-chain sanction + DBT event rail — it is not deployed or wired into the app.
+1. Start the backend and `npm run dev` (see above).
+2. Open `/scan?demo=1`, or open `/scan` and click **Load demo case**. This loads the fixed reference profile: Lakshmi S., 29, SC woman, Dinka village, dairy, ₹1,00,000 margin money.
+3. Click **Run hyperlocal scan**, then walk **Pulse → Report → Finance → Sanction → Export**.
+   - The expected finance result is project cost **₹10,00,000**, loan **₹9,00,000**, **NSFDC Term Loan Scheme**.
+4. For unreliable venue Wi-Fi, switch on **Offline Demo Mode** on `/scan`. It uses the curated-village path and skips every live network call.
 
-See `docs/PRESENTATION_NOTES.md` for the full honest breakdown of what's live vs. simulated vs. deliberately deferred, and `docs/MASTER_SPEC.md` / `docs/AUTONOMOUS_RUN_LOG.md` for the detailed build history and verification record.
+### Call the assistant pipeline (TypeScript)
 
-## Product thesis (judges)
+The matching pipeline is plain, deterministic TypeScript with no network calls:
 
-Rural failure is rarely "no loan". It is **wrong activity, wrong timing, wrong structure**. LokPulse answers: *what should this person start, in this gram panchayat, in the next 14 days, with this margin — and who must co-sign before money moves.*
+```ts
+import { EMPTY_PROFILE } from './src/assistant/types'
+import { extractAndMerge } from './src/assistant/profileExtraction'
+import { rankSchemes } from './src/assistant/ranking'
+
+const { profile } = extractAndMerge(
+  'I am a 32 year old SC woman from a village in Karnataka and I want to start a dairy business',
+  EMPTY_PROFILE,
+)
+for (const r of rankSchemes(profile).slice(0, 3)) {
+  console.log(r.scheme.name, '|', r.eligibility.status, '|', r.rankScore)
+}
+```
+
+Actual output (commit `f5c44cb`):
+
+```text
+Stand-Up India | likely_eligible | 83
+Prime Minister's Employment Generation Programme (PMEGP) | likely_eligible | 67
+Pradhan Mantri Mudra Yojana (PMMY) | possibly_eligible | 57
+```
+
+The extracted profile was: age 32, female, rural, Karnataka, SC, dairy, new business at idea stage. Anything not clearly stated is left blank rather than guessed.
+
+### Call the FastAPI backend
+
+```bash
+curl http://127.0.0.1:8000/health
+# {"status":"ok","db":"ok"}
+
+curl -X POST http://127.0.0.1:8000/auth/request-otp \
+  -H "Content-Type: application/json" -d '{"phone":"9999999999"}'
+# {"phone":"9999999999","code":"123456"}   ← demo OTP, the same for every number
+```
+
+`POST /auth/verify-otp` with `{"phone", "code"}` returns `{"user", "token"}`. Other endpoints: `POST /users`, `GET /users/{id}`, `GET /users/{id}/assessments`, `POST /assessments`, `GET /assessments/{id}`, `PATCH /assessments/{id}`. Interactive docs are at `http://127.0.0.1:8000/docs`.
+
+### Test, lint, build
+
+The full gate runs locally before every commit:
+
+```bash
+npx vitest run   # unit + component tests
+npx tsc -b       # type-check
+npm run lint     # oxlint --deny-warnings
+npm run build    # tsc -b && vite build
+```
+
+Current results (commit `4011151`, 2026-10-01):
+
+| Command | Result |
+|---|---|
+| `npx vitest run` | **1,244 passed, 29 skipped**, 0 failed (132 files: 127 passed, 5 skipped) |
+| `npx tsc -b` | No errors |
+| `npm run lint` | No warnings or errors |
+| `npm run build` | Succeeds |
+| `server`: `.\.venv\Scripts\python.exe -m pytest -q` | **18 passed** (in-memory SQLite) |
+
+- **Skipped tests:** the 29 skipped tests are exactly the 5 hosted-Supabase integration files. They run only with `SUPABASE_INTEGRATION=1` and real credentials.
+- **End-to-end:** `npm run test:e2e` covers 36 Playwright tests in 9 files (`e2e/`). They were not run for this README, so there is no current pass count.
+- **Not yet implemented:** continuous integration (the repo has no CI pipeline), a measured test-coverage report, and performance benchmarks.
+
+---
+
+## 5. Reliability & Known Limitations
+
+**Current maturity: hackathon prototype — not production-ready.**
+
+### What is built for reliability
+
+- **Live calls fail fast:** every live lookup (geocoding, competitors, weather) times out after 2.5 s and retries once. If it still fails, it shows an honest "unavailable" or "incomplete" state rather than a fabricated value.
+- **Incomplete scans are blocked:** an incomplete scan cannot be signed on `/sanction`.
+- **Caching:** successful live lookups are reused for 3 hours and labelled as cached.
+- **Server outages:** assessments survive a FastAPI outage via a local snapshot.
+- **Voice outages:** if voice fails, the text assistant keeps working.
+- **Secrets stay server-side:** no service-role, Gemini or data.gov.in key appears in the shipped bundle (verified by scanning `dist/`).
+- **Row-level security:** Supabase RLS on applications and profiles is proven with two real, separate identities, not assumed from the policy text.
+
+### Known limitations
+
+Sourced from [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) and [`docs/handoffs/team-audit-2026-09-26.md`](docs/handoffs/team-audit-2026-09-26.md).
+
+**Data and scheme knowledge**
+- **data.gov.in live retrieval is not configured.** The Edge Function is deployed but returns `503 not_configured`, because no API key or dataset has been set. Every assistant reply is labelled as coming from the curated local dataset.
+- **Scheme catalog:** 9 hand-curated schemes, not live government data. Each should be re-verified against its official source before relying on it. PMFME was considered and deliberately not added, because its approved period ends in September 2026.
+- **Mandi prices are synthesized.** Values are generated from a seeded hash for the 5 curated villages (`src/lib/mandi.ts`), not taken from a live market feed. Places geocoded live get no mandi signal at all.
+- **Festival demand comes from seeded templates** dated relative to today (`src/data/festivals.ts`), not a real event calendar.
+- **Assistant explanations** come from a deterministic offline provider by default. A hosted-LLM path exists but is deliberately disabled until a server-side proxy exists.
+- **Backend-only discovery adapter:** a second data.gov.in pipeline is built and tested on the backend but is not connected to the app.
+
+**Identity, persistence and admin**
+- **Three auth systems that don't interoperate:** FastAPI phone + OTP (the OTP is fixed at `123456`), Supabase anonymous auth, and a demo admin login.
+- **The admin dashboard is a same-browser demo.** It reads and writes `localStorage` only, and its login accepts any non-empty password for one of 3 hardcoded demo identities. There is no real authentication.
+- **Sanction approvals are stored in the browser only.** The ECDSA signatures and quorum rules are real, but approvals don't sync across devices or reach a real officer account.
+- **Chain anchors and escrow release are simulated.** `contracts/AdaptiveSanction.sol` is not deployed.
+- **Built but not connected:** a Supabase-backed approval service, admin queries and notification infrastructure are all tested but unreachable from any UI.
+- **No document upload:** document tracking is metadata only; files are not stored anywhere.
+- **The assistant's conversation profile lives in memory.** A hard refresh before it syncs can lose unsubmitted chat state.
+
+**Voice and language**
+- **Real-microphone voice is checked by hand only.** The team has used it in real spoken conversations (2026-09-30). Automated tests cover the connection and protocol against the real Gemini server, not real audio.
+- **Intermittent voice start failure:** on 2026-09-30, starting a voice session failed with "Gemini Live connection closed unexpectedly: Internal error encountered". The part after the colon is the close reason Gemini sent. Scripted probes could not reproduce it, and the cause is not identified. The text assistant keeps working when this happens.
+- **Kannada and Hindi voice:** automated tests verify the setup message (`kn-IN` / `hi-IN` plus an explicit reply-language instruction).
+  - Spoken Hindi has not been re-checked with a real microphone since the Hindi mode was added.
+  - Kannada has a manual real-audio checklist ([`docs/handoffs/manual-test-kannada-voice-2026-09-25.md`](docs/handoffs/manual-test-kannada-voice-2026-09-25.md)) with no recorded result.
+  - Pinning a language may handle mixed-language speech worse than auto-detect.
+- **Hindi is voice-only.** The interface is English and Kannada only (`src/i18n/index.ts`), and scheme content is English only.
+- **The experimental `/voice-assistant/` page** has no Hindi mode. It has not been checked with a real microphone by the team maintaining this README. Its document matching still misfiles some PM Vishwakarma and PMMSY documents.
+
+**Jobs**
+- **`/jobs` runs on sample data.** Every listing and employer is a built-in sample, labelled as such on the page. Wages, agent cuts and "usual pay" are demo benchmarks, not sourced figures. A worker's interest is stored in this browser's `localStorage` only.
+- **Profile extraction is English-only.** Hindi or Kannada speech or text leaves profile fields blank for the citizen to fill in, rather than guessed (`src/citizen/profileFormDraft.test.ts`).
+- **No quota on voice tokens:** token minting has no per-user or per-IP rate limit. Anyone holding the public anon key can request tokens, so the Gemini key needs a spending cap on Google's side.
+- **Speech input on `/apply`** uses the browser's own speech recognition and works in Chrome and Edge. Other browsers show a clear message and fall back to typing.
+
+---
+
+## 6. Governance & License
+
+### Team — Trust The Process (ASYNC'26)
+
+| Member | Role in this submission |
+|---|---|
+| **Jordan Varghese** | AI voice assistant integration (Gemini Live), backend reliability engineering (scan caching, rate-limiting, failure handling), scheme data verification and sourcing, Supabase backend integration, testing discipline (full local gate before every commit) across the codebase |
+| **Kashif** | UI/UX and frontend, marketplace/employment-matching feature *(role to confirm with Kashif)* |
+| **Praneel** *(spelling to confirm: Praneel or Pranil)* | *(role to confirm)* |
+| **Harshvardhan** | *(role to confirm)* |
+
+Contributors from the original LokPulse/SIH team are acknowledged under [Before and during ASYNC'26](#before-and-during-async26).
+
+### License
+
+Released under the [MIT License](LICENSE).
+
+### Contributing
+
+- Work on a feature branch and keep commits small and logical. `main` is updated by fast-forward merges.
+- Run the full gate (`npx vitest run && npx tsc -b && npm run lint && npm run build`) before every commit.
+- Never commit `.env.local` or any key. Browser-bundled variables (`VITE_*`) must never hold a secret.
+- Before claiming a capability in a demo, docs or a pitch, find its row in [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) and use its wording. Every new scheme figure must cite an official source.
+
+**Further documentation:** [`docs/ASSISTANT.md`](docs/ASSISTANT.md), [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), [`docs/PRESENTATION_NOTES.md`](docs/PRESENTATION_NOTES.md), [`docs/MASTER_SPEC.md`](docs/MASTER_SPEC.md), [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md), [`docs/handoffs/team-audit-2026-09-26.md`](docs/handoffs/team-audit-2026-09-26.md).
+
+---
+
+## Recent changes
+
+Newest first. Add one dated line per revision instead of rewriting this file.
+
+- **2026-10-01** — Added the experimental `/voice-assistant/` page and the Jobs page (`/jobs`, sample data) after merging `feature/ishaara-voice-assistant`. `/assistant` stays the primary assistant.
+- **2026-10-01** — README restructured for ASYNC'26. It now covers overview, architecture, setup, developer experience, known limitations and governance, and adds the before/during-ASYNC'26 history, the team section and the MIT license. The assistant deep-dive moved to [`docs/ASSISTANT.md`](docs/ASSISTANT.md). The honesty ledger was corrected for Hindi voice, real-microphone voice testing and the intermittent voice start failure.
