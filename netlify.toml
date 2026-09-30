@@ -2,6 +2,12 @@
   command = "npm run build"
   publish = "dist"
 
+# The voice assistant is its own page (voice-assistant/index.html), not a react-router route.
+[[redirects]]
+  from = "/voice-assistant"
+  to = "/voice-assistant/index.html"
+  status = 200
+
 # react-router uses client-side (BrowserRouter) routing, so every path must
 # fall back to index.html or a direct link to e.g. /scan or /export would 404.
 [[redirects]]

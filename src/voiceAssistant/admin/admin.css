@@ -1,0 +1,243 @@
+.admin {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px clamp(20px, 2.4vw, 48px) 48px;
+  background: radial-gradient(120% 90% at 50% 0%, #151517 0%, #0b0b0c 55%, #080809 100%);
+}
+
+.admin__panel {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 26px 30px 28px;
+  border-radius: 18px;
+  color: var(--paper-ink);
+  background: var(--paper);
+  box-shadow: var(--shadow-float);
+}
+
+.admin__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.admin__kicker {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-muted);
+}
+
+.admin__title {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.admin__note {
+  max-width: 420px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--paper-muted);
+}
+
+.admin__empty {
+  padding: 18px;
+  border: 1px dashed rgba(23, 23, 26, 0.18);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  color: var(--paper-muted);
+}
+
+.admin__empty a,
+.admin__table a {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--paper-ink);
+}
+
+.admin__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin__table th,
+.admin__table td {
+  padding: 10px 12px 10px 0;
+  border-top: 1px solid var(--paper-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin__table thead th {
+  border-top: 0;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--paper-muted);
+}
+
+.admin__status {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--paper-ink);
+  background: rgba(23, 23, 26, 0.07);
+}
+
+.admin__status--under_review {
+  color: #7a5f2f;
+  background: rgba(200, 168, 108, 0.22);
+}
+
+.admin__status--needs_correction {
+  color: #8c3a2f;
+  background: rgba(160, 71, 59, 0.12);
+}
+
+.admin__status--approved {
+  color: #1f6b3b;
+  background: rgba(47, 138, 79, 0.14);
+}
+
+.admin__status--rejected {
+  color: var(--paper);
+  background: #8c3a2f;
+}
+
+.admin__badge {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--paper-muted);
+  background: rgba(23, 23, 26, 0.05);
+}
+
+.admin__badge.is-ok {
+  color: #1f6b3b;
+  background: rgba(47, 138, 79, 0.12);
+}
+
+.admin__badge.is-bad {
+  color: #8c3a2f;
+  background: rgba(160, 71, 59, 0.12);
+}
+
+.admin__back {
+  display: inline-block;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--paper-muted);
+}
+
+.admin__back:hover {
+  color: var(--paper-ink);
+}
+
+.admin__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--paper-line);
+}
+
+.admin__tab {
+  margin-bottom: -1px;
+  padding: 10px 14px;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--paper-muted);
+}
+
+.admin__tab:hover {
+  color: var(--paper-ink);
+}
+
+.admin__tab.is-active {
+  border-bottom-color: var(--paper-ink);
+  color: var(--paper-ink);
+}
+
+.admin__sheet {
+  padding-top: 18px;
+}
+
+.admin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin__actions input {
+  flex: 1 1 260px;
+}
+
+.admin__action {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--paper-ink);
+  box-shadow: inset 0 0 0 1px rgba(23, 23, 26, 0.2);
+}
+
+.admin__action:hover:not(:disabled) {
+  background: rgba(23, 23, 26, 0.05);
+}
+
+.admin__action:disabled {
+  color: var(--paper);
+  background: var(--paper-ink);
+  box-shadow: none;
+}
+
+.admin__audit {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.admin__audit li {
+  display: grid;
+  grid-template-columns: 170px 150px minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--paper-line);
+  font-size: 12.5px;
+}
+
+.admin__audit time {
+  font-variant-numeric: tabular-nums;
+  color: var(--paper-muted);
+}
+
+.admin__audit strong {
+  text-transform: capitalize;
+}
+
+.admin__audit span {
+  color: var(--paper-muted);
+}
+
+.report__fields .admin__hash {
+  overflow-wrap: anywhere;
+  font: 11.5px/1.45 ui-monospace, 'Cascadia Code', Consolas, monospace;
+}

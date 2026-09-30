@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -20,6 +21,15 @@ const appVersion = `${pkg.version}+${shortSha()}`
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+  },
+  build: {
+    rollupOptions: {
+      // The voice assistant is its own page so its full-screen styles never touch the rest of the app.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        voiceAssistant: fileURLToPath(new URL('./voice-assistant/index.html', import.meta.url)),
+      },
+    },
   },
   plugins: [
     react(),

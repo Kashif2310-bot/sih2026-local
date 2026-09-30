@@ -115,6 +115,19 @@ function IntroRedirect() {
   return null
 }
 
+/**
+ * "/assistant" is the Ishaara voice assistant (src/voiceAssistant), a separate page with its own
+ * full-screen styles. The previous assistant page stays available at "/assistant-classic".
+ */
+const VOICE_ASSISTANT_URL = '/voice-assistant/'
+
+function VoiceAssistantRedirect() {
+  useEffect(() => {
+    window.location.replace(`${VOICE_ASSISTANT_URL}${window.location.search}`)
+  }, [])
+  return null
+}
+
 function CitizenLayout() {
   return (
     <ApplicationDraftProvider>
@@ -201,7 +214,8 @@ export default function App() {
                   </AssessmentRoute>
                 }
               />
-              <Route path="/assistant" element={<AssistantPage />} />
+              <Route path="/assistant" element={<VoiceAssistantRedirect />} />
+              <Route path="/assistant-classic" element={<AssistantPage />} />
               <Route
                 path="/assistant/:id"
                 element={
