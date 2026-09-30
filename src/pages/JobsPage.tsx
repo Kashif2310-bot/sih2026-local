@@ -356,8 +356,8 @@ function JobDetail({
               {profileName.trim() && profilePhone.length === 10
                 ? tx(
                     kn,
-                    `${profileName.trim()} · ${profilePhone}. This goes to ${textOf(job, kn, 'employer')} — no one is paid to connect you.`,
-                    `${profileName.trim()} · ${profilePhone}. ಇದು ${textOf(job, kn, 'employer')} ಅವರಿಗೆ ಹೋಗುತ್ತದೆ — ನಿಮ್ಮನ್ನು ಜೋಡಿಸಲು ಯಾರಿಗೂ ಹಣ ಸಿಗುವುದಿಲ್ಲ.`,
+                    `${profileName.trim()} · ${profilePhone}. Saved on this device only — not yet connected to a real employer inbox.`,
+                    `${profileName.trim()} · ${profilePhone}. ಈ ಸಾಧನದಲ್ಲಿ ಮಾತ್ರ ಉಳಿಸಲಾಗುತ್ತದೆ — ಇನ್ನೂ ನಿಜವಾದ ಉದ್ಯೋಗದಾತರ ಇನ್‌ಬಾಕ್ಸ್‌ಗೆ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ.`,
                   )
                 : tx(
                     kn,
@@ -862,8 +862,18 @@ export function JobsPage() {
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
             {tx(
               kn,
-              'The person who finds you a job often keeps part of your pay. These openings are from entrepreneurs already on Ishara. You talk to them. The wage is written down. Nothing is cut.',
-              'ನಿಮಗೆ ಕೆಲಸ ಸಿಕ್ಕಿಸುವವರು ಹೆಚ್ಚಾಗಿ ನಿಮ್ಮ ಕೂಲಿಯ ಒಂದು ಭಾಗ ಇಟ್ಟುಕೊಳ್ಳುತ್ತಾರೆ. ಈ ಕೆಲಸಗಳು ಈಗಾಗಲೇ ಇಶಾರಾದಲ್ಲಿರುವ ಉದ್ಯಮಿಗಳಿಂದ. ನೀವು ಅವರೊಂದಿಗೆ ಮಾತನಾಡುತ್ತೀರಿ. ಕೂಲಿ ಬರೆದಿದೆ. ಏನೂ ಕಟ್ ಆಗುವುದಿಲ್ಲ.',
+              'The person who finds you a job often keeps part of your pay. On a direct job the wage is written down and nothing is cut.',
+              'ನಿಮಗೆ ಕೆಲಸ ಸಿಕ್ಕಿಸುವವರು ಹೆಚ್ಚಾಗಿ ನಿಮ್ಮ ಕೂಲಿಯ ಒಂದು ಭಾಗ ಇಟ್ಟುಕೊಳ್ಳುತ್ತಾರೆ. ನೇರ ಕೆಲಸದಲ್ಲಿ ಕೂಲಿ ಬರೆದಿದೆ, ಏನೂ ಕಟ್ ಆಗುವುದಿಲ್ಲ.',
+            )}
+          </p>
+          <p
+            data-testid="jobs-demo-label"
+            className="mt-4 inline-flex max-w-3xl items-center rounded-full border border-amber-300/60 bg-amber-300/15 px-4 py-2 text-sm font-semibold text-amber-100"
+          >
+            {tx(
+              kn,
+              'Demo / sample data — these openings and employers are sample listings, not real jobs.',
+              'ಡೆಮೋ / ಮಾದರಿ ಡೇಟಾ — ಈ ಕೆಲಸಗಳು ಮತ್ತು ಉದ್ಯೋಗದಾತರು ಮಾದರಿ ಪಟ್ಟಿಗಳು, ನಿಜವಾದ ಕೆಲಸಗಳಲ್ಲ.',
             )}
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -883,8 +893,8 @@ export function JobsPage() {
           <p className="mt-4 max-w-3xl text-xs leading-relaxed text-white/40">
             {tx(
               kn,
-              'The agent share is the usual cut a middleman keeps for that kind of work, shown so you can see the gap. Ishara does not take it. “Usual pay” is the going daily rate for that work with no one in the middle — not a government figure.',
-              'ಏಜೆಂಟ್ ಪಾಲು ಆ ರೀತಿಯ ಕೆಲಸದಲ್ಲಿ ನಡುವಿನವರು ಸಾಮಾನ್ಯವಾಗಿ ಇಟ್ಟುಕೊಳ್ಳುವ ಕಟ್. ಅಂತರ ಕಾಣಲು ಇದೆ. ಇಶಾರಾ ಅದನ್ನು ತೆಗೆದುಕೊಳ್ಳುವುದಿಲ್ಲ. “ಸಾಮಾನ್ಯ ಕೂಲಿ” ನಡುವೆ ಯಾರೂ ಇಲ್ಲದೆ ಆ ಕೆಲಸದ ದಿನದ ದರ — ಸರ್ಕಾರಿ ಅಂಕಿ ಅಲ್ಲ.',
+              'The agent share is shown so you can see the gap; Ishara does not take it. The agent share and “usual pay” are demo benchmarks for this prototype — not sourced or government figures.',
+              'ಅಂತರ ಕಾಣಲು ಏಜೆಂಟ್ ಪಾಲು ತೋರಿಸಲಾಗಿದೆ; ಇಶಾರಾ ಅದನ್ನು ತೆಗೆದುಕೊಳ್ಳುವುದಿಲ್ಲ. ಏಜೆಂಟ್ ಪಾಲು ಮತ್ತು “ಸಾಮಾನ್ಯ ಕೂಲಿ” ಈ ಮಾದರಿಗಾಗಿ ಡೆಮೋ ಅಂದಾಜುಗಳು — ಮೂಲ ಆಧಾರಿತ ಅಥವಾ ಸರ್ಕಾರಿ ಅಂಕಿಗಳಲ್ಲ.',
             )}
           </p>
         </section>
