@@ -245,7 +245,7 @@ export async function computeFeasibilityReport(
   const { profile } = inputs
   let location: ResolvedLocation
   if (inputs.location.mode === 'curated') {
-    location = await deps.resolveCurated(inputs.location.villageId, profile.category, profile.radiusKm)
+    location = await deps.resolveCurated(inputs.location.villageId, profile.category, profile.radiusKm ?? REACH_KM.default)
   } else {
     const live = await deps.resolveLive({ query: inputs.location.query, category: profile.category, radiusKm: profile.radiusKm })
     if (!live.ok) return { ok: false, reason: `${live.error} Location searched: "${inputs.location.query}".` }

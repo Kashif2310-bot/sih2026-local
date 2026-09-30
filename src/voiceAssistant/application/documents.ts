@@ -20,6 +20,7 @@ export type DocumentKind =
   | 'business_proof'
   | 'trade_proof'
   | 'collateral'
+  | 'mobile'
 
 export const DOCUMENT_KIND_LABEL: Record<DocumentKind, string> = {
   aadhaar: 'Aadhaar card',
@@ -35,6 +36,7 @@ export const DOCUMENT_KIND_LABEL: Record<DocumentKind, string> = {
   business_proof: 'Proof of business',
   trade_proof: 'Proof of trade',
   collateral: 'Collateral / guarantor details',
+  mobile: 'Mobile number',
 }
 
 /** Ordered: the first pattern that matches a curated label decides its kind. */
@@ -52,6 +54,7 @@ const LABEL_KIND: Array<[DocumentKind, RegExp]> = [
   ['business_proof', /business existence/i],
   ['trade_proof', /proof of trade|traditional occupation/i],
   ['collateral', /collateral|guarantor/i],
+  ['mobile', /mobile number/i],
 ]
 
 export function documentKind(label: string): DocumentKind | null {
@@ -93,6 +96,7 @@ const SPOKEN_KIND: Array<[DocumentKind, RegExp]> = [
   ['business_proof', /\b(?:business|shop|trade)\s+(?:licen[cs]e|registration)\b|\budyam\b|\bgst\s+(?:registration|certificate)\b|\bproof\s+of\s+business\b/i],
   ['trade_proof', /\bproof\s+of\s+(?:trade|occupation)\b|\btrade\s+proof\b|\bartisan\s+(?:card|id)\b/i],
   ['collateral', /\bcollateral\b|\bguarantor\b/i],
+  ['mobile', /\b(?:mobile|phone)\s+(?:number|no\.?)\b/i],
 ]
 
 const ALL_DOCUMENTS = /\ball\s+(?:the\s+|my\s+|these\s+|of\s+the\s+|required\s+)*(?:documents|papers|certificates)\b/i
