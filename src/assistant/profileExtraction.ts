@@ -224,7 +224,9 @@ function findSocialCategory(text: string): UserProfile['socialCategory'] | undef
 }
 
 function findBusinessSector(text: string): string | undefined {
-  const lower = text.toLowerCase()
+  // Padded so a keyword written with a leading space (" fish farm", see
+  // lexicon.ts) only matches at a word start — including the very first word.
+  const lower = ` ${text.toLowerCase()}`
   for (const [tag, keywords] of Object.entries(SECTOR_KEYWORDS)) {
     if (keywords.some((kw) => lower.includes(kw))) return tag
   }

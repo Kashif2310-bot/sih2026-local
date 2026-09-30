@@ -403,3 +403,28 @@ describe('extractProfileFromMessage — trade keywords stay substring-safe', () 
     expect(extractProfileFromMessage('I am a locksmith doing metalwork').businessSector).toBe('metal_tools')
   })
 })
+
+describe('extractProfileFromMessage — fisheries sector tag', () => {
+  it('recognises fishing, fish farming, aquaculture and fish vending — including at the start of a sentence', () => {
+    for (const text of [
+      'Fish farming in Karnataka',
+      'I am a fish farmer',
+      'I want to start aquaculture',
+      'I sell fish as a fish vendor',
+      'I am a fisherman',
+      'I run a fish hatchery',
+      'I want a shrimp farm',
+      'shellfish farming',
+      'I go fishing in the river',
+    ]) {
+      expect(extractProfileFromMessage(text).businessSector).toBe('fisheries')
+    }
+  })
+
+  it('does not read fisheries out of "selfish", and leaves the net-making trade and poultry hatcheries alone', () => {
+    expect(extractProfileFromMessage('a selfish farmer').businessSector).toBeUndefined()
+    expect(extractProfileFromMessage('selfish vendors everywhere').businessSector).toBeUndefined()
+    expect(extractProfileFromMessage('I make fishing nets').businessSector).toBe('fishing_net_making')
+    expect(extractProfileFromMessage('I want to start a poultry hatchery').businessSector).toBe('poultry')
+  })
+})

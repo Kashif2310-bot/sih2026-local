@@ -153,3 +153,38 @@ describe('rankSchemes — PM Vishwakarma trade sector tags', () => {
     expect(top.scheme.subsidy?.description).toContain('₹15,000')
   })
 })
+
+describe('rankSchemes — PMMSY (fisheries)', () => {
+  function pmmsyFor(statement: string) {
+    const profile = extractAndMerge(statement, EMPTY_PROFILE).profile
+    expect(profile.businessSector).toBe('fisheries')
+    const ranked = rankSchemes(profile)
+    return { profile, ranked, pmmsy: ranked.find((r) => r.scheme.id === 'pmmsy')! }
+  }
+
+  it('ranks PMMSY first for a General-category fish farmer, with the 40% General-category assistance', () => {
+    const { profile, ranked, pmmsy } = pmmsyFor('I am 35 years old, general category, and I want to start fish farming in a pond')
+    expect(profile.socialCategory).toBe('general')
+    expect(ranked[0]!.scheme.id).toBe('pmmsy')
+    expect(pmmsy.eligibility.status).toBe('likely_eligible')
+    expect(pmmsy.scheme.subsidy?.ratePercentMin).toBe(40)
+    expect(pmmsy.scheme.subsidy?.description).toContain('40% of the project/unit cost for General category')
+  })
+
+  it('ranks PMMSY first for an SC woman fish vendor, with the 60% SC/ST/Women assistance', () => {
+    const { profile, ranked, pmmsy } = pmmsyFor('I am a 30 year old woman from the SC category and I work as a fish vendor')
+    expect(profile.socialCategory).toBe('sc')
+    expect(profile.gender).toBe('female')
+    expect(ranked[0]!.scheme.id).toBe('pmmsy')
+    expect(pmmsy.eligibility.status).toBe('likely_eligible')
+    expect(pmmsy.scheme.subsidy?.ratePercentMax).toBe(60)
+    expect(pmmsy.scheme.subsidy?.description).toContain('60% for SC/ST/Women')
+  })
+
+  it('ranks PMMSY first for an ST fisherman too', () => {
+    const { profile, ranked, pmmsy } = pmmsyFor('I am 40 years old, ST category, and I am a fisherman')
+    expect(profile.socialCategory).toBe('st')
+    expect(ranked[0]!.scheme.id).toBe('pmmsy')
+    expect(pmmsy.scheme.subsidy?.ratePercentMax).toBe(60)
+  })
+})

@@ -56,6 +56,40 @@ export const INDIAN_STATES = [
  * Vishwakarma trades (Guidelines v30.0, para 2.3).
  */
 export const SECTOR_KEYWORDS: Record<string, string[]> = {
+  // First, so poultry's generic "hatchery" can't claim a fish hatchery. Never
+  // bare "fish" ("selfish"), bare "fishing" (would claim a fishing-net maker,
+  // a Vishwakarma trade below), "fishing boat" (a boat builder) or "fisher"
+  // (also a surname). The "fish ..." keywords start with a space so they only
+  // match at a word start: "fish farm" alone would match "a selfish farmer".
+  fisheries: [
+    'fisheries',
+    'fishery',
+    'fisherman',
+    'fishermen',
+    'fisherwoman',
+    'fisherwomen',
+    ' fish farm',
+    ' fish culture',
+    ' fish pond',
+    ' fish hatchery',
+    ' fish seed',
+    'aquaculture',
+    'shrimp farm',
+    'prawn farm',
+    'shellfish farm',
+    ' fish vendor',
+    ' fish vending',
+    ' fish seller',
+    ' fish selling',
+    ' fish stall',
+    'go fishing',
+    'do fishing',
+    'fishing business',
+    'marine fishing',
+    'inland fishing',
+    'sea fishing',
+    'river fishing',
+  ],
   poultry: ['poultry', 'chicken farm', 'chicken business', 'hatchery', 'broiler', 'egg business', 'egg farm'],
   dairy: ['dairy', 'milk business', 'milk dairy', 'cow farm', 'buffalo farm'],
   tailoring: ['tailoring', 'tailor', 'stitching', 'boutique', 'garment making', 'sewing'],

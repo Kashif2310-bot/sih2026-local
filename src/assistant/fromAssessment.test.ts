@@ -97,6 +97,14 @@ describe('profileFromAssessment', () => {
     expect(['likely_eligible', 'possibly_eligible']).toContain(pmv.eligibility.status)
   })
 
+  it('maps no scan category to fisheries — PMMSY is reachable only through free-text extraction on /assistant', () => {
+    const location = curatedLocationFromVillage(villageByDistrict('Mandya'), 7)
+    const plan = buildSchemePlan(100000)
+    for (const category of Object.keys(BUSINESS_META) as Array<EntrepreneurProfile['category']>) {
+      expect(profileFromAssessment({ profile: profileFor({ category }), location, plan, score }).businessSector).not.toBe('fisheries')
+    }
+  })
+
   it('resolves the state for every curated village district, including Tumakuru (regression: was previously missing)', () => {
     const plan = buildSchemePlan(100000)
     const districtsInFixtures = [...new Set(VILLAGES.map((v) => v.district))]

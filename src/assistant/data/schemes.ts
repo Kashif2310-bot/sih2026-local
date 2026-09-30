@@ -411,4 +411,43 @@ export const SCHEMES: GovernmentScheme[] = [
     confidence: 'reference',
     tags: ['kudumbashree', 'kerala', 'women entrepreneur', 'tailoring', 'microenterprise', 'nhg'],
   },
+  {
+    id: 'pmmsy',
+    name: 'Pradhan Mantri Matsya Sampada Yojana (PMMSY)',
+    shortName: 'PMMSY',
+    description:
+      'Fisheries-sector scheme of the Department of Fisheries for fishers, fish farmers, fish workers and fish vendors, among others. For beneficiary-oriented individual activities, government financial assistance covers 40% of the project/unit cost for General category and 60% for SC/ST/Women; the beneficiary meets the rest from own funds or institutional finance such as a bank loan. Implemented through the States/UTs, which share the assistance with the Centre (60:40 in most States; 90:10 in North Eastern and Himalayan States; fully central in Union Territories).',
+    ministry: 'Ministry of Fisheries, Animal Husbandry and Dairying (Department of Fisheries)',
+    scope: 'central',
+    eligibility: {
+      businessSectors: ['fisheries'],
+      notes:
+        'Operational Guidelines (June 2020), para 8.1: intended beneficiaries include "Fishers", "Fish farmers", "Fish workers and Fish vendors" and "SCs/STs/Women/Differently abled persons" — as well as SHGs, cooperatives and fish farmer producer organisations, which this app does not match. No scheme-wide minimum age or education is set; individual sub-components can add their own conditions (e.g. livelihood and nutritional support for fishers requires a full-time active fisher who is a member of a fishers\' cooperative, Below Poverty Line and aged 18–60). Para 21.1: applicants must obtain "necessary statutory clearances, permits and licenses, whatsoever and wherever required"; activities needing land require documentary evidence of own or registered-lease land. These guidelines name no specific fishing permit or fisheries registration, and a later revision order could not be retrieved — confirm current document requirements with your district fisheries office. Scheme period: approved for FY 2020-21 to 2024-25 and extended up to FY 2025-26 (PIB, September 2025); the Union Budget 2026-27 allocates ₹2,500 crore to PMMSY (PIB, 6 April 2026).',
+    },
+    subsidy: {
+      description:
+        'Government financial assistance of 40% of the project/unit cost for General category and 60% for SC/ST/Women (Operational Guidelines para 5.2.2). No single project-cost ceiling: the Department fixes the unit cost and any upper ceiling per activity (para 9.8).',
+      ratePercentMin: 40,
+      ratePercentMax: 60,
+    },
+    documents: [
+      "Project proposal for the activity (the guidelines' Detailed Project Report or Self Contained Proposal; preparation costs count toward the unit cost)",
+      'Documentary evidence of own or registered-lease land, where the activity needs land',
+      'Statutory clearances, permits and licences, wherever the activity requires them',
+    ],
+    applicationSteps: [
+      'Apply through your State/UT Fisheries Department at district level: beneficiary-oriented activities are implemented by the States/UTs under an Annual District Fisheries Plan.',
+      'Beneficiaries for individual activities are approved by the District Level Committee, normally headed by the District Collector.',
+      'Obtain any statutory clearances, permits and licences the activity needs; their cost is met by the applicant (para 21.1).',
+      'Meet your share of the project cost from own funds or a bank loan; the district committee helps with linkages to banks and financial institutions.',
+    ],
+    officialApplicationUrl: 'https://pmmsy.dof.gov.in/',
+    officialInfoUrl: 'https://pmmsy.dof.gov.in/',
+    source:
+      'PMMSY Operational Guidelines (Department of Fisheries, June 2020) and PIB releases of September 2025 and 6 April 2026',
+    sourceUrl: 'https://www.dof.gov.in/static/uploads/2025/08/89f0158000ddb527f339428aef82a676.pdf',
+    lastVerifiedDate: '2026-09-30',
+    confidence: 'reference',
+    tags: ['pmmsy', 'matsya sampada', 'fisheries', 'fish farming', 'aquaculture', 'fish vendor', 'blue revolution'],
+  },
 ]
