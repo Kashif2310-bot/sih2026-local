@@ -358,8 +358,8 @@ function JobDetail({
               {profileName.trim() && profilePhone.length === 10
                 ? tx(
                   kn,
-                  `${profileName.trim()} · ${profilePhone}. This goes to ${textOf(job, kn, 'employer')} — no one is paid to connect you.`,
-                  `${profileName.trim()} · ${profilePhone}. ಇದು ${textOf(job, kn, 'employer')} ಅವರಿಗೆ ಹೋಗುತ್ತದೆ — ನಿಮ್ಮನ್ನು ಜೋಡಿಸಲು ಯಾರಿಗೂ ಹಣ ಸಿಗುವುದಿಲ್ಲ.`,
+                  `${profileName.trim()} · ${profilePhone}. Saved on this device only — not yet connected to a real employer inbox.`,
+                  `${profileName.trim()} · ${profilePhone}. ಈ ಸಾಧನದಲ್ಲಿ ಮಾತ್ರ ಉಳಿಸಲಾಗುತ್ತದೆ — ಇನ್ನೂ ನಿಜವಾದ ಉದ್ಯೋಗದಾತರ ಇನ್‌ಬಾಕ್ಸ್‌ಗೆ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ.`,
                 )
                 : tx(
                   kn,
