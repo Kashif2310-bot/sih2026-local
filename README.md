@@ -381,7 +381,7 @@ Sourced from [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) and [`docs/hando
 | Member | Role in this submission |
 |---|---|
 | **Jordan Varghese** | AI voice assistant integration (Gemini Live), backend reliability engineering (scan caching, rate-limiting, failure handling), scheme data verification and sourcing, Supabase backend integration, testing discipline (full local gate before every commit) across the codebase |
-| **Kashif** | UI/UX and frontend, marketplace/employment-matching feature *(role to confirm with Kashif)* |
+| **Kashif** (Md Mujtaba Kashif) | Original voice assistant foundation and early scheme assistant; built the experimental /voice-assistant page and the Jobs (/jobs) employment-matching feature during ASYNC'26 week |
 | **Praneel** *(spelling to confirm: Praneel or Pranil)* | *(role to confirm)* |
 | **Harshvardhan** | *(role to confirm)* |
 
