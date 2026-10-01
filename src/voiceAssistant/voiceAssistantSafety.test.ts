@@ -29,12 +29,21 @@ const browserSourceFiles = files(join(ROOT, 'src')).filter((path) => TEXT.test(p
 const distFiles = files(join(ROOT, 'dist')).filter((path) => TEXT.test(path))
 
 const GOOGLE_KEY = /AIza[0-9A-Za-z_-]{35}/
+const GOOGLE_KEYS = new RegExp(GOOGLE_KEY.source, 'g')
 const GEMINI_KEY_ENV = ['VITE', 'GEMINI', 'API', 'KEY'].join('_')
 const GEMINI_ENV = ['VITE', 'GEMINI'].join('_')
 
+/**
+ * The only Google key the built bundle may contain: the Maps JavaScript key, which Google requires
+ * in the page (restrict it to approved referrers and the Maps/Places APIs). Read from the same
+ * variable the build reads, so only the key configured for this build is allowed. Any other
+ * Google key in the bundle, such as a leaked Gemini key, still fails.
+ */
+const ALLOWED_MAPS_KEY = (process.env.VITE_GOOGLE_MAPS_API_KEY || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim()
+
 describe('no Gemini key reaches the browser', () => {
-  it('browser source contains no hardcoded Google API key or VITE Gemini variable', () => {
-    const hardcodedKeyOffenders = browserSourceFiles
+  it('browser source and voice scripts contain no hardcoded Google API key or VITE Gemini variable', () => {
+    const hardcodedKeyOffenders = [...new Set([...browserSourceFiles, ...sourceFiles])]
       .filter((path) => rel(path) !== self)
       .filter((path) => !/\.test\.[cm]?[jt]sx?$/.test(path))
       .filter((path) => GOOGLE_KEY.test(read(path)))
@@ -46,13 +55,16 @@ describe('no Gemini key reaches the browser', () => {
     expect(offenders).toEqual([])
   })
 
-  it('any built bundle contains no browser Gemini key variable', () => {
-    const offenders = distFiles
-      .filter((path) => {
-        const text = read(path)
-        return text.includes(GEMINI_KEY_ENV)
-      })
-      .map(rel)
+  it('any built bundle contains no Google API key except the configured Maps key, and no browser Gemini key variable', () => {
+    // Offenders name the file and a count, never the key itself.
+    const offenders = distFiles.flatMap((path) => {
+      const text = read(path)
+      const unexpectedKeys = (text.match(GOOGLE_KEYS) ?? []).filter((key) => key !== ALLOWED_MAPS_KEY)
+      return [
+        ...(unexpectedKeys.length > 0 ? [`${rel(path)}: ${unexpectedKeys.length} unexpected Google API key(s)`] : []),
+        ...(text.includes(GEMINI_KEY_ENV) ? [`${rel(path)}: ${GEMINI_KEY_ENV}`] : []),
+      ]
+    })
     expect(offenders).toEqual([])
   })
 })
