@@ -44,7 +44,7 @@ With the app running ([Setup](#3-installation--configuration)), open `http://loc
 1. **Talk to the advisor.** Click **Assistant** in the top bar to open the Ishaara voice assistant. Click **Talk to Ishaara** and describe your business, or type, for example: *"I run a small tailoring shop in Mandya, Karnataka. I am a 34 year old woman, OBC category."* Matching schemes rank on the right while the application form fills in on the left.
 2. **Scan a village.** Open `/scan?demo=1`, click **Load demo case**, then **Run hyperlocal scan**. Walk **Pulse → Report → Finance → Sanction → Export**. The demo case routes to the **NSFDC Term Loan Scheme**: a ₹10,00,000 project with a ₹9,00,000 loan.
 3. **Ask about that scan.** In the scan's URL, replace `pulse` with `assistant` (`/assistant/<case-id>`). The classic assistant opens with that case's schemes already ranked.
-4. **Find work.** Open `/jobs` for direct hiring without a middleman's cut. It runs on clearly labelled sample listings.
+4. **Find work.** Open `/jobs` for direct hiring without a middleman's cut, with a map of openings. It runs on clearly labelled sample listings.
 
 ### Before and during ASYNC'26
 
@@ -69,7 +69,8 @@ ASYNC'26 began on **22 September 2026**. The dates below are commit dates from t
 - **Scheme data:** verified PM Vishwakarma against its official guidelines and expanded it to all 18 official trades. Added PMMSY (fisheries) from its operational guidelines.
 - **Scan reliability:** Nominatim rate-limit compliance, telling rate limits, timeouts and missing places apart, and a 3-hour result cache.
 - **Ishaara voice assistant and Jobs (30 Sep):** a full-screen voice advisor that fills in the application form as the citizen talks, and a Jobs page for direct hiring (sample data).
-- **Tests:** about 490 new tests, roughly 760 → 1,248 declared tests (about 1.65×).
+- **Maps and the jobs map (1 Oct):** optional Google Maps location picking and Google Places competition analysis, falling back automatically to the keyless OpenStreetMap flow when no key is set; and a map of job openings on `/jobs`.
+- **Tests:** about 500 new tests, roughly 760 → 1,259 declared tests (about 1.66×).
 
 *Note:* this repository's commit history also includes contributions from the wider original LokPulse/SIH team, who are not part of the ASYNC'26 team roster below:
 - Prerana Prakash — the FastAPI persistence/auth layer for the scan flow
@@ -91,7 +92,8 @@ Rural enterprise failure is rarely just "no loan". More often it is **the wrong 
 
 | Feature | What it does | Status |
 |---|---|---|
-| **Hyperlocal scan** (`/scan`) | Profile + location → live weather (Open-Meteo), live geocoding (Nominatim) and live competitor density (Overpass) for any Indian place; seeded mandi and festival signals for 5 curated Karnataka villages | Live APIs; seeded data where noted |
+| **Hyperlocal scan** (`/scan`) | Profile + location → live weather (Open-Meteo), live geocoding (Nominatim) and live competitor density (Overpass, or Google Places when a Maps key is set) for any Indian place; seeded mandi and festival signals for 5 curated Karnataka villages | Live APIs; seeded data where noted |
+| **Competition analysis** (optional, Google Maps; `src/maps/`) | With `VITE_GOOGLE_MAPS_API_KEY` set: map-based location picking and Google Places competitor data on `/apply` and live-place scans. Without a key: falls back automatically to the original OpenStreetMap flow — the village dropdown, "Other / not listed", and Overpass lookups — with no functionality lost | Optional; needs your own Maps key (not provided). The keyless fallback was verified against the pre-Maps code on 2026-10-01 |
 | **LokScore** | 0–100 score: demand 25%, competition gap 20%, weather fit 15%, financial coverage 25%, eligibility 15% (`src/lib/config.ts`) | Live, local computation |
 | **NSFDC finance engine** | Exact scheme rules (table below), reducing-balance quarterly annuity EMI in integer paise | Live, locked by `src/lib/finance.test.ts` |
 | **Adaptive sanction quorum** (`/sanction`) | LokScore ≥ 80 → 2-of-3 signers; ≥ 60 → 3-of-5; below 60 → 4-of-5 plus a mentor. Every signature is real secp256k1 ECDSA (`ethers`) | Real cryptography; stored in the browser only |
@@ -99,7 +101,7 @@ Rural enterprise failure is rarely just "no loan". More often it is **the wrong 
 | **Ishaara voice assistant** (`/assistant`, served from `/voice-assistant/`) | A full-screen voice advisor with an animated, AI-generated avatar. As the citizen talks or types, it ranks matching schemes and fills in the application form for the best match. It has its own Gemini Live session code and reuses the same scheme and eligibility engine. The **Assistant** link in the navigation opens it | Live, still being refined. Voice in English and Kannada (Hindi is on the classic assistant). Live connection verified end to end on 2026-10-01 with `scripts/voice-assistant-live-probe.mjs` |
 | **Classic assistant** (`/assistant-classic`, and `/assistant/:id` for a scan case) | Chat-style text or voice. Plain-language description → deterministic profile extraction → deterministic eligibility ranking across 9 curated schemes → explanation. Every AI reply is validated against the evidence before it is shown (`src/assistant/ai/responseGuard.ts`). Opened for a scan case, it ranks that case's schemes on load | Live, runs in the browser |
 | **Voice on the classic assistant** | Gemini Live native audio in English, Kannada or Hindi; the browser only ever holds a short-lived token minted by a Supabase Edge Function | Live; real-microphone use checked by hand, not by automated tests (see limitations) |
-| **Jobs** (`/jobs`) | Employment matching between entrepreneurs who are hiring and workers looking for work, showing each wage with and without a middleman's cut | **Sample/demo listings only.** A worker's name and number are saved on this device; nothing reaches a real employer yet |
+| **Jobs** (`/jobs`) | Employment matching between entrepreneurs who are hiring and workers looking for work, with a map of openings (OpenStreetMap, no key needed), showing each wage with and without a middleman's cut | **Sample/demo listings only.** When a worker sends their name and number, the page says "Saved on this device only — not yet connected to a real employer inbox" |
 | **Guided application** (`/apply`) | Profile → scheme → documents → review → consent → submission, synced to Supabase under the citizen's own anonymous identity with row-level security | Live |
 | **Officer dashboard** (`/admin`) | Applications table, detail, approval and audit views | Browser-only demo with demo login |
 
@@ -150,7 +152,7 @@ flowchart TB
   fns["Supabase Edge Functions: gemini-live-token, live-scheme-retrieval"]
   gemini["Gemini Live"]
   datagov["data.gov.in · not configured"]
-  geo["Open-Meteo · Nominatim · Overpass"]
+  geo["Open-Meteo · Nominatim · Overpass · Google Maps (optional)"]
 
   scan -->|"weather, geocode, competitors"| geo
   scan -->|"assessments, login, history"| fastapi
@@ -198,6 +200,8 @@ The assistant's internals — pipeline, AI providers, live retrieval and its tru
 | Open-Meteo | Weather on `/scan` | Live, no key |
 | Nominatim (OpenStreetMap) | Place search / geocoding | Live, no key; rate-limited to 1 request/second |
 | Overpass (OpenStreetMap) | Nearby competitor density | Live, no key |
+| Google Maps JavaScript + Places | Map location picking and competitor data on `/apply` and live-place scans | Optional; only with your own `VITE_GOOGLE_MAPS_API_KEY`. Without it, the Overpass and village-list paths are used |
+| OpenStreetMap tiles | The jobs map on `/jobs` | Live, no key |
 | Gemini Live | Voice assistant | Live; needs `GEMINI_API_KEY` as a Supabase secret |
 | data.gov.in | Live scheme statistics | Wired end to end but **not configured** (no API key or dataset) |
 | Ollama (local) | Optional local LLM for assistant explanations | Optional; the default is a deterministic offline provider |
@@ -252,6 +256,7 @@ Copy `.env.example` to `.env.local` and fill in only what you need. `.env.local`
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/publishable key (public by design; access is enforced by RLS) |
 | `VITE_GEMINI_LIVE_PROXY_URL` | Optional URL of a developer-run voice relay (an address, not a key) |
+| `VITE_GOOGLE_MAPS_API_KEY` | Optional Google Maps browser key for map location picking and Places competitor data. Browser-visible by design: restrict it to your HTTP referrers and the Maps/Places APIs. Unset → the keyless OpenStreetMap flow |
 | `VITE_GOV_APPLY_API_URL` | Optional real government apply endpoint for `/apply/hub`. When unset, submission says "not configured" and nothing is filed. *Read by the code but not listed in `.env.example`.* |
 
 **Server-side, integration tests, Supabase CLI (never prefix with `VITE_`)**
@@ -327,7 +332,7 @@ for (const r of rankSchemes(profile).slice(0, 3)) {
 }
 ```
 
-Actual output (re-run at commit `12c3ab3`):
+Actual output (re-run at commit `63128b4`):
 
 ```text
 Stand-Up India | likely_eligible | 83
@@ -361,18 +366,18 @@ npm run lint     # oxlint --deny-warnings
 npm run build    # tsc -b && vite build
 ```
 
-Current results (commit `12c3ab3`, 2026-10-01):
+Current results (commit `63128b4`, 2026-10-01):
 
 | Command | Result |
 |---|---|
-| `npx vitest run` | **1,244 passed, 29 skipped**, 0 failed (132 files: 127 passed, 5 skipped) |
+| `npx vitest run` | **1,255 passed, 29 skipped**, 0 failed (135 files: 130 passed, 5 skipped) |
 | `npx tsc -b` | No errors |
 | `npm run lint` | No warnings or errors |
 | `npm run build` | Succeeds |
 | `server`: `.\.venv\Scripts\python.exe -m pytest -q` | **18 passed** (in-memory SQLite) |
 
 - **Skipped tests:** the 29 skipped tests are exactly the 5 hosted-Supabase integration files. They run only with `SUPABASE_INTEGRATION=1` and real credentials.
-- **End-to-end:** `npm run test:e2e` covers 36 Playwright tests in 9 files (`e2e/`). They were not run for this README, so there is no current pass count.
+- **End-to-end:** `npm run test:e2e` covers 36 Playwright tests in 9 files (`e2e/`). They were not run for this README, so there is no current pass count. One of them, `e2e/apply-admin.spec.ts`, picks the location on the Google map, so it needs a Maps key.
 - **Not yet implemented:** continuous integration (the repo has no CI pipeline), a measured test-coverage report, and performance benchmarks.
 
 ---
@@ -432,8 +437,13 @@ Sourced from [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) and [`docs/hando
 - **No quota on voice tokens:** token minting has no per-user or per-IP rate limit. Anyone holding the public anon key can request tokens, so the Gemini key needs a spending cap on Google's side. Both assistants use the same token function.
 - **Speech input on `/apply`** uses the browser's own speech recognition and works in Chrome and Edge. Other browsers show a clear message and fall back to typing.
 
+**Maps (optional)**
+- The Maps integration requires your own Google Maps API key (not provided) to activate; without one, the app correctly falls back to its original keyless flow.
+
 **Jobs**
-- **`/jobs` runs on sample data.** Every listing and employer is a built-in sample, labelled as such on the page. Wages, agent cuts and "usual pay" are demo benchmarks, not sourced figures. A worker's interest is stored in this browser's `localStorage` only.
+- **`/jobs` runs on sample data.** Every listing and employer is a built-in sample, labelled as such on the page. Wages, agent cuts and "usual pay" are demo benchmarks, not sourced figures.
+- **Nothing reaches an employer yet.** A worker's name and number are stored in this browser's `localStorage` only, and the page says so: "Saved on this device only — not yet connected to a real employer inbox".
+- **The jobs map** uses OpenStreetMap tiles and Nominatim place search, so it needs no key.
 
 ---
 
@@ -445,8 +455,8 @@ Sourced from [`docs/HONESTY_LEDGER.md`](docs/HONESTY_LEDGER.md) and [`docs/hando
 |---|---|
 | **Jordan Varghese** | AI voice assistant integration (Gemini Live), backend reliability engineering (scan caching, rate-limiting, failure handling), scheme data verification and sourcing, Supabase backend integration, testing discipline (full local gate before every commit) across the codebase |
 | **Kashif** (Md Mujtaba Kashif) | Original voice assistant foundation and early scheme assistant; built the Ishaara voice assistant (`/assistant`) and the Jobs (`/jobs`) employment-matching feature during ASYNC'26 week |
-| **Praneel** | *(role to confirm)* |
-| **Harshvardhan** | *(role to confirm)* |
+| **Praneel** | Google Maps location picking and competition analysis (`src/maps/`) |
+| **Harshvardhan** | Jobs (`/jobs`) map feature and listing improvements |
 
 Contributors from the original LokPulse/SIH team are acknowledged under [Before and during ASYNC'26](#before-and-during-async26).
 
@@ -470,6 +480,13 @@ Released under the [MIT License](LICENSE).
 
 Newest first. Add one dated line per revision instead of rewriting this file.
 
+- **2026-10-01** — Final submission pass, covering today's work:
+  - the Ishaara voice assistant integration (`/assistant`);
+  - the Jobs page and its map;
+  - Google Maps location picking and competition analysis (`src/maps/`);
+  - the keyless fallback fix: without a Maps key, the app keeps its original OpenStreetMap flow.
+
+  All four team roles are filled in, and the test results and example output now cite `63128b4`.
 - **2026-10-01** — Polished for the hackathon: header, a two-minute demo path, and screenshots of the running app (`docs/screenshots/`). Wording now matches `/assistant` opening the Ishaara voice assistant. Added the live voice probe, and moved the test results and example output to `12c3ab3`.
 - **2026-10-01** — `/assistant` and the Assistant link in the navigation open the Ishaara voice assistant again (project owner's decision). The previous assistant moved to `/assistant-classic`; a scan case's assistant stays at `/assistant/:id`.
 - **2026-10-01** — Added the experimental `/voice-assistant/` page and the Jobs page (`/jobs`, sample data) after merging `feature/ishaara-voice-assistant`. `/assistant` stays the primary assistant.
