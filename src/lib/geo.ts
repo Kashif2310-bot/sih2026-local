@@ -20,6 +20,11 @@ export interface CompetitorPoi {
   lat: number
   lng: number
   tags: Record<string, string>
+  address?: string
+  rating?: number
+  ratingCount?: number
+  distanceKm?: number
+  source?: 'openstreetmap' | 'google_places'
 }
 
 const OVERPASS_ENDPOINTS = [

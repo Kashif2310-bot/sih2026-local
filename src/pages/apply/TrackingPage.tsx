@@ -88,9 +88,21 @@ export function TrackingPage() {
               ))}
             </ul>
           </div>
-          <Link to="/apply/final-report" className="inline-block text-sm font-semibold text-forest hover:underline">
-            {t('apply.tracking.finalReport')}
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/apply"
+              onClick={() => reset()}
+              className="rounded-full bg-forest px-4 py-2 text-sm font-bold text-white"
+            >
+              {t('apply.tracking.startNew')}
+            </Link>
+            <Link
+              to="/apply/final-report"
+              className="rounded-full border border-forest/20 px-4 py-2 text-sm font-semibold text-forest"
+            >
+              {t('apply.tracking.finalReport')}
+            </Link>
+          </div>
         </div>
       )}
     </WizardShell>

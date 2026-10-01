@@ -10,6 +10,7 @@ import type {
 } from './lokScore'
 import type { ResolvedLocation } from './resolveLocation'
 import type { WorkingCapitalPlan } from './workingCapital'
+import type { CompetitionAnalysisResult } from '../maps/types'
 
 declare const __APP_VERSION__: string
 
@@ -32,6 +33,8 @@ export interface AssessmentSnapshot {
   }
   failedSources?: LiveSourceId[]
   weatherSkipped?: boolean
+  competitionAnalysis?: CompetitionAnalysisResult
+  competitionError?: string
 }
 
 export function isAssessmentSnapshot(value: unknown): value is AssessmentSnapshot {
@@ -108,6 +111,16 @@ export function writeLastAssessmentId(id: string, persisted: boolean): void {
     if (persisted) localStorage.setItem(LAST_ASSESSMENT_KEY, id)
   } catch {
     // private mode — in-memory navigation still works
+  }
+}
+
+/** Clear the active assessment pointer without deleting saved assessment snapshots. */
+export function clearLastAssessmentId(): void {
+  try {
+    sessionStorage.removeItem(LAST_ASSESSMENT_KEY)
+    localStorage.removeItem(LAST_ASSESSMENT_KEY)
+  } catch {
+    // private mode — the in-memory assessment reset still starts a fresh flow
   }
 }
 

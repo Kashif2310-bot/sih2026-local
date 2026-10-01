@@ -25,6 +25,7 @@ const sourceFiles = [
   ...voiceScripts,
   join(ROOT, 'voice-assistant', 'index.html'),
 ].filter((path) => TEXT.test(path))
+const browserSourceFiles = files(join(ROOT, 'src')).filter((path) => TEXT.test(path))
 const distFiles = files(join(ROOT, 'dist')).filter((path) => TEXT.test(path))
 
 const GOOGLE_KEY = /AIza[0-9A-Za-z_-]{35}/
@@ -32,22 +33,24 @@ const GEMINI_KEY_ENV = ['VITE', 'GEMINI', 'API', 'KEY'].join('_')
 const GEMINI_ENV = ['VITE', 'GEMINI'].join('_')
 
 describe('no Gemini key reaches the browser', () => {
-  it('voice assistant source contains no Google API key or VITE Gemini variable', () => {
-    const offenders = sourceFiles
+  it('browser source contains no hardcoded Google API key or VITE Gemini variable', () => {
+    const hardcodedKeyOffenders = browserSourceFiles
       .filter((path) => rel(path) !== self)
-      .filter((path) => {
-        const text = read(path)
-        return GOOGLE_KEY.test(text) || text.includes(GEMINI_ENV)
-      })
+      .filter((path) => !/\.test\.[cm]?[jt]sx?$/.test(path))
+      .filter((path) => GOOGLE_KEY.test(read(path)))
+    const geminiEnvOffenders = sourceFiles
+      .filter((path) => rel(path) !== self)
+      .filter((path) => read(path).includes(GEMINI_ENV))
+    const offenders = [...hardcodedKeyOffenders, ...geminiEnvOffenders]
       .map(rel)
     expect(offenders).toEqual([])
   })
 
-  it('any built bundle contains no Google API key or browser Gemini key variable', () => {
+  it('any built bundle contains no browser Gemini key variable', () => {
     const offenders = distFiles
       .filter((path) => {
         const text = read(path)
-        return GOOGLE_KEY.test(text) || text.includes(GEMINI_KEY_ENV)
+        return text.includes(GEMINI_KEY_ENV)
       })
       .map(rel)
     expect(offenders).toEqual([])

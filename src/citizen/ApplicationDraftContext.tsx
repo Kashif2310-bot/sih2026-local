@@ -3,9 +3,10 @@ import type { RankedScheme } from '../assistant/types'
 import { buildInitialDocuments } from '../platform/documentRequirements'
 import { routeApplication } from '../platform/ministries'
 import { newApplicationId } from '../apply/application'
-import { createApplication } from '../platform/store'
+import { createApplication, forgetLastApplicationId } from '../platform/store'
 import { ensureApprovalCase } from '../platform/approvalBridge'
 import type { Application, ApplicantInfo, DocumentRecord } from '../platform/types'
+import { clearLastAssessmentId } from '../lib/assessmentSnapshot'
 import { useApp } from '../state/useApp'
 import { ApplicationDraftCtx, type DraftState } from './draft-state'
 import { EMPTY_EXTRA, type ExtraApplicantInfo } from './draft-types'
@@ -14,6 +15,7 @@ export type { ExtraApplicantInfo } from './draft-types'
 
 export function ApplicationDraftProvider({ children }: { children: ReactNode }) {
   const app = useApp()
+  const resetApp = app.reset
   const [transcript, setTranscript] = useState('')
   const [extra, setExtra] = useState<ExtraApplicantInfo>(EMPTY_EXTRA)
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
@@ -119,7 +121,10 @@ export function ApplicationDraftProvider({ children }: { children: ReactNode }) 
     setConsentName('')
     setSubmittedId(null)
     setRankedSchemes([])
-  }, [])
+    resetApp()
+    forgetLastApplicationId()
+    clearLastAssessmentId()
+  }, [resetApp])
 
   const value: DraftState = {
     transcript,

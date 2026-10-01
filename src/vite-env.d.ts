@@ -12,6 +12,8 @@ interface ImportMetaEnv {
    */
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_ANON_KEY?: string
+  /** Browser key restricted to approved referrers, Maps JavaScript API, and Places API (New). */
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string
   /**
    * URL of a developer-run relay/proxy for Gemini Live — NEVER a Gemini API
    * key. Safe to expose in the browser: it is just an endpoint address, the

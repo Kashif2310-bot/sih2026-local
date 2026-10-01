@@ -13,15 +13,21 @@ import { computeLokScore, type EntrepreneurProfile, type WeatherSignal } from '.
 import { fetchMandiSignal } from '../lib/mandi'
 import { canSanction } from '../lib/sanctionGate'
 import {
+  densityFromCount,
   fetchCompetitorsNearby,
   geocodeLocation,
   reverseGeocode,
+  type CompetitorPoi,
 } from '../lib/geo'
 import { fetchWeather, fetchWeekTemps, unavailableWeather } from '../lib/weather'
 import { resolveCuratedVillage, resolveLiveLocation, type ResolvedLocation } from '../lib/resolveLocation'
 import { buildWorkingCapital, type WorkingCapitalPlan } from '../lib/workingCapital'
 import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
+import { COMPETITION_RADIUS_KM } from '../maps/businessTypeConfig'
+import { searchNearbyCompetition } from '../maps/googlePlaces'
+import type { CompetitionAnalysisResult, CompetitionLookupState } from '../maps/types'
+import { syncCompetitionAnalysis } from '../platform/remoteCompetitionPersistence'
 
 // The approval layer pulls in ethers (real ECDSA) and is not cheap to
 // parse/execute, so it is dynamically imported on first scan rather than
@@ -64,6 +70,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [persisted, setPersisted] = useState(false)
   const [failedSources, setFailedSources] = useState<LiveSourceId[]>([])
   const [retryingSignals, setRetryingSignals] = useState(false)
+  const [competition, setCompetition] = useState<CompetitionLookupState>({ status: 'idle' })
   const serviceRef = useRef<ApprovalService | null>(null)
   const applicationIdRef = useRef<string | null>(null)
   const assessmentIdRef = useRef<string | null>(null)
@@ -77,11 +84,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setApprovalCase(null)
     setEscrowReleased(false)
     setPersisted(false)
+    setCompetition({ status: p.locationMode === 'live' && !p.demoMode ? 'loading' : 'idle' })
     readyRef.current = false
     const radiusKm = p.radiusKm || REACH_KM.default
 
     try {
       let resolved: ResolvedLocation
+      let competitionAnalysis: CompetitionAnalysisResult | undefined
+      let competitionError: string | undefined
       if (p.locationMode === 'live' && !p.demoMode) {
         const live = await resolveLiveLocation({
           query: p.liveQuery,
@@ -89,13 +99,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
           lng: p.liveLng,
           category: p.category,
           radiusKm,
+          competitorLookup: async ({ lat, lng, category }) => {
+            try {
+              competitionAnalysis = await searchNearbyCompetition({
+                latitude: lat,
+                longitude: lng,
+                businessType: category,
+                radiusKm: COMPETITION_RADIUS_KM.default,
+              })
+              const pois: CompetitorPoi[] = competitionAnalysis.competitors.map((item) => ({
+                id: item.placeId,
+                name: item.name,
+                lat: item.latitude,
+                lng: item.longitude,
+                tags: {},
+                address: item.address,
+                rating: item.rating,
+                ratingCount: item.ratingCount,
+                distanceKm: item.distanceKm,
+                source: 'google_places',
+              }))
+              return { ok: true, pois }
+            } catch (lookupError) {
+              competitionError = lookupError instanceof Error
+                ? lookupError.message
+                : 'Google Places competition analysis failed.'
+              return { ok: false, pois: [], error: competitionError }
+            }
+          },
         })
         if (!live.ok) {
           setError(live.error)
           setErrorKn(live.errorKn)
+          setCompetition({ status: 'error', message: live.error })
           return null
         }
         resolved = live.location
+        if (competitionAnalysis) {
+          resolved = {
+            ...resolved,
+            competitorDensity: {
+              ...resolved.competitorDensity,
+              [p.category]: densityFromCount(competitionAnalysis.competitorCount),
+            },
+            notes: `Google Places returned ${competitionAnalysis.competitorCount} similar businesses within ${competitionAnalysis.radiusKm} km. Population/PPI not available — not fabricated.`,
+            provenanceLabelEn: `Live Google Maps lookup for ${resolved.name}`,
+          }
+        }
       } else {
         resolved = await resolveCuratedVillage(p.villageId, p.category, radiusKm, p.demoMode)
       }
@@ -174,6 +224,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         approval: { applicationId, frozenAt },
         failedSources: failed,
         weatherSkipped,
+        competitionAnalysis,
+        competitionError,
       }
 
       let id: string = crypto.randomUUID()
@@ -203,10 +255,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAssessmentId(id)
       setPersisted(saved)
       setFailedSources(failed)
+      setCompetition(
+        competitionAnalysis
+          ? { status: 'success', result: competitionAnalysis }
+          : competitionError
+            ? { status: 'error', message: competitionError }
+            : { status: 'idle' },
+      )
+      if (competitionAnalysis) void syncCompetitionAnalysis(p, resolved, competitionAnalysis)
       return id
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed')
+      const message = e instanceof Error ? e.message : 'Scan failed'
+      setError(message)
       setErrorKn('ಸ್ಕ್ಯಾನ್ ವಿಫಲವಾಗಿದೆ')
+      setCompetition({ status: 'error', message })
       return null
     } finally {
       setLoading(false)
@@ -248,6 +310,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAssessmentId(id)
       setPersisted(saved)
       setFailedSources(failed)
+      setCompetition(
+        snapshot.competitionAnalysis
+          ? { status: 'success', result: snapshot.competitionAnalysis }
+          : snapshot.competitionError
+            ? { status: 'error', message: snapshot.competitionError }
+            : { status: 'idle' },
+      )
       setError(null)
       setErrorKn(null)
     },
@@ -350,6 +419,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const analyzeCompetition = useCallback(async (radiusKm: number) => {
+    if (!profile || !location) return
+    setCompetition({ status: 'loading' })
+    try {
+      const result = await searchNearbyCompetition({
+        latitude: location.lat,
+        longitude: location.lng,
+        businessType: profile.category,
+        radiusKm,
+      })
+      const competitors: CompetitorPoi[] = result.competitors.map((item) => ({
+        id: item.placeId,
+        name: item.name,
+        lat: item.latitude,
+        lng: item.longitude,
+        tags: {},
+        address: item.address,
+        rating: item.rating,
+        ratingCount: item.ratingCount,
+        distanceKm: item.distanceKm,
+        source: 'google_places',
+      }))
+      const nextLocation: ResolvedLocation = {
+        ...location,
+        competitors,
+        competitorQueryOk: true,
+        competitorError: undefined,
+        competitorDensity: {
+          ...location.competitorDensity,
+          [profile.category]: densityFromCount(result.competitorCount),
+        },
+      }
+      setLocation(nextLocation)
+      setCompetition({ status: 'success', result })
+      void syncCompetitionAnalysis(profile, nextLocation, result)
+      if (weather && plan) {
+        const nextScore = computeLokScore({ profile, location: nextLocation, weather, mandi, plan })
+        setScore(nextScore)
+        if (snapshotRef.current && assessmentIdRef.current) {
+          const nextSnapshot: AssessmentSnapshot = {
+            ...snapshotRef.current,
+            location: nextLocation,
+            score: nextScore,
+            competitionAnalysis: result,
+            competitionError: undefined,
+          }
+          snapshotRef.current = nextSnapshot
+          cacheSnapshot(assessmentIdRef.current, nextSnapshot)
+        }
+      }
+    } catch (analysisError) {
+      const message = analysisError instanceof Error
+        ? analysisError.message
+        : 'Google Places competition analysis failed.'
+      setCompetition({ status: 'error', message })
+    }
+  }, [location, mandi, plan, profile, weather])
+
   const signAs = useCallback(async (reviewerId: string) => {
     const svc = serviceRef.current
     const applicationId = applicationIdRef.current
@@ -389,6 +516,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPersisted(false)
     setFailedSources([])
     setRetryingSignals(false)
+    setCompetition({ status: 'idle' })
     setError(null)
     setErrorKn(null)
     serviceRef.current = null
@@ -417,10 +545,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     failedSources,
     dataStatus: dataStatusFromFailures(failedSources),
     retryingSignals,
+    competition,
     setProfileAndScan,
     hydrateFromSnapshot,
     hasAssessment,
     retryLiveSignals,
+    analyzeCompetition,
     signAs,
     releaseEscrow,
     reset,

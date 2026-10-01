@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
-import { BUSINESS_META, VILLAGES, type BusinessCategory } from '../../data/villages'
+import { BUSINESS_META, type BusinessCategory } from '../../data/villages'
 import type { EntrepreneurProfile } from '../../lib/lokScore'
 import { useApp } from '../../state/useApp'
 import { useApplicationDraft } from '../../citizen/useApplicationDraft'
@@ -15,6 +15,20 @@ import {
   type ProfileFormField,
 } from '../../citizen/profileFormDraft'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
+import { LocationPicker } from '../../maps/LocationPicker'
+import type { SelectedLocation } from '../../maps/types'
+
+function initialConfirmedLocation(profile: EntrepreneurProfile | null): SelectedLocation | null {
+  if (profile?.locationMode === 'live' && profile.liveLat != null && profile.liveLng != null) {
+    return {
+      latitude: profile.liveLat,
+      longitude: profile.liveLng,
+      formattedAddress: profile.liveQuery || `${profile.liveLat}, ${profile.liveLng}`,
+      placeId: '',
+    }
+  }
+  return null
+}
 
 /** '' (a cleared input) is blank, not 0. */
 function numberOrNull(raw: string): number | null {
@@ -25,11 +39,14 @@ export function ProfilePage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
   const navigate = useNavigate()
-  const { setProfileAndScan, loading, error, errorKn } = useApp()
+  const { setProfileAndScan, loading, error, errorKn, profile } = useApp()
   const { transcript, updateExtra } = useApplicationDraft()
 
   const [form, setForm] = useState<ProfileFormDraft>(() => profileFormDraftFromTranscript(transcript))
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ProfileFormField, FieldError>>>({})
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(() =>
+    initialConfirmedLocation(profile),
+  )
 
   const update = <K extends ProfileFormField>(key: K, value: ProfileFormDraft[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
@@ -46,7 +63,11 @@ export function ProfilePage() {
   }
 
   const onContinue = async () => {
-    const result = validateProfileForm(form)
+    const result = validateProfileForm({
+      ...form,
+      villageId: selectedLocation ? OTHER_LOCATION : null,
+      otherLocation: selectedLocation?.formattedAddress ?? '',
+    })
     if (!result.ok) {
       setFieldErrors(result.errors)
       return
@@ -55,7 +76,15 @@ export function ProfilePage() {
     if (transcript.trim()) {
       updateExtra({ businessDescription: transcript.trim() })
     }
-    const ok = await setProfileAndScan(result.profile)
+    if (!selectedLocation) return
+    const ok = await setProfileAndScan({
+      ...result.profile,
+      demoMode: false,
+      locationMode: 'live',
+      liveQuery: selectedLocation.formattedAddress,
+      liveLat: selectedLocation.latitude,
+      liveLng: selectedLocation.longitude,
+    })
     if (ok) navigate('/apply/conversation')
   }
 
@@ -172,45 +201,24 @@ export function ProfilePage() {
           />
           {fieldError('experienceYears')}
         </label>
-        <label className="text-sm font-semibold text-forest sm:col-span-2">
-          {t('wizard.village')}
-          <select
-            className="mt-1 w-full rounded-xl border border-forest/20 px-3 py-2 font-normal text-ink"
-            value={form.villageId ?? ''}
-            aria-invalid={Boolean(fieldErrors.villageId)}
-            onChange={(e) => update('villageId', e.target.value || null)}
-          >
-            <option value="">{t('apply.profile.choose')}</option>
-            {VILLAGES.map((v) => (
-              <option key={v.id} value={v.id}>
-                {kn ? v.nameKn : v.name} ({v.district})
-              </option>
-            ))}
-            <option value={OTHER_LOCATION}>{t('apply.profile.otherLocation')}</option>
-          </select>
-          {fieldError('villageId')}
-        </label>
-        {form.villageId === OTHER_LOCATION && (
-          <div className="sm:col-span-2">
-            <label className="text-sm font-semibold text-forest">
-              {t('apply.profile.otherLocationPlace')}
-              <input
-                className="mt-1 w-full rounded-xl border border-forest/20 px-3 py-2 font-normal text-ink"
-                value={form.otherLocation}
-                aria-invalid={Boolean(fieldErrors.otherLocation)}
-                aria-describedby="other-location-note"
-                onChange={(e) => update('otherLocation', e.target.value)}
-              />
-              {fieldError('otherLocation')}
-            </label>
-            <p
-              id="other-location-note"
-              className="mt-2 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-[#3a3a3a]"
-            >
-              {t('apply.profile.otherLocationNote')}
-            </p>
+        <div className="text-sm font-semibold text-forest sm:col-span-2">
+          Confirm business location
+          <div className="mt-2 font-normal text-ink">
+            <LocationPicker
+              value={selectedLocation}
+              onLocationSelect={(next) => {
+                setSelectedLocation(next)
+                setFieldErrors((current) => ({
+                  ...current,
+                  villageId: undefined,
+                  otherLocation: undefined,
+                }))
+              }}
+            />
           </div>
-        )}
+          {fieldError('villageId')}
+          {fieldError('otherLocation')}
+        </div>
       </div>
 
       {error && (
@@ -219,6 +227,7 @@ export function ProfilePage() {
         </p>
       )}
 
+      <p className="mt-3 text-xs text-ink/50">The selected coordinates feed the same location and LokScore engines used by the rest of ISHARA.</p>
       <WizardActions
         onBack={() => navigate('/apply')}
         backLabel={t('apply.back')}

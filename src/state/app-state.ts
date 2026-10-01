@@ -11,6 +11,7 @@ import type {
 } from '../lib/lokScore'
 import type { ResolvedLocation } from '../lib/resolveLocation'
 import type { WorkingCapitalPlan } from '../lib/workingCapital'
+import type { CompetitionLookupState } from '../maps/types'
 
 export interface AppState {
   profile: EntrepreneurProfile | null
@@ -33,6 +34,7 @@ export interface AppState {
   persisted: boolean
   failedSources: LiveSourceId[]
   dataStatus: 'complete' | 'incomplete'
+  competition: CompetitionLookupState
   retryingSignals: boolean
   setProfileAndScan: (p: EntrepreneurProfile) => Promise<string | null>
   hydrateFromSnapshot: (
@@ -42,6 +44,7 @@ export interface AppState {
   ) => Promise<void>
   hasAssessment: (id: string) => boolean
   retryLiveSignals: () => Promise<void>
+  analyzeCompetition: (radiusKm: number) => Promise<void>
   signAs: (reviewerId: string) => Promise<void>
   releaseEscrow: () => void
   reset: () => void

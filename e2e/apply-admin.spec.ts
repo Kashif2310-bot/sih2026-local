@@ -1,11 +1,26 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Citizen apply → admin visibility', () => {
+  test.use({
+    permissions: ['geolocation'],
+    geolocation: { latitude: 12.5242, longitude: 76.8958 },
+  })
+
   test('wizard submit creates an application visible in admin', async ({ page }) => {
     await page.goto('/apply')
     await page.getByRole('button', { name: /skip — i will fill|ಸ್ಕಿಪ್/i }).click()
 
-    // Profile: demo defaults + offline scan
+    // Profile: fresh applications require explicit applicant and location details.
+    await page.getByLabel(/full name/i).fill('Lakshmi S.')
+    await page.getByLabel(/^age/i).fill('32')
+    await page.getByLabel(/^gender/i).selectOption('female')
+    await page.getByLabel(/^community/i).selectOption('sc')
+    await page.getByLabel(/business category/i).selectOption('dairy')
+    await page.getByLabel(/available margin/i).fill('50000')
+    await page.getByLabel(/annual family income/i).fill('120000')
+    await page.getByLabel(/years of experience/i).fill('4')
+    await page.getByRole('button', { name: /use my current location/i }).click()
+    await expect(page.getByText('12.52420, 76.89580', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: /run hyperlocal scan|ಹೈಪರ್‌ಲೋಕಲ್/i }).click()
     await expect(page.getByRole('heading', { name: /tell us more|ಇನ್ನಷ್ಟು/i })).toBeVisible({
       timeout: 30_000,

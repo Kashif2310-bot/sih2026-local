@@ -9,6 +9,7 @@ import { AuthProvider } from './state/AuthContext'
 import { ApplicationDraftProvider } from './citizen/ApplicationDraftContext'
 import { AdminAuthProvider } from './admin/AdminAuthContext'
 import { AdminShell } from './admin/AdminShell'
+import { MapsProvider } from './maps/MapsProvider'
 
 const ScanPage = lazy(() => import('./pages/ScanPage').then((m) => ({ default: m.ScanPage })))
 const PulsePage = lazy(() => import('./pages/PulsePage').then((m) => ({ default: m.PulsePage })))
@@ -147,6 +148,7 @@ function CitizenLayout() {
 export default function App() {
   return (
     <AuthProvider>
+    <MapsProvider>
     <AppProvider>
       <BrowserRouter>
         <Suspense fallback={<RouteFallback />}>
@@ -253,6 +255,7 @@ export default function App() {
         </Suspense>
       </BrowserRouter>
     </AppProvider>
+    </MapsProvider>
     </AuthProvider>
   )
 }

@@ -64,6 +64,15 @@ export function getLastApplicationId(): string | null {
   }
 }
 
+/** Forget only the current tracking selection; submitted applications remain in the store. */
+export function forgetLastApplicationId(): void {
+  try {
+    localStorage.removeItem(LAST_ID_KEY)
+  } catch {
+    // Storage unavailable — the in-memory draft reset still starts a fresh flow.
+  }
+}
+
 export function createApplication(app: Application): Application {
   const all = readAll()
   all.push(app)

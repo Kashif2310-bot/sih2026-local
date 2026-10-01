@@ -10,7 +10,7 @@ import { WizardShell } from '../../components/apply/WizardShell'
 export function FinalReportPage() {
   const { t, i18n } = useTranslation()
   const kn = i18n.language === 'kn'
-  const { submittedId } = useApplicationDraft()
+  const { submittedId, reset } = useApplicationDraft()
   const { plan, score, profile, location } = useApp()
   const app = getApplication(submittedId ?? getLastApplicationId() ?? '')
 
@@ -59,6 +59,13 @@ export function FinalReportPage() {
         </button>
         <Link to="/export" className="rounded-full border border-forest/20 px-4 py-2 text-sm font-semibold text-forest">
           /export
+        </Link>
+        <Link
+          to="/apply"
+          onClick={() => reset()}
+          className="rounded-full border border-forest/20 px-4 py-2 text-sm font-semibold text-forest"
+        >
+          {t('apply.tracking.startNew')}
         </Link>
       </div>
     </WizardShell>
