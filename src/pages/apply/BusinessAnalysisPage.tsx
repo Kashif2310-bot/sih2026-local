@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useApp } from '../../state/useApp'
 import { WizardActions, WizardShell } from '../../components/apply/WizardShell'
 import { CompetitionAnalysis } from '../../components/CompetitionAnalysis'
+import { mapsKeyConfigured } from '../../maps/mapsKey'
 
 export function BusinessAnalysisPage() {
   const { t } = useTranslation()
@@ -35,7 +36,8 @@ export function BusinessAnalysisPage() {
         </Link>
       </div>
 
-      {location && (
+      {/* Google Places evidence needs a Maps key; without one this step is as it was before Maps. */}
+      {location && mapsKeyConfigured() && (
         <div className="rounded-2xl border border-forest/10 bg-white p-5">
           <h2 className="font-display text-xl font-bold text-forest">Local competition analysis</h2>
           <p className="mb-4 mt-1 text-sm text-ink/60">Google Places evidence near the confirmed business location.</p>

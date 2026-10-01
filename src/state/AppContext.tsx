@@ -26,6 +26,7 @@ import { AppCtx, type AppState } from './app-state'
 import { REACH_KM } from '../lib/config'
 import { COMPETITION_RADIUS_KM } from '../maps/businessTypeConfig'
 import { searchNearbyCompetition } from '../maps/googlePlaces'
+import { mapsKeyConfigured } from '../maps/mapsKey'
 import type { CompetitionAnalysisResult, CompetitionLookupState } from '../maps/types'
 import { syncCompetitionAnalysis } from '../platform/remoteCompetitionPersistence'
 
@@ -93,13 +94,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       let competitionAnalysis: CompetitionAnalysisResult | undefined
       let competitionError: string | undefined
       if (p.locationMode === 'live' && !p.demoMode) {
+        // Google Places only with a Maps key; without one, resolveLiveLocation keeps OpenStreetMap Overpass.
+        const useGooglePlaces = mapsKeyConfigured()
         const live = await resolveLiveLocation({
           query: p.liveQuery,
           lat: p.liveLat,
           lng: p.liveLng,
           category: p.category,
           radiusKm,
-          competitorLookup: async ({ lat, lng, category }) => {
+          competitorSource: useGooglePlaces ? 'google_places' : 'overpass',
+          competitorLookup: useGooglePlaces ? async ({ lat, lng, category }) => {
             try {
               competitionAnalysis = await searchNearbyCompetition({
                 latitude: lat,
@@ -126,7 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : 'Google Places competition analysis failed.'
               return { ok: false, pois: [], error: competitionError }
             }
-          },
+          } : undefined,
         })
         if (!live.ok) {
           setError(live.error)
@@ -348,7 +352,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      if (failed.includes('overpass')) {
+      // Either competitor source is retried through Overpass, so a success is labelled as Overpass.
+      if (failed.includes('overpass') || failed.includes('google_places')) {
         const live = await fetchCompetitorsNearby({
           lat: location.lat,
           lng: location.lng,
@@ -356,7 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           radiusKm: location.radiusKm,
         })
         if (live.ok) {
-          location = { ...location, competitors: live.pois, competitorQueryOk: true, competitorError: undefined }
+          location = { ...location, competitors: live.pois, competitorQueryOk: true, competitorError: undefined, competitorSource: 'overpass' }
         }
       }
 

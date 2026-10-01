@@ -135,6 +135,7 @@ export const translationResources = {
         source: {
           geocoding: 'Geocoding (Nominatim)',
           overpass: 'OpenStreetMap Overpass',
+          google_places: 'Google Places',
           weather: 'Weather (Open-Meteo)',
         },
       },
@@ -1052,6 +1053,7 @@ export const translationResources = {
         source: {
           geocoding: 'ಜಿಯೋಕೋಡಿಂಗ್ (Nominatim)',
           overpass: 'OpenStreetMap Overpass',
+          google_places: 'Google Places',
           weather: 'ಹವಾಮಾನ (Open-Meteo)',
         },
       },

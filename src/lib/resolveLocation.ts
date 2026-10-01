@@ -12,6 +12,9 @@ import {
 
 export type DataProvenance = 'curated_seed' | 'live_lookup' | 'partial'
 
+/** Which service the competitor lookup used, so a failure names the service that actually failed. */
+export type CompetitorSource = 'overpass' | 'google_places'
+
 export interface ResolvedLocation {
   id: string
   name: string
@@ -37,6 +40,8 @@ export interface ResolvedLocation {
   competitorError?: string
   /** Why the competitor lookup failed, when competitorQueryOk is false. */
   competitorFailure?: LiveFailureKind
+  /** The service the competitor lookup used; absent means OpenStreetMap Overpass. */
+  competitorSource?: CompetitorSource
   /** When the competitor POIs were actually fetched, if they came from the scan cache (epoch ms). */
   competitorsCachedAt?: number
   radiusKm: number
@@ -159,8 +164,12 @@ export async function resolveLiveLocation(input: {
   category: BusinessCategory
   radiusKm?: number
   competitorLookup?: typeof fetchCompetitorsNearby
+  /** Which service competitorLookup calls; defaults to OpenStreetMap Overpass. */
+  competitorSource?: CompetitorSource
 }): Promise<{ ok: true; location: ResolvedLocation } | { ok: false; error: string; errorKn: string }> {
   const radiusKm = input.radiusKm ?? REACH_KM.default
+  const competitorSource = input.competitorSource ?? 'overpass'
+  const competitorService = competitorSource === 'google_places' ? 'Google Places' : 'Overpass'
   let hit: GeocodeHit | null = null
   let geocodeOk = true
   let geocodeFailure: LiveFailureKind | undefined
@@ -235,11 +244,11 @@ export async function resolveLiveLocation(input: {
     purchasingPowerIndex: null,
     milkCoopPresence: false,
     notes: live.ok
-      ? `Live lookup: ${live.pois.length} similar POIs within ${radiusKm} km (OpenStreetMap Overpass). Population/PPI not available — not fabricated.`
-      : `Live geocode ok, but competitor Overpass failed: ${live.error}. Density not fabricated.`,
+      ? `Live lookup: ${live.pois.length} similar POIs within ${radiusKm} km (${competitorSource === 'google_places' ? 'Google Places' : 'OpenStreetMap Overpass'}). Population/PPI not available — not fabricated.`
+      : `Live geocode ok, but competitor ${competitorService} failed: ${live.error}. Density not fabricated.`,
     notesKn: live.ok
       ? `ಲೈವ್ ಹುಡುಕಾಟ: ${radiusKm} ಕಿ.ಮೀ. ಒಳಗೆ ${live.pois.length} POI. ಜನಸಂಖ್ಯೆ/PPI ಲಭ್ಯವಿಲ್ಲ — ಕಲ್ಪಿತವಲ್ಲ.`
-      : `ಜಿಯೋಕೋಡ್ ಸರಿ; Overpass ವಿಫಲ: ಸಾಂದ್ರತೆ ಕಲ್ಪಿಸಲಾಗಿಲ್ಲ.`,
+      : `ಜಿಯೋಕೋಡ್ ಸರಿ; ${competitorService} ವಿಫಲ: ಸಾಂದ್ರತೆ ಕಲ್ಪಿಸಲಾಗಿಲ್ಲ.`,
     provenance: live.ok ? 'live_lookup' : 'partial',
     provenanceLabelEn: live.ok
       ? `Live lookup for ${name}${live.cachedAt != null ? ' (cached)' : ''}`
@@ -251,6 +260,7 @@ export async function resolveLiveLocation(input: {
     competitorQueryOk: live.ok,
     competitorError: live.error,
     competitorFailure: live.failure,
+    competitorSource,
     competitorsCachedAt: live.cachedAt,
     geocodeOk,
     geocodeFailure,

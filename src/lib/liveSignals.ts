@@ -1,7 +1,7 @@
 import type { WeatherSignal } from './lokScore'
 import type { ResolvedLocation } from './resolveLocation'
 
-export type LiveSourceId = 'geocoding' | 'overpass' | 'weather'
+export type LiveSourceId = 'geocoding' | 'overpass' | 'google_places' | 'weather'
 
 export function collectFailedSources(
   location: ResolvedLocation,
@@ -10,7 +10,7 @@ export function collectFailedSources(
 ): LiveSourceId[] {
   const failed: LiveSourceId[] = []
   if (location.geocodeOk === false) failed.push('geocoding')
-  if (!location.competitorQueryOk) failed.push('overpass')
+  if (!location.competitorQueryOk) failed.push(location.competitorSource === 'google_places' ? 'google_places' : 'overpass')
   if (!weatherSkipped && weather.source === 'unavailable') failed.push('weather')
   return failed
 }

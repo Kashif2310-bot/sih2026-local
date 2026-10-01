@@ -188,6 +188,39 @@ describe('resolveLiveLocation', () => {
     expect(result.location.notes).toContain('not fabricated')
   })
 
+  it('uses Overpass, with the original wording, when no other competitor lookup is passed in', async () => {
+    const hit: GeocodeHit = { displayName: 'Somewhere, India', lat: 20, lng: 78 }
+    geocodeLocationDetailed.mockResolvedValue({ hit })
+    fetchCompetitorsNearby.mockResolvedValue({ ok: false, pois: [], error: 'Overpass timed out', failure: 'timed_out' })
+
+    const result = await resolveLiveLocation({ query: 'Somewhere', category: 'dairy' })
+    expect(fetchCompetitorsNearby).toHaveBeenCalledTimes(1)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.location.competitorSource).toBe('overpass')
+    expect(result.location.notes).toBe('Live geocode ok, but competitor Overpass failed: Overpass timed out. Density not fabricated.')
+  })
+
+  it('names Google Places, not Overpass, when a Google Places lookup fails', async () => {
+    const hit: GeocodeHit = { displayName: 'Somewhere, India', lat: 20, lng: 78 }
+    geocodeLocationDetailed.mockResolvedValue({ hit })
+    const placesLookup = vi.fn().mockResolvedValue({ ok: false, pois: [], error: 'Google Maps is not ready yet.' })
+
+    const result = await resolveLiveLocation({
+      query: 'Somewhere',
+      category: 'dairy',
+      competitorLookup: placesLookup,
+      competitorSource: 'google_places',
+    })
+    expect(fetchCompetitorsNearby).not.toHaveBeenCalled()
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.location.competitorSource).toBe('google_places')
+    expect(result.location.notes).toContain('competitor Google Places failed')
+    expect(result.location.notes).not.toContain('Overpass')
+    expect(result.location.notesKn).not.toContain('Overpass')
+  })
+
   it('carries cache timestamps for the place search and competitors onto the location, and says so in its label', async () => {
     const hit: GeocodeHit = { displayName: 'Hassan, Karnataka, India', lat: 13.0033, lng: 76.1004, county: 'Hassan' }
     geocodeLocationDetailed.mockResolvedValue({ hit, cachedAt: 2_000 })

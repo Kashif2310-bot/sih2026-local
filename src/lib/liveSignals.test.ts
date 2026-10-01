@@ -68,6 +68,15 @@ describe('live signal completeness', () => {
     expect(dataStatusFromFailures(failed)).toBe('incomplete')
   })
 
+  it('names Google Places, not Overpass, when the competitor lookup that failed was Google Places', () => {
+    expect(collectFailedSources(loc({ competitorQueryOk: false, competitorSource: 'google_places' }), weather('live'), false)).toEqual([
+      'google_places',
+    ])
+    expect(collectFailedSources(loc({ competitorQueryOk: false, competitorSource: 'overpass' }), weather('live'), false)).toEqual([
+      'overpass',
+    ])
+  })
+
   it('does not treat demo-skipped weather as a failure', () => {
     const failed = collectFailedSources(loc(), weather('unavailable'), true)
     expect(failed).toEqual([])

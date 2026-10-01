@@ -1,9 +1,10 @@
 import { APIProvider } from '@vis.gl/react-google-maps'
 import { useMemo, useState, type ReactNode } from 'react'
 import { MapsStatusContext, type MapsLoadStatus } from './mapsContext'
+import { mapsApiKey } from './mapsKey'
 
 export function MapsProvider({ children }: { children: ReactNode }) {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim()
+  const apiKey = mapsApiKey()
   const [status, setStatus] = useState<MapsLoadStatus>(apiKey ? 'loading' : 'missing_key')
   const [error, setError] = useState<string>()
   const value = useMemo(() => ({ status, error }), [status, error])
