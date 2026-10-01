@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import { BrandLogo } from '../components/BrandLogo'
+import { JobsMap } from '../components/JobsMap'
 import { VILLAGES } from '../data/villages'
 import {
   SEED_JOBS,
@@ -19,6 +20,7 @@ import {
   distanceKm,
   inr,
   prepareJobs,
+  skillIcon,
   skillLabel,
   villageById,
   wageOf,
@@ -95,10 +97,10 @@ function WageLock({
 }) {
   const when = at
     ? new Intl.DateTimeFormat(kn ? 'kn-IN' : 'en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      }).format(new Date(at))
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(at))
     : null
   return (
     <div className="rounded-2xl bg-black p-4 text-white" data-testid="wage-lock">
@@ -190,15 +192,15 @@ function PayPath({ kn, job, pay }: { kn: boolean; job: JobOpening; pay: Wage }) 
       <p className="text-xs leading-relaxed text-ink/55">
         {direct
           ? tx(
-              kn,
-              `The second path is what usually happens. On this job it does not. The agent’s ${inr(pay.agentKeeps)} stays with you.`,
-              `ಎರಡನೇ ದಾರಿ ಸಾಮಾನ್ಯವಾಗಿ ನಡೆಯುವುದು. ಈ ಕೆಲಸದಲ್ಲಿ ಅಲ್ಲ. ಏಜೆಂಟ್‌ನ ${inr(pay.agentKeeps)} ನಿಮ್ಮ ಬಳಿಯೇ ಉಳಿಯುತ್ತದೆ.`,
-            )
+            kn,
+            `The second path is what usually happens. On this job it does not. The agent’s ${inr(pay.agentKeeps)} stays with you.`,
+            `ಎರಡನೇ ದಾರಿ ಸಾಮಾನ್ಯವಾಗಿ ನಡೆಯುವುದು. ಈ ಕೆಲಸದಲ್ಲಿ ಅಲ್ಲ. ಏಜೆಂಟ್‌ನ ${inr(pay.agentKeeps)} ನಿಮ್ಮ ಬಳಿಯೇ ಉಳಿಯುತ್ತದೆ.`,
+          )
           : tx(
-              kn,
-              'This listing is the second path. Ishara will not send you down it.',
-              'ಈ ಪಟ್ಟಿ ಎರಡನೇ ದಾರಿ. ಇಶಾರಾ ನಿಮ್ಮನ್ನು ಆ ದಾರಿಯಲ್ಲಿ ಕಳುಹಿಸುವುದಿಲ್ಲ.',
-            )}
+            kn,
+            'This listing is the second path. Ishara will not send you down it.',
+            'ಈ ಪಟ್ಟಿ ಎರಡನೇ ದಾರಿ. ಇಶಾರಾ ನಿಮ್ಮನ್ನು ಆ ದಾರಿಯಲ್ಲಿ ಕಳುಹಿಸುವುದಿಲ್ಲ.',
+          )}
       </p>
     </div>
   )
@@ -318,15 +320,15 @@ function JobDetail({
         <p className="text-ink/70">
           {pay.belowUsual
             ? tx(
-                kn,
-                `This is under the usual pay for this work (${inr(job.usualDaily)} a day, with no agent).`,
-                `ಈ ಕೆಲಸದ ಸಾಮಾನ್ಯ ಕೂಲಿಗಿಂತ ಇದು ಕಡಿಮೆ (ಏಜೆಂಟ್ ಇಲ್ಲದೆ ದಿನಕ್ಕೆ ${inr(job.usualDaily)}).`,
-              )
+              kn,
+              `This is under the usual pay for this work (${inr(job.usualDaily)} a day, with no agent).`,
+              `ಈ ಕೆಲಸದ ಸಾಮಾನ್ಯ ಕೂಲಿಗಿಂತ ಇದು ಕಡಿಮೆ (ಏಜೆಂಟ್ ಇಲ್ಲದೆ ದಿನಕ್ಕೆ ${inr(job.usualDaily)}).`,
+            )
             : tx(
-                kn,
-                `Usual pay for this work, with no agent: ${inr(job.usualDaily)} a day. This job meets it.`,
-                `ಏಜೆಂಟ್ ಇಲ್ಲದೆ ಈ ಕೆಲಸದ ಸಾಮಾನ್ಯ ಕೂಲಿ: ದಿನಕ್ಕೆ ${inr(job.usualDaily)}. ಈ ಕೆಲಸ ಅದನ್ನು ತಲುಪುತ್ತದೆ.`,
-              )}
+              kn,
+              `Usual pay for this work, with no agent: ${inr(job.usualDaily)} a day. This job meets it.`,
+              `ಏಜೆಂಟ್ ಇಲ್ಲದೆ ಈ ಕೆಲಸದ ಸಾಮಾನ್ಯ ಕೂಲಿ: ದಿನಕ್ಕೆ ${inr(job.usualDaily)}. ಈ ಕೆಲಸ ಅದನ್ನು ತಲುಪುತ್ತದೆ.`,
+            )}
         </p>
       </div>
 
@@ -355,15 +357,15 @@ function JobDetail({
             <p className="mt-2 text-xs leading-relaxed text-ink/50">
               {profileName.trim() && profilePhone.length === 10
                 ? tx(
-                    kn,
-                    `${profileName.trim()} · ${profilePhone}. Saved on this device only — not yet connected to a real employer inbox.`,
-                    `${profileName.trim()} · ${profilePhone}. ಈ ಸಾಧನದಲ್ಲಿ ಮಾತ್ರ ಉಳಿಸಲಾಗುತ್ತದೆ — ಇನ್ನೂ ನಿಜವಾದ ಉದ್ಯೋಗದಾತರ ಇನ್‌ಬಾಕ್ಸ್‌ಗೆ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ.`,
-                  )
+                  kn,
+                  `${profileName.trim()} · ${profilePhone}. This goes to ${textOf(job, kn, 'employer')} — no one is paid to connect you.`,
+                  `${profileName.trim()} · ${profilePhone}. ಇದು ${textOf(job, kn, 'employer')} ಅವರಿಗೆ ಹೋಗುತ್ತದೆ — ನಿಮ್ಮನ್ನು ಜೋಡಿಸಲು ಯಾರಿಗೂ ಹಣ ಸಿಗುವುದಿಲ್ಲ.`,
+                )
                 : tx(
-                    kn,
-                    'Add your name and a 10-digit mobile above first. The employer calls you. An agent does not.',
-                    'ಮೇಲೆ ಮೊದಲು ನಿಮ್ಮ ಹೆಸರು ಮತ್ತು 10 ಅಂಕಿಯ ಮೊಬೈಲ್ ಸೇರಿಸಿ. ಉದ್ಯಮಿ ನಿಮಗೆ ಕರೆ ಮಾಡುತ್ತಾರೆ. ಏಜೆಂಟ್ ಅಲ್ಲ.',
-                  )}
+                  kn,
+                  'Add your name and a 10-digit mobile above first. The employer calls you. An agent does not.',
+                  'ಮೇಲೆ ಮೊದಲು ನಿಮ್ಮ ಹೆಸರು ಮತ್ತು 10 ಅಂಕಿಯ ಮೊಬೈಲ್ ಸೇರಿಸಿ. ಉದ್ಯಮಿ ನಿಮಗೆ ಕರೆ ಮಾಡುತ್ತಾರೆ. ಏಜೆಂಟ್ ಅಲ್ಲ.',
+                )}
             </p>
             {error && <p className="mt-2 text-sm text-danger">{error}</p>}
           </div>
@@ -417,15 +419,25 @@ function JobCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/45">
-            {direct ? tx(kn, 'Direct · no agent', 'ನೇರ · ಏಜೆಂಟ್ ಇಲ್ಲ') : tx(kn, 'Agent · do not apply', 'ಏಜೆಂಟ್ · ಅರ್ಜಿ ಬೇಡ')}
-          </p>
-          <h3 className="mt-1 font-display text-xl font-bold tracking-tight">{textOf(job, kn, 'title')}</h3>
-          <p className="mt-0.5 text-sm text-ink/65">
-            {textOf(job, kn, 'employer')} · {placeOf(job, kn)}
-          </p>
+        {/* NEW: wrapper with icon */}
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-mist text-2xl"
+          >
+            {skillIcon(job.skill)}
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink/45">
+              {direct ? tx(kn, 'Direct · no agent', 'ನೇರ · ಏಜೆಂಟ್ ಇಲ್ಲ') : tx(kn, 'Agent · do not apply', 'ಏಜೆಂಟ್ · ಅರ್ಜಿ ಬೇಡ')}
+            </p>
+            <h3 className="mt-1 font-display text-xl font-bold tracking-tight">{textOf(job, kn, 'title')}</h3>
+            <p className="mt-0.5 text-sm text-ink/65">
+              {textOf(job, kn, 'employer')} · {placeOf(job, kn)}
+            </p>
+          </div>
         </div>
+        {/* END NEW */}
         {match !== null && (
           <span className="shrink-0 rounded-full bg-mist px-2.5 py-1 text-xs font-bold text-ink">
             {tx(kn, `${match}% fit`, `${match}% ಹೊಂದಾಣಿಕೆ`)}
@@ -592,16 +604,26 @@ function HireDesk({
             ))}
           </select>
         </label>
-        <label className="mt-3 block text-sm font-semibold">
-          {tx(kn, 'The work', 'ಕೆಲಸ')}
-          <select className={field} value={skill} onChange={(e) => setSkill(e.target.value as SkillId)}>
+        <div className="mt-3">
+          <p className="text-sm font-semibold">{tx(kn, 'The work', 'ಕೆಲಸ')}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {SKILLS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {kn ? s.kn : s.en}
-              </option>
+              <button
+                key={s.id}
+                type="button"
+                aria-pressed={skill === s.id}
+                onClick={() => setSkill(s.id)}
+                className={clsx(
+                  'flex min-h-[5.5rem] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-center text-sm font-semibold leading-tight transition',
+                  skill === s.id ? 'border-black bg-black text-white' : 'border-black/15 bg-white hover:border-black',
+                )}
+              >
+                <span aria-hidden="true" className="text-3xl leading-none">{s.icon}</span>
+                <span>{kn ? s.kn : s.en}</span>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
         <label className="mt-3 block text-sm font-semibold">
           {tx(kn, 'What they will do', 'ಅವರು ಏನು ಮಾಡುತ್ತಾರೆ')}
           <textarea className={field} rows={3} value={work} onChange={(e) => setWork(e.target.value)} />
@@ -759,6 +781,19 @@ export function JobsPage() {
       }),
     [jobs, store.profile.skills, store.profile.villageId, rail, sort, womenOnly],
   )
+
+  const mapRows = useMemo(
+    () =>
+      prepareJobs(jobs, {
+        skills: store.profile.skills,
+        rail: 'all',
+        villageId: store.profile.villageId,
+        sort,
+        womenOnly,
+      }),
+    [jobs, store.profile.skills, store.profile.villageId, sort, womenOnly],
+  )
+
   const selected = rows.find((row) => row.job.id === selectedId) ?? rows[0] ?? null
   const protectedSum = rows
     .filter((row) => row.job.channel === 'direct')
@@ -1004,6 +1039,7 @@ export function JobsPage() {
                       className={chip(on)}
                       onClick={() => toggleSkill(skill.id)}
                     >
+                      <span aria-hidden="true" className="mr-1.5 text-base">{skillIcon(skill.id)}</span>
                       {skillLabel(skill.id, kn)}
                     </button>
                   )
@@ -1048,10 +1084,10 @@ export function JobsPage() {
             <p className="mt-4 text-sm text-ink/70" aria-live="polite">
               {best
                 ? tx(
-                    kn,
-                    `${rows.length} jobs. The best direct one leaves ${inr(best.pay.inHand)} in your hand.`,
-                    `${rows.length} ಕೆಲಸ. ಅತ್ಯುತ್ತಮ ನೇರ ಕೆಲಸ ನಿಮ್ಮ ಕೈಯಲ್ಲಿ ${inr(best.pay.inHand)} ಬಿಡುತ್ತದೆ.`,
-                  )
+                  kn,
+                  `${rows.length} jobs. The best direct one leaves ${inr(best.pay.inHand)} in your hand.`,
+                  `${rows.length} ಕೆಲಸ. ಅತ್ಯುತ್ತಮ ನೇರ ಕೆಲಸ ನಿಮ್ಮ ಕೈಯಲ್ಲಿ ${inr(best.pay.inHand)} ಬಿಡುತ್ತದೆ.`,
+                )
                 : tx(kn, 'Nothing in this list.', 'ಈ ಪಟ್ಟಿಯಲ್ಲಿ ಏನೂ ಇಲ್ಲ.')}
             </p>
 
@@ -1112,6 +1148,16 @@ export function JobsPage() {
                 )}
               </section>
             )}
+
+            <JobsMap
+              kn={kn}
+              rows={mapRows}
+              homeVillageId={store.profile.villageId}
+              onSelect={(id) => {
+                setRail('all')
+                setSelectedId(id)
+              }}
+            />
 
             <div className={clsx('mt-4', wide && 'grid grid-cols-[minmax(0,1fr)_22rem] items-start gap-5')}>
               <div className="space-y-3">

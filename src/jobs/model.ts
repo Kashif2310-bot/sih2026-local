@@ -10,16 +10,16 @@ import { VILLAGES, type Village } from '../data/villages'
  */
 
 export const SKILLS = [
-  { id: 'milking', en: 'Milking', kn: 'ಹಾಲು ಕರೆಯುವುದು' },
-  { id: 'paneer', en: 'Paneer & ghee', kn: 'ಪನೀರ್ ಮತ್ತು ತುಪ್ಪ' },
-  { id: 'cooking', en: 'Cooking', kn: 'ಅಡುಗೆ' },
-  { id: 'stall', en: 'Stall & serving', kn: 'ಅಂಗಡಿ ಮತ್ತು ಬಡಿಸುವುದು' },
-  { id: 'stitching', en: 'Stitching', kn: 'ಹೊಲಿಗೆ' },
-  { id: 'loading', en: 'Loading', kn: 'ಸಾಮಾನು ಏರಿಸುವುದು' },
-  { id: 'harvest', en: 'Harvest', kn: 'ಕೊಯ್ಲು' },
-  { id: 'masonry', en: 'Masonry helper', kn: 'ಕಲ್ಲುಗೆಲಸ ಸಹಾಯ' },
-  { id: 'poultry', en: 'Poultry', kn: 'ಕೋಳಿ ಸಾಕಾಣಿಕೆ' },
-  { id: 'packing', en: 'Packing', kn: 'ಪ್ಯಾಕಿಂಗ್' },
+  { id: 'milking',   icon: '🐄', en: 'Milking',          kn: 'ಹಾಲು ಕರೆಯುವುದು' },
+  { id: 'paneer',    icon: '🧀', en: 'Paneer & ghee',    kn: 'ಪನೀರ್ ಮತ್ತು ತುಪ್ಪ' },
+  { id: 'cooking',   icon: '🍳', en: 'Cooking',          kn: 'ಅಡುಗೆ' },
+  { id: 'stall',     icon: '🏪', en: 'Stall & serving',  kn: 'ಅಂಗಡಿ ಮತ್ತು ಬಡಿಸುವುದು' },
+  { id: 'stitching', icon: '🧵', en: 'Stitching',        kn: 'ಹೊಲಿಗೆ' },
+  { id: 'loading',   icon: '📦', en: 'Loading',          kn: 'ಸಾಮಾನು ಏರಿಸುವುದು' },
+  { id: 'harvest',   icon: '🌾', en: 'Harvest',          kn: 'ಕೊಯ್ಲು' },
+  { id: 'masonry',   icon: '🧱', en: 'Masonry helper',   kn: 'ಕಲ್ಲುಗೆಲಸ ಸಹಾಯ' },
+  { id: 'poultry',   icon: '🐔', en: 'Poultry',          kn: 'ಕೋಳಿ ಸಾಕಾಣಿಕೆ' },
+  { id: 'packing',   icon: '🛍️', en: 'Packing',          kn: 'ಪ್ಯಾಕಿಂಗ್' },
 ] as const
 
 export type SkillId = (typeof SKILLS)[number]['id']
@@ -152,6 +152,10 @@ export function skillLabel(id: SkillId, kn: boolean) {
   const row = SKILLS.find((s) => s.id === id)
   if (!row) return id
   return kn ? row.kn : row.en
+}
+
+export function skillIcon(id: SkillId) {
+  return SKILLS.find((s) => s.id === id)?.icon ?? '🛠️'
 }
 
 export function isSkillId(value: string): value is SkillId {
