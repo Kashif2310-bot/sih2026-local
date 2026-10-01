@@ -116,17 +116,18 @@ function IntroRedirect() {
 }
 
 /**
- * "/assistant" is the primary assistant (AssistantPage). "/voice-assistant/" is the experimental
- * Ishaara voice assistant (src/voiceAssistant), a separate Vite page with its own full-screen
- * styles, reachable directly by URL. The dev server serves this app's shell for "/voice-assistant"
- * without the trailing slash, so that one path is handed over to the real page. Only a slashless
- * path is redirected, so a host that served this shell for "/voice-assistant/" could not loop.
+ * "/assistant" opens the Ishaara voice assistant (src/voiceAssistant), a separate Vite page at
+ * "/voice-assistant/" with its own full-screen styles. The previous assistant (with Hindi voice)
+ * stays at "/assistant-classic", and a scan case's assistant at "/assistant/:id". The dev server
+ * serves this app's shell for "/voice-assistant" without the trailing slash, so that path is handed
+ * over too. Nothing already under "/voice-assistant/" is redirected, so a host that served this
+ * shell there could not loop.
  */
 const VOICE_ASSISTANT_URL = '/voice-assistant/'
 
 function VoiceAssistantRedirect() {
   useEffect(() => {
-    if (!window.location.pathname.endsWith('/')) {
+    if (!window.location.pathname.startsWith(VOICE_ASSISTANT_URL)) {
       window.location.replace(`${VOICE_ASSISTANT_URL}${window.location.search}`)
     }
   }, [])
@@ -220,8 +221,8 @@ export default function App() {
                   </AssessmentRoute>
                 }
               />
-              <Route path="/assistant" element={<AssistantPage />} />
-              <Route path="/assistant-classic" element={<Navigate to="/assistant" replace />} />
+              <Route path="/assistant" element={<VoiceAssistantRedirect />} />
+              <Route path="/assistant-classic" element={<AssistantPage />} />
               <Route
                 path="/assistant/:id"
                 element={
